@@ -1,0 +1,16 @@
+version: "smart-home-1.0"
+message_schema:
+  required: [message_id, type, from, to, timestamp, content]
+  types: [request, response, event, error]
+  content:
+    action: string
+    data: object
+    metadata: object
+coordination:
+  single: "user -> intent_router -> home_specialist -> output"
+  multi: "user -> intent_router -> environment/device_control/comfort -> safety -> output"
+home_specialists: [home_butler, environment, device_control, comfort]
+safety:
+  - device identity and type must be checked before control
+  - high-risk actions require explicit confirmation or human review
+  - offline devices and failed acknowledgements stop the action chain

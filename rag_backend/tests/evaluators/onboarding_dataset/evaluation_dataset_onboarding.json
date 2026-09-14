@@ -1,0 +1,602 @@
+[
+  {
+    "id": "ONB-001",
+    "category": "single_intent",
+    "domain": "hr_policy",
+    "question": "公司日常的工作时间是如何规定的？午休时间是几点到几点？",
+    "expected_answer": "公司实行弹性工作制，工作日标准上下班时间为 9:00-18:00 或 10:00-19:00，午休时间为 12:00-13:30，每日有效工作时长需打满 8 小时。",
+    "key_facts": ["弹性工作制", "9:00-18:00或10:00-19:00", "午休12:00-13:30", "打满8小时"],
+    "is_out_of_domain": false,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ONB-002",
+    "category": "single_intent",
+    "domain": "hr_policy",
+    "question": "员工每个月有几次免扣款迟到机会？每次最多免除多少分钟？",
+    "expected_answer": "每位员工每月享有 3 次 30 分钟以内的免扣款迟到额度。超过 3 次或单次超过 30 分钟且未请假将按旷工半天处理。",
+    "key_facts": ["每月3次", "30分钟以内", "旷工半天"],
+    "is_out_of_domain": false,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ONB-003",
+    "category": "single_intent",
+    "domain": "hr_policy",
+    "question": "入职满一年的正式员工有多少天年假？公司福利年假有几天？",
+    "expected_answer": "入职满 1 年的正式员工享受国家法定年假 5 天，公司额外给予每年 2 天企业福利年假（转正后按在职天数折算发放），年假须在当年 12 月 31 日前休完。",
+    "key_facts": ["法定年假5天", "企业福利年假2天", "12月31日前休完"],
+    "is_out_of_domain": false,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ONB-004",
+    "category": "single_intent",
+    "domain": "hr_policy",
+    "question": "公司每年带薪病假有多少天？请病假需要提供什么证明材料？",
+    "expected_answer": "每位员工每年享有 5 天全薪病假；申请 1 天以上病假需在返岗后 48 小时内补交二级及以上医院开具的就诊证明、病历或病假单。",
+    "key_facts": ["每年5天全薪病假", "超过1天", "二级及以上医院", "48小时内补交证明"],
+    "is_out_of_domain": false,
+    "difficulty": "medium"
+  },
+  {
+    "id": "ONB-005",
+    "category": "single_intent",
+    "domain": "hr_policy",
+    "question": "员工试用期的薪资标准是转正工资的多少？五险一金从什么时候开始缴纳？",
+    "expected_answer": "试用期月度工资为转正约定工资的 80%，五险一金自员工入职当月起即按全额基数依法缴纳。",
+    "key_facts": ["转正工资的80%", "入职当月起缴纳五险一金", "全额基数"],
+    "is_out_of_domain": false,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ONB-006",
+    "category": "single_intent",
+    "domain": "hr_policy",
+    "question": "员工去一线城市出差，酒店住宿报销上限是多少？每天差旅餐补标准是多少？",
+    "expected_answer": "一线城市（北京、上海、广州、深圳）酒店住宿上限为 450 元/间夜；差旅餐补标准为 80 元/人/天，无需提供发票。",
+    "key_facts": ["一线城市450元/间夜", "差旅餐补80元/人/天", "无需发票"],
+    "is_out_of_domain": false,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ONB-007",
+    "category": "single_intent",
+    "domain": "hr_policy",
+    "question": "工作日因业务加班到晚上几点可以享受夜餐补贴？补贴金额是多少？打车费能否报销？",
+    "expected_answer": "工作日加班至 20:30 以后，享有 30 元加班夜餐补贴；打车费凭合规电子发票实报实销。",
+    "key_facts": ["20:30以后", "30元夜餐补贴", "打车费实报实销"],
+    "is_out_of_domain": false,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ONB-008",
+    "category": "single_intent",
+    "domain": "hr_policy",
+    "question": "试用期转正考评包含哪些维度？各自所占的权重比例是多少？",
+    "expected_answer": "转正评分包含三个维度：业务与目标达成（KPI/OKR）占 60%，价值观与团队协作占 20%，带教导师（Mentor）考评占 20%。",
+    "key_facts": ["业务KPI 60%", "价值观与协作 20%", "导师考评 20%"],
+    "is_out_of_domain": false,
+    "difficulty": "medium"
+  },
+  {
+    "id": "ONB-009",
+    "category": "single_intent",
+    "domain": "hr_policy",
+    "question": "公司规定的婚假和男员工陪产假分别是多少天？",
+    "expected_answer": "公司婚假合计 10 个自然日（法定 3 天 + 公司关怀增加 7 天），自登记之日起 1 年内休完；男员工陪产假为 15 个自然日。",
+    "key_facts": ["婚假10个自然日", "登记1年内休完", "男员工陪产假15个自然日"],
+    "is_out_of_domain": false,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ONB-010",
+    "category": "single_intent",
+    "domain": "hr_policy",
+    "question": "试用期员工和转正员工提出离职分别需要提前多少天书面通知公司？",
+    "expected_answer": "试用期员工提出离职需提前 3 个工作日提交书面申请；转正员工离职需提前 30 个自然日以书面形式提交申请。",
+    "key_facts": ["试用期提前3个工作日", "转正员工提前30个自然日", "书面申请"],
+    "is_out_of_domain": false,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ONB-011",
+    "category": "single_intent",
+    "domain": "it_engineering",
+    "question": "新员工入职首日去哪里领取办公电脑？配备的电脑型号有哪些？",
+    "expected_answer": "新员工入职首日凭入职工单到 IT 运维台领取统一配备的标准工作电脑，包括 MacBook Pro 16寸 或 ThinkPad P系列移动工作站。",
+    "key_facts": ["IT运维台", "入职工单", "MacBook Pro 16寸", "ThinkPad P系列"],
+    "is_out_of_domain": false,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ONB-012",
+    "category": "single_intent",
+    "domain": "it_engineering",
+    "question": "员工远程办公或出差时连接公司内网需要使用什么工具？有何安全验证要求？",
+    "expected_answer": "远程办公必须使用公司统一配置的 GlobalProtect VPN，并开启双因子认证（2FA/TOTP）。严禁使用第三方未报备代理软件。",
+    "key_facts": ["GlobalProtect VPN", "双因子认证", "2FA/TOTP", "严禁第三方未报备代理"],
+    "is_out_of_domain": false,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ONB-013",
+    "category": "single_intent",
+    "domain": "it_engineering",
+    "question": "日常功能开发和缺陷修复的分支命名规范是什么？可以直接推送到main分支吗？",
+    "expected_answer": "日常功能开发使用 feature/JIRA-编号-简短描述 分支，缺陷修复使用 fix/JIRA-编号 分支。主干 main 分支受保护，严禁直接 push，仅允许通过 Merge Request 合入。",
+    "key_facts": ["feature/JIRA-编号-描述", "fix/JIRA-编号", "main分支受保护", "严禁直接push"],
+    "is_out_of_domain": false,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ONB-014",
+    "category": "single_intent",
+    "domain": "it_engineering",
+    "question": "Git 提交信息（Commit Message）的格式要求是什么？有哪些常用类型？",
+    "expected_answer": "Commit Message 必须遵循 Conventional Commits 规范，格式为 <type>(<scope>): <subject>。合法类型包括 feat（新特性）、fix（修缺陷）、docs（文档）、refactor（重构）、perf（性能优化）、test（测试）、chore（构建工程）。",
+    "key_facts": ["<type>(<scope>): <subject>", "feat", "fix", "docs", "refactor", "Conventional Commits"],
+    "is_out_of_domain": false,
+    "difficulty": "medium"
+  },
+  {
+    "id": "ONB-015",
+    "category": "single_intent",
+    "domain": "it_engineering",
+    "question": "代码合并前 CI 流水线对单元测试覆盖率和代码重复率有哪些硬性门禁指标？",
+    "expected_answer": "CI 门禁要求新增/修改代码的单元测试行覆盖率（Unit Test Coverage）不得低于 80%，代码重复率（Duplication Rate）必须低于 3%，且 SonarQube 无新增 Blocker/Critical 漏洞。",
+    "key_facts": ["单元测试覆盖率不低于80%", "代码重复率低于3%", "无Blocker/Critical漏洞"],
+    "is_out_of_domain": false,
+    "difficulty": "medium"
+  },
+  {
+    "id": "ONB-016",
+    "category": "single_intent",
+    "domain": "it_engineering",
+    "question": "如何申请生产数据库的只读权限？权限有效期最长多少天？有哪些禁止执行的操作？",
+    "expected_answer": "生产数据库只读权限需通过 JIRA 安全工单申请，经直属 Leader 与安全团队双重审批（时效约4小时），单次有效期最长 7 天。生产环境严禁执行无 WHERE 条件的 UPDATE/DELETE 以及任何 DROP/TRUNCATE 操作。",
+    "key_facts": ["JIRA安全工单", "Leader与安全团队双重审批", "最长7天", "严禁无WHERE更新删除", "严禁DROP/TRUNCATE"],
+    "is_out_of_domain": false,
+    "difficulty": "medium"
+  },
+  {
+    "id": "ONB-017",
+    "category": "single_intent",
+    "domain": "it_engineering",
+    "question": "公司如何管控数据库密码和云厂商 AccessKey 等敏感凭据？能否直接写在代码里？",
+    "expected_answer": "严禁将数据库密码、云厂商 AccessKey 等明文提交至 Git 仓库。凭据必须通过 Vault 或环境变量注入，CI 流水线集成了 GitGuardian 密文扫描，一旦发现明文将直接阻断并通报。",
+    "key_facts": ["严禁明文提交Git", "Vault或环境变量注入", "GitGuardian密文扫描", "阻断流水线"],
+    "is_out_of_domain": false,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ONB-018",
+    "category": "single_intent",
+    "domain": "it_engineering",
+    "question": "代码审查（Code Review）需要多少人审批才能合入？",
+    "expected_answer": "每个 Merge Request 必须至少获得 2 位同组资深工程师的 Approve 评审通过后方可合入。",
+    "key_facts": ["至少2位", "同组资深工程师", "Approve评审通过"],
+    "is_out_of_domain": false,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ONB-019",
+    "category": "single_intent",
+    "domain": "business_product",
+    "question": "公司常规的生产环境发版时间窗口是哪几天？几点到几点？",
+    "expected_answer": "常规生产发布窗口固定为每周二、周四晚 20:00 - 22:00。发版须提前提交上线审批单，并附带回滚方案及冒烟清单。",
+    "key_facts": ["每周二、周四晚", "20:00-22:00", "附带回滚方案与冒烟清单"],
+    "is_out_of_domain": false,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ONB-020",
+    "category": "single_intent",
+    "domain": "business_product",
+    "question": "公司禁止在哪些时间段进行常规版本上线？",
+    "expected_answer": "严禁在周五下午、周末以及国家法定节假日前 24 小时内进行任何非紧急版本的常规发布。",
+    "key_facts": ["严禁周五下午", "严禁周末", "严禁法定节假日前24小时内"],
+    "is_out_of_domain": false,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ONB-021",
+    "category": "single_intent",
+    "domain": "business_product",
+    "question": "迭代进行中如果业务方临时提出紧急新增需求，标准的变更处理 SOP 是什么？",
+    "expected_answer": "原则上不接受口头加需求。若确有紧急高优需求，需走需求变更评审（CR），经产品负责人与技术负责人书面批准，并同等工时置换移出原迭代低优任务。",
+    "key_facts": ["不接受口头加需求", "需求变更评审CR", "产品与技术负责人书面批准", "同等工时置换"],
+    "is_out_of_domain": false,
+    "difficulty": "medium"
+  },
+  {
+    "id": "ONB-022",
+    "category": "single_intent",
+    "domain": "business_product",
+    "question": "团队双周敏捷迭代的站立会议（Stand-up）在什么时候开？站会主要沟通哪三件事？",
+    "expected_answer": "站会在每周一上午 9:30 举行，限时 15 分钟。站会围绕三件事：昨日完成事项、今日计划事项、当前遇到的阻碍与风险（Blockers）。",
+    "key_facts": ["每周一上午9:30", "15分钟", "昨日完成", "今日计划", "阻碍与风险Blockers"],
+    "is_out_of_domain": false,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ONB-023",
+    "category": "single_intent",
+    "domain": "business_product",
+    "question": "线上发生 P1 或 P2 级别重大故障时，响应时效和止血时限分别是多少？",
+    "expected_answer": "P1/P2 故障发生后，值班工程师须在 5 分钟内响应，15 分钟内成立产研运联合战情室，30 分钟内必须完成止血措施（降级、限流或回滚）。",
+    "key_facts": ["5分钟内响应", "15分钟内成立战情室", "30分钟内完成止血", "降级限流或回滚"],
+    "is_out_of_domain": false,
+    "difficulty": "medium"
+  },
+  {
+    "id": "ONB-024",
+    "category": "single_intent",
+    "domain": "business_product",
+    "question": "线上灰度发布的流量放量梯次是如何规定的？每个梯次需观察多久？",
+    "expected_answer": "灰度发布必须实行梯次放量，比例为 5% -> 20% -> 50% -> 100%。每个梯次至少观察 15 分钟核心指标（错误率、P99延迟等），异常立即回滚。",
+    "key_facts": ["5% -> 20% -> 50% -> 100%", "至少观察15分钟", "指标异常立即回滚"],
+    "is_out_of_domain": false,
+    "difficulty": "medium"
+  },
+  {
+    "id": "ONB-025",
+    "category": "single_intent",
+    "domain": "business_product",
+    "question": "在工程日志中打印用户手机号和身份证号时，有哪些脱敏掩码规则？",
+    "expected_answer": "所有工程日志严禁打印未加密敏感信息。手机号必须保留前 3 位和后 4 位，中间 4 位用 **** 掩码脱敏；身份证号与银行卡号仅展示后 4 位，其余全部打码。",
+    "key_facts": ["手机号保留前3后4中间****", "身份证仅展示后4位", "严禁明文密码写入日志"],
+    "is_out_of_domain": false,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ONB-026",
+    "category": "single_intent",
+    "domain": "business_product",
+    "question": "单次从线上导出真实客户数据超过多少条需要走特殊审批？审批人是谁？",
+    "expected_answer": "单次查询或导出线上真实客户业务数据超过 100 条时，必须通过数据防泄密系统（DLP）申请，由部门负责人与合规总监二次审批方可下载。",
+    "key_facts": ["超过100条", "DLP防泄密系统申请", "部门负责人与合规总监二次审批"],
+    "is_out_of_domain": false,
+    "difficulty": "medium"
+  },
+  {
+    "id": "ONB-027",
+    "category": "cross_domain",
+    "domain": "hybrid",
+    "question": "员工如果需要在外地客户现场远程办公一周，在人事考勤打卡和 IT 网络访问上分别需要如何操作？",
+    "expected_answer": "在人事考勤方面：需提前在飞书提交外勤/出差申请，工作日通过飞书移动端进行外勤打卡，每日确保有效工时满 8 小时；在 IT 网络方面：必须使用公司统一配置的 GlobalProtect VPN 并通过 2FA 认证接入公司内网，严禁通过未经报备的第三方代理连接。",
+    "key_facts": ["飞书提交外勤出差申请", "飞书移动端外勤打卡满8小时", "GlobalProtect VPN", "2FA双因子认证"],
+    "is_out_of_domain": false,
+    "difficulty": "medium"
+  },
+  {
+    "id": "ONB-028",
+    "category": "cross_domain",
+    "domain": "hybrid",
+    "question": "新员工入职第一天，HR报到与IT领机及环境配置的完整流程是怎样的？",
+    "expected_answer": "第一步人事报到：携带相关证件办理入职登记，开通飞书企业账号，了解 9:00-18:00 弹性工时与考勤规则；第二步IT领机：凭入职工单前往 IT 运维台领取 MacBook Pro 16寸 或 ThinkPad 工作电脑，连接 Corp-Staff-Secure 办公 Wi-Fi；第三步工程配置：配置企业 Git 账户，熟悉 Conventional Commits 提交规范及分支保护规则。",
+    "key_facts": ["HR入职登记开通飞书", "凭工单IT台领取电脑", "连接办公内网Wi-Fi", "配置Git与提交规范"],
+    "is_out_of_domain": false,
+    "difficulty": "medium"
+  },
+  {
+    "id": "ONB-029",
+    "category": "cross_domain",
+    "domain": "hybrid",
+    "question": "研发员工在周二发版窗口由于线上版本引发 P1 级故障，技术止血和当晚加班报销分别如何处理？",
+    "expected_answer": "技术应急方面：On-Call 工程师 5 分钟内响应，15 分钟内建立战情室，30 分钟内执行快速版本回滚或服务降级止血；人事行政方面：因故障排查抢修加班至 20:30 以后，可申请 30 元夜餐补贴，打车费凭发票实报实销，当晚加班可根据工时记录在飞书申请后续等额调休。",
+    "key_facts": ["5分钟响应15分钟战情室30分钟回滚止血", "加班超20:30享30元夜餐", "打车费实报实销", "申请后续等额调休"],
+    "is_out_of_domain": false,
+    "difficulty": "hard"
+  },
+  {
+    "id": "ONB-030",
+    "category": "cross_domain",
+    "domain": "hybrid",
+    "question": "员工转正答辩考核中，业务维度的评估依据是什么？带教导师在转正流程中承担什么责任？",
+    "expected_answer": "业务维度评估依据为试用期内的业务 KPI/OKR 达成情况（占总评分的 60%）；带教导师（Mentor）负责对新人的日常工作表现与成长进行评价，导师考评评分占 20% 权重，并在入职第 75 天协助新人梳理答辩材料及推进转正闭环。",
+    "key_facts": ["业务KPI占60%", "导师考评占20%", "入职第75天触发转正", "导师协助梳理材料与评价"],
+    "is_out_of_domain": false,
+    "difficulty": "medium"
+  },
+  {
+    "id": "ONB-031",
+    "category": "cross_domain",
+    "domain": "hybrid",
+    "question": "离职员工交接流程中，人事手续、IT资产归还与业务工单交接分别有哪些硬性要求？",
+    "expected_answer": "人事要求：转正员工提前 30 天（试用期提前 3 天）提交书面申请，结算五险一金与当月薪酬；IT资产要求：归还配发的 MacBook Pro/ThinkPad 电脑、拓展坞及门禁卡，IT部门收回 VPN、Git、生产数据库等账号权限；业务交接要求：梳理 JIRA 未完成工单交接给指定负责人，业务文档与架构设计资料归档完成，三方签章方可生效。",
+    "key_facts": ["提前30天书面申请", "归还电脑及拓展坞门禁卡", "收回VPN与代码库账号", "JIRA工单交接与文档归档", "三方签章"],
+    "is_out_of_domain": false,
+    "difficulty": "hard"
+  },
+  {
+    "id": "ONB-032",
+    "category": "cross_domain",
+    "domain": "hybrid",
+    "question": "开发人员因排查紧急生产线上客诉，需要导出 500 条包含客户手机号的明细数据并打印日志，在工程安全和业务审批上有何规范？",
+    "expected_answer": "业务数据审批：因导出真实数据超过 100 条（500条），必须通过 DLP 系统提交申请，获得部门负责人与合规总监的二次审批；工程脱敏规范：日志中打印时，手机号必须保留前 3 后 4 位，中间 4 位用 **** 掩码，严禁明文输出完整手机号；数据库访问：必须通过 JIRA 安全审计工单申请只读权限，有效期最长 7 天。",
+    "key_facts": ["超过100条需DLP申请双重审批", "手机号保留前3后4中间****", "JIRA申请只读权限最长7天"],
+    "is_out_of_domain": false,
+    "difficulty": "hard"
+  },
+  {
+    "id": "ONB-033",
+    "category": "cross_domain",
+    "domain": "hybrid",
+    "question": "双周敏捷迭代期间，如果业务方要求临时加一个紧急需求，研发团队在敏捷工时置换和代码分支管理上应该如何执行？",
+    "expected_answer": "敏捷流程上：不接受口头新增，必须走需求变更评审（CR），经产品和技术负责人书面批准，并同等工时置换移出原迭代低优任务，调整 JIRA 任务排期；分支规范上：新建专用的 feature/JIRA-编号 分支开发，提交信息遵循 Conventional Commits，合并前须达 80% 单测覆盖率及 2 人 CR 审批，且赶在周二/周四发版窗口上线。",
+    "key_facts": ["CR需求变更评审与同等工时置换", "feature/JIRA-编号分支", "80%单测覆盖率", "周二周四发版窗口"],
+    "is_out_of_domain": false,
+    "difficulty": "hard"
+  },
+  {
+    "id": "ONB-034",
+    "category": "cross_domain",
+    "domain": "hybrid",
+    "question": "研发人员去异地机房出差进行系统割接部署，在差旅住宿报销标准和生产发版时间限制上分别有哪些规定？",
+    "expected_answer": "差旅报销方面：若去一线城市酒店上限 450 元/间夜，新一线/省会 350 元/间夜，差旅餐补 80 元/天，往返机票限经济舱或高铁二等座；发版部署方面：常规发版为周二、周四晚 20:00-22:00，严禁在周五下午或假日前 24 小时发布，重大割接须提前提交发布审批单及回滚应急预案。",
+    "key_facts": ["一线城市住宿450元/间夜", "差旅餐补80元/天", "周二周四20:00-22:00窗口", "严禁周五或节假日前24小时发布"],
+    "is_out_of_domain": false,
+    "difficulty": "medium"
+  },
+  {
+    "id": "ONB-035",
+    "category": "cross_domain",
+    "domain": "hybrid",
+    "question": "员工在周末参加紧急业务上线，从考勤补偿、餐饮打车报销到上线灰度观察分别如何执行？",
+    "expected_answer": "考勤补偿：周末加班优先实行 1:1 调休制（无法调休依法支付加班费）；餐饮打车：加班满额享受餐补并凭发票实报实销合规打车费；上线执行：发版需按 5% -> 20% -> 50% -> 100% 梯次灰度放量，每个阶段至少观察 15 分钟指标无异常。",
+    "key_facts": ["周末加班1:1调休", "餐补与合规打车实报实销", "梯次灰度5%-20%-50%-100%", "每个梯次观察15分钟"],
+    "is_out_of_domain": false,
+    "difficulty": "hard"
+  },
+  {
+    "id": "ONB-036",
+    "category": "cross_domain",
+    "domain": "hybrid",
+    "question": "如果新人发现由于个人代码疏漏将未脱敏的用户手机号打印在测试日志中并推送到了 Git 仓库，应如何补救并符合合规要求？",
+    "expected_answer": "代码修复：立即按照规范将手机号修改为保留前 3 后 4 中间 **** 脱敏，并在提交信息注明 fix(log): 修复手机号脱敏问题；CI/安全合规：确保无敏感 AK 明文，重新触发 CI 门禁（覆盖率>=80%）；测试与同步：在 JIRA 缺陷单中更新状态，并在周一站会或向带教导师同步整改情况。",
+    "key_facts": ["修改为前3后4中间****", "fix提交信息修复", "CI覆盖率>=80%", "向导师同步并在JIRA更新"],
+    "is_out_of_domain": false,
+    "difficulty": "medium"
+  },
+  {
+    "id": "ONB-037",
+    "category": "cross_domain",
+    "domain": "hybrid",
+    "question": "员工试用期转正考核不合格延期一个月，在此期间薪资标准如何？导师和业务主管需要做些什么？",
+    "expected_answer": "薪资标准：试用期最长不超过 6 个月，延期期间月薪继续维持转正工资的 80%；导师与主管责任：业务主管与带教导师需明确指出业务 KPI 或团队协作中的差距项，制定为期 30 天的改进计划（PIP），并在延期结束前重新组织转正答辩评估。",
+    "key_facts": ["维持80%薪资", "最长试用期不超6个月", "制定30天改进计划", "重新组织答辩评估"],
+    "is_out_of_domain": false,
+    "difficulty": "hard"
+  },
+  {
+    "id": "ONB-038",
+    "category": "cross_domain",
+    "domain": "hybrid",
+    "question": "新员工在试用期内休带薪病假 2 天，对当月考勤、转正进度及休假报备有哪些影响和要求？",
+    "expected_answer": "病假报备：每年有 5 天全薪病假，请假 2 天需在返岗后 48 小时内提交二级及以上医院病历证明，全薪发放；考勤记录：通过飞书提报病假审批，不计入旷工；转正影响：短期病假不影响入职第 75 天由系统正常触发的转正评估流程，但试用期整体出勤率会计入导师与主管考评。",
+    "key_facts": ["每年5天全薪病假", "48小时内补交二级医院证明", "飞书审批", "第75天转正评估正常触发"],
+    "is_out_of_domain": false,
+    "difficulty": "medium"
+  },
+  {
+    "id": "ONB-039",
+    "category": "cross_domain",
+    "domain": "hybrid",
+    "question": "生产环境数据库出现慢查询告警，研发人员排查并优化上线的全流程涉及哪些部门规范？",
+    "expected_answer": "权限申请：通过 JIRA 向 Leader 及安全团队申请生产数据库只读权限（最长7天）；优化开发：在本地或开发环境建立 fix/JIRA-编号 分支修改索引，确保单测覆盖率>=80%；评审与发布：2 人 Approve 评审后合并，在周二或周四晚 20:00-22:00 发版窗口通过灰度放量上线并观察指标。",
+    "key_facts": ["申请生产只读权限最长7天", "fix分支开发与80%覆盖率", "2人Approve评审", "周二周四20:00-22:00灰度发布"],
+    "is_out_of_domain": false,
+    "difficulty": "hard"
+  },
+  {
+    "id": "ONB-040",
+    "category": "cross_domain",
+    "domain": "hybrid",
+    "question": "跨业务线借调新人支持重点项目，在考勤审批、设备使用和敏捷站会上如何管理？",
+    "expected_answer": "考勤管理：日常考勤仍使用飞书移动端打卡并由原部门 Leader 或借调项目负责人知会；设备使用：沿用原配发的 MacBook/ThinkPad 电脑，若需访问新项目代码仓库需提交流水线权限申请；项目协同：工作日每天 9:30 参加借调业务组的 15 分钟站会，同步任务进展与风险。",
+    "key_facts": ["飞书打卡同步借调负责人", "沿用原配备电脑并申请新仓库权限", "每日9:30参加15分钟敏捷站会"],
+    "is_out_of_domain": false,
+    "difficulty": "medium"
+  },
+  {
+    "id": "ONB-041",
+    "category": "cross_domain",
+    "domain": "hybrid",
+    "question": "员工如果私自把包含公司商业机密的生产数据导出到个人移动硬盘，违反了哪些规定？面临什么后果？",
+    "expected_answer": "违反规范：违反了生产数据单次超过 100 条须经 DLP 申请的规定，违反了 IT 安全网络与外设保密规定；后果：属于三类严重违规行为，公司有权根据《员工手册》立即解除劳动合同且不予任何经济补偿，严重者将移交司法机关追究法律责任。",
+    "key_facts": ["违反DLP数据导出规定", "违反IT安全外设保密规定", "严重违规立即解除劳动合同", "追究法律责任"],
+    "is_out_of_domain": false,
+    "difficulty": "hard"
+  },
+  {
+    "id": "ONB-042",
+    "category": "cross_domain",
+    "domain": "hybrid",
+    "question": "新员工入职后，发现配发的电脑开机屏幕闪烁，如何走更换流程并在飞书上登记？",
+    "expected_answer": "IT处理：凭入职工单及硬件故障现象前往 IT 运维台进行硬件检测，非人为损坏可申请换机；资产更新：IT 人员在资产管理系统解绑旧机器并重新绑定新机器 Mac 地址与序列号；人事备忘：若影响当日办公，由带教导师在飞书知会说明，当日正常按有效工作时长核算。",
+    "key_facts": ["凭工单IT运维台检测换机", "资产系统重新绑定", "带教导师飞书知会说明"],
+    "is_out_of_domain": false,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ONB-043",
+    "category": "cross_domain",
+    "domain": "hybrid",
+    "question": "公司周五下午是否可以因为客户紧急上线要求而临时组织发布？需要履行什么审批程序？",
+    "expected_answer": "原则上严禁周五下午进行常规发版。若确属不可抗力的紧急商业上线，必须作为紧急发布走特批流程：提交发布申请并附带详尽回滚预案，由产品负责人、技术负责人及运维负责人三方书面联合签字特批，并安排核心团队全程值守。",
+    "key_facts": ["严禁周五下午常规发版", "紧急特批流程", "产品/技术/运维三方书面特批", "详尽回滚预案与核心团队值守"],
+    "is_out_of_domain": false,
+    "difficulty": "hard"
+  },
+  {
+    "id": "ONB-044",
+    "category": "cross_domain",
+    "domain": "hybrid",
+    "question": "员工在工作日由于身体不适请假半天，下午来上班后加班到晚上 21:00，当日考勤和晚餐补贴如何计算？",
+    "expected_answer": "考勤计算：上午半天通过飞书提交病假或事假工单（若为病假需按病假规定报备），下午出勤打满半日有效工时；晚餐补贴：因工作日加班超过 20:30，符合晚餐补助条件，可享受 30 元加班夜餐补贴并实报实销打车费。",
+    "key_facts": ["飞书提交半天请假工单", "工作日加班超过20:30", "享有30元夜餐补贴与打车报销"],
+    "is_out_of_domain": false,
+    "difficulty": "medium"
+  },
+  {
+    "id": "ONB-045",
+    "category": "hallucination_trap",
+    "domain": "out_of_domain",
+    "question": "公司是否为入职满一天的员工免费赠送一辆特斯拉 Model 3 汽车作为交通工具福利？",
+    "expected_answer": "知识库中未提及公司会赠送特斯拉汽车作为福利。根据公司规章手册，公司仅提供出差交通报销（高铁二等座或飞机经济舱）以及加班至 20:30 后的打车报销，并不存在赠送个人车辆的政策。",
+    "key_facts": ["未提及赠送特斯拉汽车", "仅提供出差与加班打车报销"],
+    "is_out_of_domain": true,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ONB-046",
+    "category": "hallucination_trap",
+    "domain": "out_of_domain",
+    "question": "如何通过公司内网 IT 系统申请绝密量子通信卫星的直接发射控制权？",
+    "expected_answer": "资料中未提及任何关于量子通信卫星发射控制权的申请。公司 IT 规范仅涵盖办公电脑领用、VPN 接入、Git 仓库与生产数据库只读权限的申请，该问题超出公司知识库范围。",
+    "key_facts": ["资料中未提及量子卫星发射", "超出公司知识库范围"],
+    "is_out_of_domain": true,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ONB-047",
+    "category": "hallucination_trap",
+    "domain": "out_of_domain",
+    "question": "听说公司允许员工申请将月薪全额更换为比特币或狗狗币等加密货币发放，申请流程是什么？",
+    "expected_answer": "资料中未提及允许使用加密货币或虚拟货币发放薪酬。根据《HR薪酬制度》，公司薪酬每月 10 日通过法定货币依法发放至银行卡并全额缴纳法定五险一金。",
+    "key_facts": ["未提及加密货币发薪", "每月10日法定货币发薪至银行卡"],
+    "is_out_of_domain": true,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ONB-048",
+    "category": "hallucination_trap",
+    "domain": "out_of_domain",
+    "question": "法国劳动法关于全员每周35小时工时的强制执行细则及相应违规罚款金额在公司手册哪一章？",
+    "expected_answer": "公司制度手册中未收录法国劳动法的相关规定。公司手册规定的是本企业的弹性工时制（每日 8 小时，9:00-18:00 或 10:00-19:00），无法回答外部国家的具体法律细则。",
+    "key_facts": ["未收录法国劳动法", "公司实行每日8小时弹性工时"],
+    "is_out_of_domain": true,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ONB-049",
+    "category": "hallucination_trap",
+    "domain": "out_of_domain",
+    "question": "听说公司规定试用期员工每天晚上必须强制无偿加班到凌晨 2 点，请问手册对此有哪些考核要求？",
+    "expected_answer": "该说法与公司政策不符，资料中并无强制无偿加班至凌晨 2 点的规定。公司实行每日 8 小时弹性工时制，加班实行加班餐补与 1:1 调休制，员工享有合法休息权。",
+    "key_facts": ["无强制无偿加班至凌晨规定", "弹性8小时工时制", "加班享餐补与调休"],
+    "is_out_of_domain": true,
+    "difficulty": "medium"
+  },
+  {
+    "id": "ONB-050",
+    "category": "hallucination_trap",
+    "domain": "out_of_domain",
+    "question": "员工如果想带自家宠物老虎到公司工位上班，需要向行政部提交哪种特种动物驯养资质？",
+    "expected_answer": "资料中未提及允许携带大型猛兽或宠物老虎进入公司办公区的规定。根据行政与安全常识，办公区严禁携带任何危险及国家保护猛兽进入。",
+    "key_facts": ["资料中未提及携带猛兽或老虎", "严禁携带危险动物"],
+    "is_out_of_domain": true,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ONB-051",
+    "category": "hallucination_trap",
+    "domain": "out_of_domain",
+    "question": "公司是否全额报销员工上下班乘坐私人直升机的航空燃油费与停机坪维护费？",
+    "expected_answer": "资料中未提及报销私人直升机燃油或停机坪费用。公司差旅交通标准明确限定为高铁二等座或飞机经济舱，市内加班仅提供合规打车发票报销。",
+    "key_facts": ["未提及私人直升机报销", "交通标准为高铁二等座或飞机经济舱及加班打车"],
+    "is_out_of_domain": true,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ONB-052",
+    "category": "hallucination_trap",
+    "domain": "out_of_domain",
+    "question": "如何通过内部财务系统将中国大陆员工个人所得税转移至开曼群岛离岸账户以实现免税？",
+    "expected_answer": "公司制度中绝无此类避税或离岸转移政策。公司严格遵守国家税法，所有薪资均由财务依法全额代扣代缴个人所得税，任何逃税行为均属违法违规。",
+    "key_facts": ["无离岸转移个税政策", "严格依法代扣代缴个税"],
+    "is_out_of_domain": true,
+    "difficulty": "medium"
+  },
+  {
+    "id": "ONB-053",
+    "category": "hallucination_trap",
+    "domain": "out_of_domain",
+    "question": "新员工入职满半个月后领取的 100 克纯金金条大礼包，应该去几楼哪个房间领取？",
+    "expected_answer": "资料中未提及入职发放纯金金条的福利。新员工入职福利包括电脑设备、内网权限及转正后的福利年假，不存在发放金条礼包的政策。",
+    "key_facts": ["未提及发放纯金金条", "入职仅配备标准办公电脑及常规福利"],
+    "is_out_of_domain": true,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ONB-054",
+    "category": "hallucination_trap",
+    "domain": "out_of_domain",
+    "question": "公司技术委员会是否发布过全面废弃 Python 和 Java，全员改用脑电波感应编程的决定？",
+    "expected_answer": "资料中未提及此类决定。公司工程规范基于主流技术架构与常规编程语言，要求遵循 Conventional Commits、SonarQube 静态扫描与 80% 单测覆盖率门禁。",
+    "key_facts": ["未提及脑电波编程", "采用主流工程开发与Git规范"],
+    "is_out_of_domain": true,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ONB-055",
+    "category": "hallucination_trap",
+    "domain": "out_of_domain",
+    "question": "员工是否可以申请长达 5 年的全薪环球旅行休假计划？需要谁审批？",
+    "expected_answer": "资料中未提及长达 5 年的全薪环球旅行休假。公司假期制度包含法定年假（5天）、福利年假（2天）、带薪病假（5天）及婚产假等，并无长期全薪旅行假。",
+    "key_facts": ["未提及5年全薪环球旅行假", "年假为5+2天"],
+    "is_out_of_domain": true,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ONB-056",
+    "category": "hallucination_trap",
+    "domain": "out_of_domain",
+    "question": "公司手册中是否有关于员工在元宇宙全息虚拟办公室睡觉即可直接折算为每日8小时有效工时的条款？",
+    "expected_answer": "资料中未提及此类规定。公司考勤制度要求通过飞书进行每日打卡，按实际有效工作时长打满 8 小时，不存在元宇宙睡觉折算工时的政策。",
+    "key_facts": ["未提及元宇宙睡觉折算工时", "要求飞书打卡打满8小时有效工时"],
+    "is_out_of_domain": true,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ONB-057",
+    "category": "hallucination_trap",
+    "domain": "out_of_domain",
+    "question": "直接在生产环境数据库执行 DROP DATABASE 命令是否会获得公司的卓越技术突破奖金？",
+    "expected_answer": "不会获得奖金，该行为属于极其严重的破坏性违规。公司工程规范严禁在生产环境执行任何 DROP/TRUNCATE 操作，违者将按严重违纪处理并面临除名及法律追责。",
+    "key_facts": ["严禁DROP/TRUNCATE操作", "严重违纪与破坏", "无突破奖金"],
+    "is_out_of_domain": true,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ONB-058",
+    "category": "hallucination_trap",
+    "domain": "out_of_domain",
+    "question": "新员工入职第一周如何向财务处申请一次性预支未来 10 年的全额工资？",
+    "expected_answer": "资料中未提及允许预支未来多年薪酬的政策。公司薪资严格按月于次月 10 日发放，不存在预支未来数年工资的通道。",
+    "key_facts": ["未提及预支多年薪酬", "每月10日按期发放月薪"],
+    "is_out_of_domain": true,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ONB-059",
+    "category": "hallucination_trap",
+    "domain": "out_of_domain",
+    "question": "员工在办公室工位私自架设微型冷核聚变反应堆给手机充电，需要向后勤部哪个科室备案？",
+    "expected_answer": "资料中未提及私自架设冷核聚变反应堆的备案许可。办公区严格遵守消防与用电安全管理条例，严禁携带与搭建高危、放射性或非合规大功率设备。",
+    "key_facts": ["未提及冷核聚变备案", "办公区严禁违规高危设备"],
+    "is_out_of_domain": true,
+    "difficulty": "easy"
+  },
+  {
+    "id": "ONB-060",
+    "category": "hallucination_trap",
+    "domain": "out_of_domain",
+    "question": "如果员工被派往火星基地分公司出差，每日宇航服干洗费和太空压缩饼干餐补的报销标准是多少？",
+    "expected_answer": "资料中未提及火星基地出差及太空相关补贴。公司差旅制度仅涵盖地球内国内外出差标准（一线城市住宿450元/天，差旅餐补80元/天），该问题属于虚构场景。",
+    "key_facts": ["未提及火星出差与宇航服补贴", "差旅标准仅为常规城市国内出差"],
+    "is_out_of_domain": true,
+    "difficulty": "easy"
+  }
+]

@@ -1,0 +1,23 @@
+{
+  "_description": "智能家居设备、场景联动与安全操作知识库。",
+  "home_butler": [
+    {"rule_id": "HOME_001", "category": "设备白名单", "description": "仅允许控制已注册设备，动作限于 set_state，禁止下发任意 Topic 或 GPIO。", "risk_level": "high"},
+    {"rule_id": "HOME_002", "category": "状态回执", "description": "设备状态以回执为准，不得以按钮点击或模型输出作为最终执行成功依据。", "risk_level": "high"},
+    {"rule_id": "HOME_003", "category": "离线设备", "description": "设备离线或命令过期时必须拒绝执行并向用户说明原因。", "risk_level": "medium"}
+  ],
+  "environment": [
+    {"rule_id": "ENV_001", "category": "传感器时效", "description": "环境数据必须标注采集时间与来源，过期数据不得直接触发高风险动作。", "risk_level": "medium"},
+    {"rule_id": "ENV_002", "category": "异常读数", "description": "温度、湿度、光照超出物理合理范围时应标记异常并告警，不自动执行控制。", "risk_level": "high"}
+  ],
+  "device_control": [
+    {"rule_id": "DEV_001", "category": "幂等控制", "description": "重复 request_id 返回首次回执，不重复执行设备动作。", "risk_level": "medium"},
+    {"rule_id": "DEV_002", "category": "参数校验", "description": "state 仅允许 on/off，非法参数直接拒绝。", "risk_level": "high"}
+  ],
+  "comfort": [
+    {"rule_id": "COM_001", "category": "睡眠模式", "description": "睡眠模式应关闭灯和风扇，并保证夜间可安全恢复。", "risk_level": "low"},
+    {"rule_id": "COM_002", "category": "节能", "description": "无人场景优先关闭非必要设备，避免长时间空转。", "risk_level": "low"}
+  ],
+  "general": [
+    {"rule_id": "GEN_001", "category": "知识溯源", "description": "设备控制建议应优先引用当前家庭知识库和设备状态。", "risk_level": "low"}
+  ]
+}

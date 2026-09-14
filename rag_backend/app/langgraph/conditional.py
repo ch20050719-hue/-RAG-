@@ -1,0 +1,310 @@
+"""
+LangGraph 条件边路由
+
+定义工作流中的条件路由逻辑。
+核心路由逻辑委托给 multi_agent_system.routing.unified_router 中的纯函数，
+确保 LangGraph 条件边和 AgentOrchestrator 共用同一份路由逻辑。
+"""
+
+import logging
+from typing import List, Callable, Optional, Set
+
+from .state import AgentState, IntentCategory, SpecialistType, QualityLevel
+from app.multi_agent_system.routing.unified_router import (
+    route_by_blackboard_state,
+    route_by_intent_result,
+    RoutingDecision,
+)
+
+logger = logging.getLogger(__name__)
+
+
+def route_by_intent(state: AgentState) -> str:
+    """
+    根据意图路由到下一个节点
+    
+    委托给 unified_router.route_by_intent_result 做实际决策。
+    
+    Args:
+        state: 当前状态
+        
+    Returns:
+        目标节点名称
+    """
+    intent = state.get("intent")
+    intent_confidence = state.get("intent_confidence", 0.0)
+
+    logger.info(f"[路由] Intent={intent}, Confidence={intent_confidence:.2f}")
+
+    # Adaptive RAG：trivial 短路到 direct_answer，省 ~60% token
+    short_circuit = route_by_complexity(state)
+    if short_circuit is not None:
+        return short_circuit
+
+    if intent is None:
+        logger.info("[路由] 无意图信息，转向人工审核")
+        return "human_review"
+    
+    intent_value = intent.value if hasattr(intent, "value") else str(intent)
+    routing_strategy = state.get("routing_strategy")
+    routing_strategy_value = (
+        routing_strategy.value if hasattr(routing_strategy, "value") else str(routing_strategy)
+    ) if routing_strategy else None
+    
+    requires_specialists = state.get("target_specialists", [])
+    requires_specialist_values = [
+        s.value if hasattr(s, "value") else str(s)
+        for s in requires_specialists
+    ]
+    
+    decision = route_by_intent_result(
+        intent_value=intent_value,
+        routing_strategy=routing_strategy_value,
+        requires_specialists=requires_specialist_values,
+        confidence=intent_confidence,
+    )
+    
+    if decision is not None and decision.target_nodes:
+        target = decision.target_nodes[0]
+        logger.info(f"[路由] 统一路由决策: {target} (source={decision.source.value})")
+        return target
+    
+    logger.info("[路由] 统一路由无决策，降级到人工审核")
+    return "human_review"
+
+
+def route_by_specialists(state: AgentState) -> str:
+    """
+    根据专家列表路由
+    
+    Args:
+        state: 当前状态
+        
+    Returns:
+        目标专家节点
+    """
+    specialists = state.get("target_specialists", [])
+    
+    if not specialists:
+        logger.info("[路由] 无目标专家，转向直接回答")
+        return "direct_answer"
+    
+    if len(specialists) == 1:
+        specialist = specialists[0]
+        route_map = {
+            SpecialistType.HOME_BUTLER: "home_specialist",
+            SpecialistType.ENVIRONMENT: "home_specialist",
+            SpecialistType.DEVICE_CONTROL: "home_specialist",
+            SpecialistType.COMFORT: "home_specialist",
+        }
+        target = route_map.get(specialist, "direct_answer")
+        logger.info(f"[路由] 单专家路由: {target}")
+        return target
+    
+    logger.info(f"[路由] 多专家路由: {len(specialists)} 个专家")
+    return "multi_specialist_start"
+
+
+def route_reflection_result(state: AgentState) -> str:
+    """
+    根据反思结果路由
+    
+    Args:
+        state: 当前状态
+        
+    Returns:
+        目标节点
+    """
+    reflection = state.get("reflection_result")
+    
+    if reflection is None:
+        logger.info("[路由] 无反思结果，转向最终答案")
+        return "final_answer"
+    
+    # 兼容 dict（review_quality 实际返回 {"is_quality_acceptable", "scores": {"overall": ...}}）
+    # 与 ReflectionResult 对象两种形态，避免对 dict 访问 .quality_level 抛 AttributeError
+    if isinstance(reflection, dict):
+        is_acceptable = reflection.get("is_quality_acceptable", True)
+        score = (reflection.get("scores") or {}).get("overall", reflection.get("score", 0.0)) or 0.0
+        needs_human = reflection.get("needs_human_review", False)
+        if not is_acceptable:
+            quality = QualityLevel.POOR
+        elif score >= 0.8:
+            quality = QualityLevel.EXCELLENT
+        else:
+            quality = QualityLevel.ACCEPTABLE
+    else:
+        quality = getattr(reflection, "quality_level", QualityLevel.ACCEPTABLE)
+        score = getattr(reflection, "overall_score", 0.0) or 0.0
+        needs_human = getattr(reflection, "needs_human_review", False)
+    
+    logger.info(f"[路由] 质量评估: {quality.value}, 分数: {score:.2f}")
+    
+    if needs_human:
+        logger.info("[路由] 需要人工审核")
+        return "human_review"
+    
+    if quality == QualityLevel.EXCELLENT or quality == QualityLevel.GOOD:
+        if score >= 0.8:
+            logger.info("[路由] 质量优秀，直接输出")
+            return "final_answer"
+    
+    if quality == QualityLevel.POOR or quality == QualityLevel.UNACCEPTABLE:
+        retry_count = state.get("retry_count", 0)
+        max_retries = state.get("max_retries", 3)
+        
+        if retry_count < max_retries:
+            logger.info(f"[路由] 质量不达标，重试 ({retry_count + 1}/{max_retries})")
+            return "rework"
+        else:
+            logger.info("[路由] 超过最大重试次数，转向人工审核")
+            return "human_review"
+    
+    if quality == QualityLevel.ACCEPTABLE:
+        logger.info("[路由] 质量可接受，包含建议后输出")
+        return "final_answer_with_suggestions"
+    
+    return "final_answer"
+
+
+def create_parallel_routing(
+    specialist_nodes: List[str]
+) -> Callable[[AgentState], List[str]]:
+    """
+    创建并行路由函数
+    
+    用于多专家并行执行
+    
+    Args:
+        specialist_nodes: 专家节点列表
+        
+    Returns:
+        路由函数
+    """
+    def parallel_route(state: AgentState) -> List[str]:
+        specialists = state.get("target_specialists", [])
+        
+        route_map = {
+            SpecialistType.HOME_BUTLER: "home_specialist",
+            SpecialistType.ENVIRONMENT: "home_specialist",
+            SpecialistType.DEVICE_CONTROL: "home_specialist",
+            SpecialistType.COMFORT: "home_specialist",
+        }
+        
+        selected = []
+        for specialist in specialists:
+            node = route_map.get(specialist)
+            if node:
+                selected.append(node)
+        
+        if not selected:
+            return ["direct_answer"]
+        
+        logger.info(f"[路由] 并行执行 {len(selected)} 个专家: {selected}")
+        return selected
+    
+    return parallel_route
+
+
+def create_iteration_check(max_iterations: int) -> Callable[[AgentState], str]:
+    """
+    创建迭代检查路由
+    
+    Args:
+        max_iterations: 最大迭代次数
+        
+    Returns:
+        路由函数
+    """
+    def check_iteration(state: AgentState) -> str:
+        current = state.get("iteration", 0)
+        
+        if current >= max_iterations:
+            logger.warning(f"[路由] 达到最大迭代次数 {max_iterations}")
+            return "max_iterations_exceeded"
+        
+        logger.info(f"[路由] 迭代检查: {current}/{max_iterations}")
+        return "continue"
+    
+    return check_iteration
+
+
+def route_after_grader(state: AgentState) -> str:
+    """检索评分后的路由：充足则放行，不足且未达上限则改写重检。
+
+    Returns:
+        "rewrite" → 进入 query_rewriter（回流 rag_retrieval）
+        "proceed" → 进入下游 single_specialist_router
+    """
+    score = state.get("retrieval_quality_score") or 0.0
+    iters = state.get("retrieval_iterations") or 0
+    max_iters = state.get("max_retrieval_iterations") or 2
+
+    if score < 0.6 and iters < max_iters:
+        logger.info(
+            f"[路由] 检索评分 {score:.2f} 低于阈值，第 {iters + 1} 次改写"
+        )
+        return "rewrite"
+
+    logger.info(
+        f"[路由] 检索评分 {score:.2f} 达标或已达改写上限 ({iters}/{max_iters})，放行"
+    )
+    return "proceed"
+
+
+def route_after_faithfulness(state: AgentState) -> str:
+    """忠实度检查后的路由：达标进 reflection；不达标且未达上限则重生成。
+
+    Returns:
+        "regenerate" → 回到 aggregator 重新生成
+        "proceed" → 进入 reflection（或 final_answer）
+    """
+    score = state.get("faithfulness_score")
+    if score is None:
+        score = 1.0
+    regens = state.get("regenerate_count") or 0
+    max_regens = state.get("max_regenerate_count") or 1
+
+    if score < 0.7 and regens < max_regens:
+        logger.info(
+            f"[路由] 忠实度 {score:.2f} 低于阈值，第 {regens + 1} 次重生成"
+        )
+        return "regenerate"
+
+    logger.info(
+        f"[路由] 忠实度 {score:.2f} 达标或已达重生成上限 ({regens}/{max_regens})，放行"
+    )
+    return "proceed"
+
+
+def route_by_complexity(state: AgentState) -> Optional[str]:
+    """Adaptive RAG：根据 complexity 字段短路简单查询。
+
+    Returns:
+        "direct_answer" 若 complexity == "trivial"
+        None  → 不短路，走原有路由
+    """
+    complexity = state.get("complexity")
+    if complexity == "trivial":
+        logger.info("[路由] complexity=trivial，短路到 direct_answer")
+        return "direct_answer"
+    return None
+
+
+def create_error_check() -> Callable[[AgentState], str]:
+    """
+    创建错误检查路由
+    
+    Returns:
+        路由函数
+    """
+    def check_error(state: AgentState) -> str:
+        error = state.get("error")
+        
+        if error:
+            logger.warning(f"[路由] 检测到错误: {error}")
+            return "error_handler"
+        
+        return "continue"
+    
+    return check_error

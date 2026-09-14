@@ -1,0 +1,5 @@
+﻿Configuration,Accuracy (%),Faithfulness (%),OOD Defense (%),Cross-Domain (%),Overall Score,Delta Score
+M4 (Ours: Full System),56.69,67.67,100.0,94.44,69.41,+0.00 (Baseline)
+Ablation 1: w/o Critic (即 M3),44.14,54.33,68.75,97.22,59.22,-10.19
+Ablation 2: w/o Multi-Agent (即 M2),54.56,64.17,93.75,86.11,66.66,-2.75
+Ablation 3: w/o RAG & Agent (即 M1),27.11,37.5,56.25,88.89,45.18,-24.23

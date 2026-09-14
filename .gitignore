@@ -1,3 +1,227 @@
-.mcp/
-financial_rag/
-NUL
+# ==========================
+# 1. 绝对不能提交的敏感信息与本地数据
+# ==========================
+rag_backend/.env
+rag_backend/.env.*
+rag_backend/*.log
+!rag_backend/.env.example
+
+# 前端环境变量
+rag_frontend/.env
+rag_frontend/.env.*
+rag_frontend/*.log
+!rag_frontend/.env.example
+
+# MCP服务环境变量
+mcp_server/.env
+mcp_server/.env.*
+
+# ❌ 增加：屏蔽 Docker 物理数据 (图片中那 1302 个文件就在这里)
+rag_backend/postgres_data/
+
+# ❌ 增加：屏蔽本地上传的文档和对话记录
+rag_backend/app/storage/
+rag_backend/app/uploads/
+rag_backend/app/static/
+rag_backend/storage/
+rag_backend/uploads/
+# rag_backend/chat_history/
+
+# ==========================
+# 2. Python 编译产生的垃圾文件
+# ==========================
+rag_backend/__pycache__/
+rag_backend/**/*.pyc
+rag_backend/**/*.pyo
+rag_backend/**/*.pyd
+rag_backend/**/__pycache__/
+rag_backend/*.py[cod]
+rag_backend/*$py.class
+
+# Python 类型检查缓存
+rag_backend/.mypy_cache/
+rag_backend/mypy_cache/
+
+# Pytest 缓存和覆盖率
+rag_backend/.pytest_cache/
+rag_backend/tests/.tmp_skill_loader/
+rag_backend/.coverage
+rag_backend/htmlcov/
+rag_backend/coverage.xml
+rag_backend/*.cover
+**/__pycache__/
+*.pyc
+# ========================
+# 本地存储卷与数据库数据
+rag_backend/mass_/
+rag_backend/migrations/
+rag_backend/logs/
+rag_backend/scripts/
+rag_backend/backups/
+rag_backend/sql/
+rag_backend/项目开发中遇到的问题和解决方案.md
+rag_backend/FRONTEND_IMPROVEMENTS.md
+# ========================
+# 开发文档（包含大量内部开发记录，不需要上传）
+docs/
+test_templates/
+# ========================
+# 备份和测试输出文件
+rag_backend/backups/
+rag_backend/test_output_formatter.py
+
+# ========================
+# 忽略 MinIO 的本地持久化数据
+rag_backend/minio_data/
+rag_backend/neo4j_data/
+
+# ==========================
+# 3. 虚拟环境
+# ==========================
+rag_backend/venv/
+rag_backend/.venv/
+rag_backend/env/
+rag_backend/.env/
+
+# ==========================
+# 4. 数据库备份与缓存 (绝对不能传)
+# ==========================
+rag_backend/*.dump
+rag_backend/*.sql
+rag_backend/redis_data/
+rag_backend/chat_history/
+rag_backend/sql/  # SQL脚本目录（稍后会在根目录放置统一的数据库初始化脚本）
+
+# ==========================
+# 5. 测试报告与日志
+# ==========================
+rag_backend/test_reports/
+rag_backend/*.json
+rag_backend/test_data_output.txt
+
+# ==========================
+# 6. 临时文件和编辑器备份
+# ==========================
+rag_backend/*.tmp
+rag_backend/*.temp
+rag_backend/*~
+rag_backend/.#*
+rag_backend/#*#
+.git_backup/
+
+# ==========================
+# 7. Jupyter Notebook 相关
+# ==========================
+rag_backend/.ipynb_checkpoints/
+rag_backend/**/*.ipynb_checkpoints/
+
+# ==========================
+# 8. LangChain 和 LangGraph 缓存
+# ==========================
+rag_backend/.langchain_cache/
+rag_backend/langchain_cache/
+rag_backend/.langgraph_cache/
+rag_backend/langgraph_cache/
+
+# ==========================
+# 9. 本地测试与调试脚本 (如果你不想公开它们)
+# 如果这些脚本包含 API Key 或数据库密码，请务必忽略！
+# ==========================
+rag_backend/get_valid_token.py
+rag_backend/minio_data/generate_secret_key.py
+
+# ==========================
+# 10. 流式输出测试脚本（仅用于本地调试）
+# ==========================
+test_streaming_fix.py
+test_real_streaming.py
+quick_test_streaming.py
+
+# ==========================
+# 11. PgBouncer 相关文件（仅本地调试使用）
+# ==========================
+rag_backend/pgbouncer_session_mode.ini
+rag_backend/pgbouncer_transaction_mode.ini
+rag_backend/start_pgbouncer.bat
+rag_backend/start_pgbouncer.ps1
+rag_backend/TEST_COMMANDS.bat
+rag_backend/TEST_COMMANDS.sh
+
+# PgBouncer 配置实际渲染产物（含上游 PG 密码），仓库内仅保留 *.template
+rag_backend/docker/pgbouncer.ini
+rag_backend/docker/pgbouncer_transaction_mode.ini
+
+# ==========================
+# 12. pytest 配置（仅本地使用）
+# ==========================
+rag_backend/pytest.ini
+
+# =================================================================
+# 👇 下方为全局通用屏蔽（建议不加前缀，让整个 Monorepo 都生效）
+# =================================================================
+
+# IDE 产生的配置文件
+.idea/
+.vscode/
+*.swp
+*.swo
+
+对话系统_流式打断续传_分析与改进方案.md
+多智能体系统深度分析报告.md
+高风险人工审核闸门_设计方案.md
+
+# Claude Code 本地配置（机器相关，不入库）
+.claude/settings.local.json
+**/.claude/settings.local.json
+
+# Claude Code / 本地工程笔记，不入库（保留在本地）
+CLAUDE.md
+SETUP.md
+
+# Alembic 迁移文件，不入库（530.sql 是发布快照；alembic 仅本地开发用）
+rag_backend/alembic/versions/*.py
+!rag_backend/alembic/versions/__init__.py
+
+# 操作系统产生的文件
+.DS_Store
+Thumbs.db
+
+# ==========================
+# 前端构建产物
+# ==========================
+rag_frontend/dist/
+rag_frontend/dist-ssr/
+rag_frontend/node_modules/
+rag_frontend/.cache/
+
+# ==========================
+# MCP 服务相关
+# ==========================
+mcp_server/logs/
+mcp_server/data/
+
+# ==========================
+# 本地测试脚本（包含敏感信息）
+# ==========================
+# create_test_users.py
+# 111chat.py
+# 1111enbeding
+# file111
+# quick_tavily_test.py
+# add_level_column.py
+# add_token_columns.py
+
+# ==========================
+# 上传文件和存储（包含用户数据）
+# ==========================
+rag_backend/storage/
+rag_backend/uploads/
+!rag_backend/uploads/.gitkeep
+!rag_backend/storage/.gitkeep
+
+# 本地 Python 环境与依赖缓存
+.venv/
+.pip-cache/
+
+# 外部安全数据集的独立 Git 仓库不随主项目发布
+rag_backend/data/security/sources/

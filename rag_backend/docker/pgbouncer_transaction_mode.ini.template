@@ -1,0 +1,59 @@
+; ===========================================
+; PgBouncer Transaction 模式配置 · 模板
+; ===========================================
+; 真正运行使用的 pgbouncer_transaction_mode.ini 由
+;   rag_backend/docker/render_pgbouncer.py
+; 从本模板渲染（替换 ${POSTGRES_PASSWORD} 等占位符），
+; 渲染产物已被 .gitignore 排除，不会再泄漏密码到 git。
+;
+; 使用：
+;   cd rag_backend && python docker/render_pgbouncer.py
+;   docker compose up -d pgbouncer
+; ===========================================
+
+[databases]
+* = host=db port=5432 user=postgres password=${POSTGRES_PASSWORD}
+
+[pgbouncer]
+listen_addr = 0.0.0.0
+listen_port = 5432
+
+; 认证配置
+auth_type = trust
+auth_file = /etc/pgbouncer/userlist.txt
+
+; 忽略不支持的启动参数
+ignore_startup_parameters = extra_float_digits,statement_timeout
+
+; 连接池模式
+pool_mode = transaction
+
+; 连接池大小配置
+max_client_conn = 1000
+default_pool_size = 20
+min_pool_size = 5
+reserve_pool_size = 5
+reserve_pool_timeout = 5
+
+; 连接管理
+server_lifetime = 3600
+server_idle_timeout = 600
+server_connect_timeout = 15
+server_login_retry = 3
+
+; 查询管理
+query_timeout = 30
+query_wait_timeout = 30
+idle_transaction_timeout = 300
+server_reset_query = DISCARD ALL
+
+; 日志配置
+log_connections = 0
+log_disconnections = 0
+log_pooler_errors = 1
+
+; TCP Keepalive
+tcp_keepalive = 1
+
+; 连接健康检查
+server_check_delay = 30

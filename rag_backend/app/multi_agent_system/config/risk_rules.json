@@ -1,0 +1,20 @@
+{
+  "_description": "智能家居设备控制风险规则，pattern 用于匹配问题描述，risk_score 为 0-1。",
+  "home_butler": [
+    {"pattern": "任意Topic|直接GPIO|绕过安全", "risk_score": 1.0, "risk_level": "critical"},
+    {"pattern": "设备离线仍控制", "risk_score": 0.8, "risk_level": "high"}
+  ],
+  "environment": [
+    {"pattern": "传感器数据异常", "risk_score": 0.7, "risk_level": "high"}
+  ],
+  "device_control": [
+    {"pattern": "非法设备指令", "risk_score": 0.9, "risk_level": "critical"},
+    {"pattern": "未注册设备", "risk_score": 0.8, "risk_level": "high"}
+  ],
+  "comfort": [
+    {"pattern": "睡眠模式误开高功耗设备", "risk_score": 0.6, "risk_level": "medium"}
+  ],
+  "general": [
+    {"pattern": "缺少设备状态|缺少操作确认", "risk_score": 0.6, "risk_level": "medium"}
+  ]
+}

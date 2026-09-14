@@ -1,0 +1,17 @@
+version: "smart-home-1.0"
+knowledge_types:
+  - device_manual
+  - sensor_guide
+  - scenario_definition
+  - safety_rule
+  - general
+retrieval:
+  top_k: 5
+  similarity_threshold: 0.7
+  rerank: true
+  tenant_isolation: true
+answering:
+  - cite retrieved device or safety knowledge when available
+  - prefer real-time device state for control decisions
+  - never invent device capabilities, state or acknowledgements
+  - refuse arbitrary MQTT Topic, GPIO and shell commands
