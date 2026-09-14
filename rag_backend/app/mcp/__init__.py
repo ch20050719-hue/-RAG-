@@ -32,12 +32,7 @@ __all__ = [
     "get_tool_metadata",
     "get_tool_source",
     "clear_registry",
-    "create_financial_tools",
-    "create_financial_health_tools",
     "create_database_tools",
-    "create_business_tools",
-    "create_cloud_tools",
-    "create_orchestrator_tools",
     "create_foundation_tools",
     "get_all_local_tools",
     "get_all_cloud_tools",
@@ -45,65 +40,9 @@ __all__ = [
 ]
 
 
-def create_financial_tools():
-    """创建财务数据工具"""
-    from app.mcp.financial_tools import create_financial_tools as _create
-    return _create()
-
-
-def create_financial_health_tools():
-    """创建财务健康报告工具"""
-    from app.mcp.financial_health_tools import create_financial_health_tools as _create
-    return _create()
-
-
 def create_database_tools():
     """创建数据库工具"""
     from app.mcp.database_tools import create_database_tools as _create
-    return _create()
-
-
-def create_business_tools():
-    """创建业务工具"""
-    from app.mcp.business_tools import create_business_tools as _create
-    return _create()
-
-
-def create_cloud_tools():
-    """创建云端工具"""
-    from app.mcp.cloud_tools import create_cloud_tools as _create
-    return _create()
-
-
-def create_legal_compliance_tools():
-    """创建法律合规工具"""
-    from app.mcp.legal_compliance_mcp_tools import create_legal_compliance_tools as _create
-    return _create()
-
-
-def create_legal_compliance_tools_v2():
-    """创建法律合规增强工具（企业政策匹配）"""
-    from app.mcp.legal_compliance_mcp_tools_v2 import (
-        contract_compliance_deadline,
-        enterprise_policy_matcher,
-        enterprise_policy_match_reader,
-        dispute_resolution_advisor,
-        contract_template_matcher,
-        contract_risk_trend_analyzer,
-    )
-    return [
-        contract_compliance_deadline,
-        enterprise_policy_matcher,
-        enterprise_policy_match_reader,
-        dispute_resolution_advisor,
-        contract_template_matcher,
-        contract_risk_trend_analyzer,
-    ]
-
-
-def create_orchestrator_tools():
-    """创建 Orchestrator Agent 专用工具（任务拆解和报告生成）"""
-    from app.mcp.orchestrator_tools import create_orchestrator_tools as _create
     return _create()
 
 
@@ -116,13 +55,7 @@ def create_foundation_tools():
 def get_all_local_tools():
     """获取所有本地工具"""
     tools = []
-    tools.extend(create_financial_tools())
-    tools.extend(create_financial_health_tools())
     tools.extend(create_database_tools())
-    tools.extend(create_business_tools())
-    tools.extend(create_legal_compliance_tools())
-    tools.extend(create_legal_compliance_tools_v2())
-    tools.extend(create_orchestrator_tools())
     tools.extend(create_foundation_tools())
     try:
         from app.services.custom_tool_service import get_published_custom_tool_callables
@@ -135,10 +68,12 @@ def get_all_local_tools():
 
 
 def get_all_cloud_tools():
-    """获取所有云端工具"""
-    tools = create_cloud_tools()
-    logger.info(f"☁️ 云端 MCP 工具: {len(tools)} 个")
-    return tools
+    """获取所有云端工具。
+
+    领域云工具已移除；智能家居设备通信由受控 MQTT 适配器负责。
+    """
+    logger.info("☁️ 云端 MCP 工具: 0 个")
+    return []
 
 
 def get_unified_tools():

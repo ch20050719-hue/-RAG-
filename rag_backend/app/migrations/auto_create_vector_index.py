@@ -44,7 +44,7 @@ VECTOR_TABLES_CONFIG = [
     {
         "table_name": "policies",
         "expected_dim": 768,
-        "description": "政策表"
+        "description": "智能家居知识表"
     },
     {
         "table_name": "chat_messages",

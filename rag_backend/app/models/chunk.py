@@ -40,7 +40,7 @@ class DocumentChunk(Base):
     tenant_id = Column(String(50), nullable=True)  # 租户ID，用于多租户隔离
 
     # ==== v2 增强字段 ====
-    domain = Column(String(20), nullable=True, index=True)        # finance/tax/legal/general
+    domain = Column(String(20), nullable=True, index=True)        # smart_home/general
     node_type = Column(String(10), nullable=True, index=True)     # root/parent/leaf
     summary = Column(String(500), nullable=True)                  # PARENT 节点摘要
     relationships = Column(JSONB, default={})                     # {"PARENT": "uuid", "CHILDREN": [...], ...}

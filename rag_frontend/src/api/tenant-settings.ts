@@ -18,11 +18,11 @@ export interface TenantSettings {
   admin_email?: string
   admin_phone?: string
   
-  // 企业画像（用于政策智能匹配）
+  // 智能家居租户画像
   industry?: string
   region?: string
   scale?: string
-  tax_types?: string[]
+  home_preferences?: string[]
   
   max_users?: number
   max_storage_gb?: number
@@ -35,8 +35,8 @@ export interface TenantSettings {
   enable_knowledge_graph?: boolean
   enable_human_review?: boolean
   enable_audit?: boolean
-  enable_tax_report?: boolean
-  enable_financial_data?: boolean
+  enable_device_control?: boolean
+  enable_mqtt?: boolean
   
   primary_color?: string
   secondary_color?: string
@@ -66,11 +66,11 @@ export interface TenantSettingsUpdate {
   admin_email?: string
   admin_phone?: string
   
-  // 企业画像（用于政策智能匹配）
+  // 智能家居租户画像
   industry?: string
   region?: string
   scale?: string
-  tax_types?: string[]
+  home_preferences?: string[]
   
   max_users?: number
   max_storage_gb?: number
@@ -83,8 +83,8 @@ export interface TenantSettingsUpdate {
   enable_knowledge_graph?: boolean
   enable_human_review?: boolean
   enable_audit?: boolean
-  enable_tax_report?: boolean
-  enable_financial_data?: boolean
+  enable_device_control?: boolean
+  enable_mqtt?: boolean
   
   primary_color?: string
   secondary_color?: string
@@ -109,8 +109,8 @@ export interface FeatureCheckResponse {
   enable_knowledge_graph: boolean
   enable_human_review: boolean
   enable_audit: boolean
-  enable_tax_report: boolean
-  enable_financial_data: boolean
+  enable_device_control: boolean
+  enable_mqtt: boolean
 }
 
 export interface FeatureToggleRequest {

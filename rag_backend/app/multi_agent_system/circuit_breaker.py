@@ -5,7 +5,7 @@ Specialist Circuit Breaker — 智能体熔断器
 不再调用该 specialist，直接返回降级响应。
 
 设计：
-- 每个 specialist 独立追踪（finance / tax / legal）
+- 每个 home specialist 独立追踪（home_butler / environment / device_control / comfort）
 - 熔断后冷却期内跳过执行，冷却结束后自动恢复
 - 熔断期间输出置信度乘以权重，告知下游"此专家不可靠"
 """

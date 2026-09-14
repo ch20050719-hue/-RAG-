@@ -327,18 +327,14 @@ class SuggestionService:
     def _infer_domain(self, text: str) -> str:
         """推断领域"""
         domain_keywords = {
-            "技术": ["代码", "程序", "开发", "系统", "接口", "API", "数据库", "服务器"],
-            "财务": ["税务", "发票", "报销", "预算", "成本", "利润", "税收"],
-            "法律": ["合同", "法规", "法律", "条款", "权益", "义务", "责任"],
-            "商业": ["市场", "营销", "销售", "客户", "运营", "战略"],
-            "教育": ["学习", "课程", "培训", "教育", "教学", "学生"],
+            "智能家居": ["智能家居", "设备", "灯", "风扇", "空调", "传感器", "温度", "湿度", "场景", "MQTT", "ESP32"],
         }
         
         for domain, keywords in domain_keywords.items():
             if any(kw in text for kw in keywords):
                 return domain
         
-        return "通用"
+        return "智能家居"
     
     def _analyze_sentiment(self, text: str) -> str:
         """分析语气"""

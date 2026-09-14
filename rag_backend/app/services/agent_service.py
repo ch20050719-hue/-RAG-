@@ -1227,7 +1227,7 @@ class EnterpriseAgentService:
             prompt = (
                 f"分析这段对话是否包含【具体的企业实体信息】。\n"
                 f"包含以下任一就回答 YES：企业名(如华为/腾讯)、人名(如张三/马化腾)、"
-                f"合同/签约/金额等具体商业信息。\n"
+                f"设备、传感器、场景和安全规则等具体家居信息。\n"
                 f"没有具体实体信息就回答 NO。\n\n"
                 f"对话：\n{user_part}\n{ai_part}\n\n"
                 f"回答（YES 或 NO）："

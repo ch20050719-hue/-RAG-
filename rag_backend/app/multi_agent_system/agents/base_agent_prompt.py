@@ -19,33 +19,22 @@ def _normalize_agent_name(agent_name: str) -> str:
     标准化agent名称到目录名
     
     映射规则：
-    - "FinanceSpecialist" -> "finance"
-    - "TaxSpecialist" -> "tax"
-    - "LegalSpecialist" -> "legal"
+    - "HomeSpecialistAgent" -> "home_specialist"
     - "IntentRouterAgent" -> "intent_router"
-    - "ReportGenerator" -> "report"
-    - "PolicyNotificationAgent" -> "policy_notification"
     - "ReActAgent" -> "react"
     - 其他 -> 转小写
     
     提示词目录结构：
-    - agents/finance/       - 金融专家
-    - agents/tax/          - 税务专家
-    - agents/legal/         - 法律专家
+    - agents/home_specialist/ - 智能家居专家
     - agents/intent_router/ - 意图路由
-    - agents/report/       - 报告生成
-    - agents/policy_notification/ - 政策通知
+    - agents/report/       - 结果汇总
     - agents/react/        - ReAct推理
     - agents/output/       - 输出处理
     - agents/plan/         - 计划制定
     """
     name_mapping = {
-        "financespecialist": "finance",
-        "taxspecialist": "tax",
-        "legalspecialist": "legal",
+        "homespecialistagent": "home_specialist",
         "intentrouteragent": "intent_router",
-        "reportgenerator": "report",
-        "policynotificationagent": "policy_notification",
         "reactagent": "react",
         "planagent": "plan",
         "outputagent": "output",

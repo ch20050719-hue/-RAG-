@@ -55,7 +55,7 @@ class LangSmithClientManager:
             # 创建 LangSmith Client
             api_key = os.getenv("LANGSMITH_API_KEY")
             endpoint = os.getenv("LANGSMITH_ENDPOINT", "https://api.smith.langchain.com")
-            project = os.getenv("LANGSMITH_PROJECT", "financial_rag")
+            project = os.getenv("LANGSMITH_PROJECT", "smart_home_rag")
             
             self.client = Client(api_key=api_key, api_url=endpoint)
             
@@ -67,8 +67,8 @@ class LangSmithClientManager:
                     timeout=600.0,
                     max_retries=5,
                     default_headers={
-                        "HTTP-Referer": "https://github.com/financial-rag",
-                        "X-Title": "Financial RAG System",
+                        "HTTP-Referer": "https://github.com/smart-home-rag",
+                        "X-Title": "Smart Home RAG System",
                     }
                 )
             )
@@ -135,7 +135,7 @@ def setup_langsmith_config():
     """
     required_vars = {
         "LANGSMITH_API_KEY": os.getenv("LANGSMITH_API_KEY", ""),
-        "LANGSMITH_PROJECT": os.getenv("LANGSMITH_PROJECT", "financial_rag"),
+        "LANGSMITH_PROJECT": os.getenv("LANGSMITH_PROJECT", "smart_home_rag"),
         "LANGSMITH_ENDPOINT": os.getenv("LANGSMITH_ENDPOINT", "https://api.smith.langchain.com"),
         "LANGSMITH_TRACING": os.getenv("LANGSMITH_TRACING", "false")
     }
@@ -155,7 +155,7 @@ def get_langsmith_config() -> Dict[str, Any]:
     """
     return {
         "api_key": os.getenv("LANGSMITH_API_KEY"),
-        "project": os.getenv("LANGSMITH_PROJECT", "financial_rag"),
+        "project": os.getenv("LANGSMITH_PROJECT", "smart_home_rag"),
         "endpoint": os.getenv("LANGSMITH_ENDPOINT", "https://api.smith.langchain.com"),
         "tracing": os.getenv("LANGSMITH_TRACING", "false").lower() == "true",
         "enabled": bool(os.getenv("LANGSMITH_API_KEY")) and os.getenv("LANGSMITH_TRACING", "false").lower() == "true"
@@ -170,7 +170,7 @@ class LangSmithTracer:
     """
     
     def __init__(self, project_name: Optional[str] = None):
-        self.project_name = project_name or os.getenv("LANGSMITH_PROJECT", "financial_rag")
+        self.project_name = project_name or os.getenv("LANGSMITH_PROJECT", "smart_home_rag")
         self.client = None
         self._setup_client()
     
@@ -188,7 +188,7 @@ class LangSmithTracer:
         
         # 获取配置
         endpoint = os.getenv("LANGSMITH_ENDPOINT", "https://api.smith.langchain.com")
-        self.project_name = os.getenv("LANGSMITH_PROJECT", "financial_rag")
+        self.project_name = os.getenv("LANGSMITH_PROJECT", "smart_home_rag")
         
         try:
             from langsmith import Client
@@ -320,7 +320,7 @@ class LangSmithTracer:
         追踪 Agent 完整执行过程（上下文管理器）
         
         用法:
-        with tracer.trace_agent_run("FinanceSpecialist", "specialist", query) as run_id:
+        with tracer.trace_agent_run("HomeSpecialist", "specialist", query) as run_id:
             # Agent 执行逻辑
             pass
         
@@ -634,8 +634,8 @@ async def example_usage():
     if tracer.client:
         tracer.trace_llm_call(
             model_name="MiniMax-Text-01",
-            prompt="分析公司财务状况",
-            response="根据财务数据分析...",
+            prompt="检查书桌台灯当前状态",
+            response="已根据设备状态返回结果...",
             token_usage={
                 "prompt": 234,
                 "completion": 89,
@@ -650,7 +650,7 @@ async def example_usage():
     # 4. 在工具调用中使用
     tracer.trace_tool_call(
         tool_name="search_knowledge_base",
-        arguments={"query": "税务法规", "top_k": 5},
+        arguments={"query": "台灯安全控制规则", "top_k": 5},
         result={"documents": [...]},
         error=None
     )
@@ -671,7 +671,7 @@ LANGSMITH_ENDPOINT=https://api.smith.langchain.com
 LANGSMITH_API_KEY=your_langsmith_api_key
 
 # LangSmith 项目名称
-LANGSMITH_PROJECT=financial_rag
+LANGSMITH_PROJECT=smart_home_rag
 
 提示：
 1. 确保已安装 langsmith: pip install langsmith

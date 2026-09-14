@@ -92,62 +92,32 @@ const deletedNodeIds = ref<string[]>([])
 const deletedEdgeIds = ref<string[]>([])
 const importFileInput = ref<HTMLInputElement | null>(null)
 const newNodeName = ref('')
-const newNodeType = ref('COMPANY')
+const newNodeType = ref('DEVICE')
 const newEdgeSource = ref('')
 const newEdgeTarget = ref('')
 const newEdgeType = ref('RELATED_TO')
 
 const nodeTypes = [
-  { value: 'COMPANY', label: '公司', color: '#3b82f6' },
-  { value: 'PERSON', label: '人物', color: '#10b981' },
-  { value: 'DEPARTMENT', label: '部门', color: '#06b6d4' },
-  { value: 'FINANCIAL_METRIC', label: '财务指标', color: '#f59e0b' },
-  { value: 'FINANCIAL_REPORT', label: '财务报表', color: '#f59e0b' },
-  { value: 'ACCOUNT', label: '账户', color: '#f59e0b' },
-  { value: 'BUDGET', label: '预算', color: '#f59e0b' },
-  { value: 'TAX_TYPE', label: '税种', color: '#8b5cf6' },
-  { value: 'TAX_POLICY', label: '税收政策', color: '#8b5cf6' },
-  { value: 'TAX_RATE', label: '税率', color: '#8b5cf6' },
-  { value: 'TAX_EXEMPTION', label: '税收优惠', color: '#8b5cf6' },
-  { value: 'CONTRACT', label: '合同', color: '#e11d48' },
-  { value: 'LEGAL_CASE', label: '案件', color: '#e11d48' },
-  { value: 'REGULATION', label: '法规', color: '#e11d48' },
-  { value: 'CLAUSE', label: '条款', color: '#e11d48' },
-  { value: 'PRODUCT', label: '产品', color: '#14b8a6' },
-  { value: 'SERVICE', label: '服务', color: '#14b8a6' },
+  { value: 'DEVICE', label: '设备', color: '#3b82f6' },
+  { value: 'SENSOR', label: '传感器', color: '#06b6d4' },
+  { value: 'ROOM', label: '房间', color: '#22c55e' },
+  { value: 'SCENARIO', label: '场景', color: '#8b5cf6' },
+  { value: 'SAFETY_RULE', label: '安全规则', color: '#e11d48' },
+  { value: 'ACTION', label: '动作', color: '#f97316' },
+  { value: 'STATE', label: '状态', color: '#14b8a6' },
+  { value: 'TECHNOLOGY', label: '通信技术', color: '#6366f1' },
   { value: 'LOCATION', label: '地点', color: '#22c55e' },
-  { value: 'DATE_PERIOD', label: '日期/期间', color: '#f97316' },
-  { value: 'EVENT', label: '事件', color: '#ef4444' },
-  { value: 'TECHNOLOGY', label: '技术/专利', color: '#6366f1' },
 ]
 
 const edgeTypes = [
-  { value: 'WORKS_AT', label: '工作于（人→公司）' },
-  { value: 'MANAGED_BY', label: '由...管理' },
-  { value: 'BELONGS_TO', label: '属于' },
-  { value: 'PARTNER_WITH', label: '合作' },
-  { value: 'COMPETES_WITH', label: '竞争' },
-  { value: 'SUBSIDIARY_OF', label: '子公司' },
-  { value: 'SUPPLIER_OF', label: '供应商' },
-  { value: 'CUSTOMER_OF', label: '客户' },
-  { value: 'INVESTED_IN', label: '投资' },
-  { value: 'OWNS', label: '持有' },
-  { value: 'HAS_METRIC', label: '有财务指标' },
-  { value: 'REPORTED_IN', label: '体现在报表' },
-  { value: 'AUDITED_BY', label: '由...审计' },
-  { value: 'SUBJECT_TO', label: '适用税种' },
-  { value: 'HAS_RATE', label: '税率为' },
-  { value: 'ELIGIBLE_FOR', label: '符合优惠' },
-  { value: 'CLAIMED', label: '已申报' },
-  { value: 'SIGNED', label: '签署合同' },
-  { value: 'GOVERNS', label: '管辖/适用' },
-  { value: 'VIOLATES', label: '违反' },
-  { value: 'CONTAINS_CLAUSE', label: '包含条款' },
-  { value: 'EFFECTIVE_PERIOD', label: '有效期' },
-  { value: 'LOCATED_AT', label: '位于' },
-  { value: 'PRODUCES', label: '生产/提供' },
-  { value: 'USES', label: '使用技术' },
-  { value: 'RELATED_TO', label: '相关（通用）' },
+  { value: 'DEVICE_IN_ROOM', label: '设备位于房间' },
+  { value: 'SENSOR_IN_ROOM', label: '传感器位于房间' },
+  { value: 'SUPPORTS_ACTION', label: '支持动作' },
+  { value: 'TRIGGERS', label: '触发场景' },
+  { value: 'REQUIRES_SAFETY', label: '需要安全规则' },
+  { value: 'REPORTS_STATE', label: '报告状态' },
+  { value: 'CONNECTED_BY', label: '通过通信连接' },
+  { value: 'RELATED_TO', label: '相关' },
 ]
 
 const filteredNodes = computed(() => {
@@ -160,10 +130,10 @@ const filteredNodes = computed(() => {
 })
 
 function getNodeColor(type: string): string {
-  // 直接匹配（新格式：COMPANY, TAX_TYPE 等）
+  // 直接匹配家居知识图谱类型
   const nodeType = nodeTypes.find(t => t.value === type)
   if (nodeType) return nodeType.color
-  // 兼容旧格式（Person, Organization 等）- 转大写后重试
+  // 兼容服务端返回的大小写差异
   const upperType = type.toUpperCase().replace(/\s+/g, '_')
   const fallback = nodeTypes.find(t => t.value === upperType)
   return fallback?.color || '#64748b'

@@ -7,6 +7,8 @@ import httpx
 import logging
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
+from app.core.config import settings
+from app.security.outbound_url import validate_configured_service_url
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +57,11 @@ class MCPClientManager:
         api_key: str,
         timeout: int = 120
     ):
-        self.server_url = server_url.rstrip("/")
+        self.server_url = validate_configured_service_url(
+            server_url,
+            allowed_hosts=settings.OUTBOUND_ALLOWED_HOSTS.split(","),
+            private_hosts=settings.OUTBOUND_PRIVATE_HOSTS.split(","),
+        ).geturl().rstrip("/")
         self.api_key = api_key
         self.default_timeout = timeout
         self._headers = {
@@ -68,7 +74,7 @@ class MCPClientManager:
     async def health_check(self) -> bool:
         """健康检查"""
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with httpx.AsyncClient(timeout=10, follow_redirects=False) as client:
                 response = await client.get(f"{self.server_url}/health")
                 return response.status_code == 200
         except (ValueError, KeyError) as e:
@@ -102,7 +108,7 @@ class MCPClientManager:
     async def _load_tools(self) -> None:
         """加载工具列表"""
         try:
-            async with httpx.AsyncClient(timeout=self.default_timeout) as client:
+            async with httpx.AsyncClient(timeout=self.default_timeout, follow_redirects=False) as client:
                 response = await client.get(
                     f"{self.server_url}/tools",
                     headers=self._headers
@@ -152,10 +158,23 @@ class MCPClientManager:
         if arguments is None:
             arguments = {}
 
-        logger.info(f"📤 调用工具: {tool_name}, 参数: {arguments}")
+        try:
+            from app.security.tool_authorization import authorize_tool_call
+            from app.tools.agent_tools import get_tool_tenant_id, get_tool_user_id
+            authorize_tool_call(
+                tool_name,
+                arguments,
+                tenant_id=get_tool_tenant_id(),
+                user_id=get_tool_user_id(),
+            )
+        except PermissionError:
+            logger.warning("MCP 工具调用未通过服务端授权: %s", tool_name)
+            raise MCPError("工具调用未通过服务端安全校验")
+
+        logger.info("📤 调用工具: %s, 参数键: %s", tool_name, sorted(arguments))
 
         try:
-            async with httpx.AsyncClient(timeout=self.default_timeout) as client:
+            async with httpx.AsyncClient(timeout=self.default_timeout, follow_redirects=False) as client:
                 response = await client.post(
                     f"{self.server_url}/mcp/call",
                     headers=self._headers,

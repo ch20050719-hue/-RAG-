@@ -82,10 +82,10 @@ class OrchestratorAgent(BaseAgent):
 
     def _build_default_prompt(self) -> str:
         """构建默认提示词"""
-        return """# Orchestrator Agent (协调者/主路由智能体)
+        return """# Orchestrator Agent（智能家居协调者）
 
 ## 角色定位
-你是企业智能体系统的唯一"大脑"和"包工头"。你是系统唯一直接面对用户的高级协调者。
+你是智能家居系统的统一协调者，直接理解用户请求并安全调度家居能力。
 
 ## 核心职责
 
@@ -109,13 +109,13 @@ class OrchestratorAgent(BaseAgent):
 - 特点：
   - 构建有向无环图 (DAG)
   - 支持任务依赖关系 (depends_on_task_ids)
-  - 支持角色白名单 (仅 Finance_Agent, Tax_Agent, Legal_Agent)
+  - 支持角色白名单（仅 Home_Butler、Environment、Device_Control、Comfort）
   - 自动验证依赖循环
 - 这是系统唯一允许状态写操作的强大工具，请谨慎使用
 
 ### get_current_time_and_context (时间锚点 - 【新】)
 - 用途：获取绝对物理时间、日期、星期和时区信息
-- 必要性：大模型没有生物钟，当用户问"今年政策"或"上个月营收"时，必须调用此工具锚定时间
+- 必要性：涉及设备固件版本、场景版本或历史读数时，必须先确认时间与版本范围
 - 输出：当前年、月、季度、星期及相对时间映射表
 
 ### summarize_final_report (报告生成工具)

@@ -1,0 +1,208 @@
+# 智能家居能力配置文件
+# 通过 AGENT_CAPABILITIES_FILE 或 HOME_DOMAIN_MODE=1 切换使用
+
+agents:
+  # ==================== 总管家 ====================
+  home_butler:
+    agent_id: "home_butler_001"
+    agent_name: "总管家"
+    agent_type: "home_butler"
+    enabled: true
+    priority: 1
+
+    domains:
+      - name: "home_orchestration"
+        display_name: "家居总控"
+        weight: 1.0
+        examples:
+          - "开启睡眠模式"
+          - "我出门了，关闭设备"
+
+      - name: "device_natural_language"
+        display_name: "自然语言控制"
+        weight: 1.0
+        examples:
+          - "房间有点热"
+          - "把灯打开"
+
+    keywords:
+      high_weight:
+        - "管家"
+        - "家里"
+        - "家居"
+        - "开灯"
+        - "关灯"
+        - "开风扇"
+        - "关风扇"
+        - "睡眠模式"
+        - "离家"
+      medium_weight:
+        - "房间"
+        - "空调"
+        - "灯光"
+        - "风扇"
+        - "设备"
+
+    entities:
+      - "房间"
+      - "设备名"
+      - "场景"
+
+    patterns:
+      - ".*(开|关).{0,4}(灯|风扇).*"
+      - ".*睡眠模式.*"
+      - ".*(出门|离家).*"
+
+  # ==================== 环境感知 ====================
+  environment:
+    agent_id: "home_environment_001"
+    agent_name: "环境感知专家"
+    agent_type: "environment"
+    enabled: true
+    priority: 2
+
+    domains:
+      - name: "sensor_reading"
+        display_name: "传感器读数"
+        weight: 1.0
+        examples:
+          - "现在室内多少度"
+          - "湿度多少"
+
+      - name: "comfort_assessment"
+        display_name: "舒适度评估"
+        weight: 0.9
+        examples:
+          - "现在适合开窗吗"
+          - "房间是否太暗"
+
+    keywords:
+      high_weight:
+        - "温度"
+        - "湿度"
+        - "光照"
+        - "人体"
+        - "传感器"
+      medium_weight:
+        - "热不热"
+        - "冷不冷"
+        - "亮度"
+
+    patterns:
+      - ".*(温度|湿度|光照|人体).*"
+      - ".*(多少度|多热|多冷).*"
+
+  # ==================== 设备控制 ====================
+  device_control:
+    agent_id: "home_device_control_001"
+    agent_name: "设备控制专家"
+    agent_type: "device_control"
+    enabled: true
+    priority: 2
+
+    domains:
+      - name: "device_switch"
+        display_name: "设备开关"
+        weight: 1.0
+        examples:
+          - "打开书桌灯"
+          - "关闭风扇"
+
+      - name: "device_status"
+        display_name: "设备状态"
+        weight: 1.0
+        examples:
+          - "灯现在开着吗"
+          - "列出设备状态"
+
+    keywords:
+      high_weight:
+        - "打开"
+        - "关闭"
+        - "开启"
+        - "关掉"
+        - "设备状态"
+      medium_weight:
+        - "desk_light"
+        - "desk_fan"
+        - "灯"
+        - "风扇"
+
+    patterns:
+      - ".*(打开|关闭|开启|关掉).*(灯|风扇|设备).*"
+      - ".*设备状态.*"
+
+  # ==================== 舒适度 ====================
+  comfort:
+    agent_id: "home_comfort_001"
+    agent_name: "舒适度专家"
+    agent_type: "comfort"
+    enabled: true
+    priority: 3
+
+    domains:
+      - name: "sleep_comfort"
+        display_name: "睡眠舒适"
+        weight: 1.0
+        examples:
+          - "准备睡觉了怎么调"
+          - "睡觉前环境建议"
+
+      - name: "energy_save"
+        display_name: "节能建议"
+        weight: 0.8
+        examples:
+          - "如何更省电"
+          - "无人时如何关闭设备"
+
+    keywords:
+      high_weight:
+        - "睡眠"
+        - "舒适"
+        - "节能"
+      medium_weight:
+        - "省电"
+        - "无人"
+
+    patterns:
+      - ".*(睡眠|舒适|节能).*"
+
+  # ==================== 通用助手 ====================
+  general:
+    agent_id: "general_assistant_001"
+    agent_name: "通用助手"
+    agent_type: "general"
+    enabled: true
+    priority: 10
+
+    domains:
+      - name: "general_query"
+        display_name: "通用查询"
+        weight: 0.5
+        examples:
+          - "问候"
+          - "闲聊"
+
+    keywords:
+      high_weight:
+        - "你好"
+        - "请问"
+        - "帮助"
+
+    patterns:
+      - "^(你好|您好|hi|hello).*"
+
+routing:
+  default_confidence_threshold: 0.5
+  max_specialists_per_request: 2
+  enable_fallback: true
+
+  intent_to_specialist:
+    "home_control": "home_butler"
+    "device_switch": "device_control"
+    "device_status": "device_control"
+    "sensor_reading": "environment"
+    "comfort_assessment": "environment"
+    "sleep_mode": "comfort"
+    "energy_save": "comfort"
+    "greeting": "general"

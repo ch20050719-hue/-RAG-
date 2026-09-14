@@ -232,9 +232,9 @@ class A2ATaskBus:
         return bus
 
 
-class FinancialAgentState(TypedDict, total=False):
+class HomeAgentState(TypedDict, total=False):
     """
-    金融专家 Agent 状态
+    智能家居 Agent 状态
 
     LangGraph State 定义，包含：
     1. 对话消息历史
@@ -254,7 +254,7 @@ class FinancialAgentState(TypedDict, total=False):
     available_agents: List[Dict[str, Any]]
 
 
-def create_initial_state(user_query: str) -> FinancialAgentState:
+def create_initial_state(user_query: str) -> HomeAgentState:
     """
     创建初始状态
 
@@ -264,7 +264,7 @@ def create_initial_state(user_query: str) -> FinancialAgentState:
     Returns:
         初始化的状态字典
     """
-    return FinancialAgentState(
+    return HomeAgentState(
         messages=[],
         a2a_task_bus=[],
         current_agent=None,
@@ -278,11 +278,11 @@ def create_initial_state(user_query: str) -> FinancialAgentState:
 
 
 def add_message_to_state(
-    state: FinancialAgentState,
+    state: HomeAgentState,
     role: str,
     content: str,
     metadata: Optional[Dict[str, Any]] = None
-) -> FinancialAgentState:
+) -> HomeAgentState:
     """
     向状态添加消息
 
@@ -306,11 +306,11 @@ def add_message_to_state(
 
 
 def submit_a2a_task(
-    state: FinancialAgentState,
+    state: HomeAgentState,
     to_agent: str,
     message: Union[str, Dict[str, Any]],
     from_agent: str = "orchestrator"
-) -> FinancialAgentState:
+) -> HomeAgentState:
     """
     向状态提交 A2A 任务
 
@@ -330,10 +330,10 @@ def submit_a2a_task(
 
 
 def complete_a2a_task(
-    state: FinancialAgentState,
+    state: HomeAgentState,
     task_id: str,
     result: Any
-) -> FinancialAgentState:
+) -> HomeAgentState:
     """
     标记 A2A 任务完成
 
@@ -356,17 +356,17 @@ def complete_a2a_task(
     return state
 
 
-def get_pending_a2a_tasks(state: FinancialAgentState) -> List[A2ATaskEntry]:
+def get_pending_a2a_tasks(state: HomeAgentState) -> List[A2ATaskEntry]:
     """获取待处理的 A2A 任务"""
     bus = A2ATaskBus.from_state(state.get("a2a_task_bus", []))
     return bus.get_pending_tasks()
 
 
 def enrich_state_with_agents(
-    state: FinancialAgentState,
+    state: HomeAgentState,
     registry: Any,
     include_cards: bool = True
-) -> FinancialAgentState:
+) -> HomeAgentState:
     """
     使用 AgentRegistry 丰富状态
 

@@ -21,9 +21,7 @@ class HybridSearchEngine:
     DEFAULT_K = 60
 
     DOMAIN_WEIGHTS = {
-        "legal": (0.4, 0.6),
-        "tax": (0.5, 0.5),
-        "finance": (0.3, 0.7),
+        "smart_home": (0.5, 0.5),
         "general": (0.5, 0.5),
         None: (0.5, 0.5),
     }

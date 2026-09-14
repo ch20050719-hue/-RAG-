@@ -239,7 +239,7 @@ class ARSpecialistTask(ARAbstractTask):
             任务结果
         """
         task_id = kwargs.get("task_id", "specialist")
-        specialist_type = kwargs.get("specialist_type", "finance")
+        specialist_type = kwargs.get("specialist_type", "home_butler")
         
         async def _execute():
             logger.info(
@@ -486,7 +486,7 @@ async def enqueue_task(
 
 async def enrich_document_entities(ctx: dict, document_id: str, tenant_id: str = None):
     """
-    ARQ 任务：法务文档实体提取与替换。
+    ARQ 任务：智能家居知识文档实体解析。
 
     由 _dispatch_phase2_enrichment() 创建的 DLQ 任务触发。
     全局并发由 ARQ Worker 的 max_burst_jobs 控制。
@@ -503,7 +503,8 @@ async def enrich_document_entities(ctx: dict, document_id: str, tenant_id: str =
         from app.models.document import Document
         from app.models.chunk import DocumentChunk
         from app.models.document_enrichment_job import EnrichmentJob
-        from app.chunkers.entity_resolver import entity_resolver, ChunkResult
+        from app.chunkers.entity_resolver import entity_resolver
+        from app.chunkers.base_chunker import ChunkResult
         from app.services.structured_document_service import structured_document_service
         from app.services.minio_service import minio_service
         from sqlalchemy import select, update
@@ -549,7 +550,7 @@ async def enrich_document_entities(ctx: dict, document_id: str, tenant_id: str =
                     tokens=db_chunk.token_count or 0,
                     heading_path=db_chunk.heading_path,
                     chunk_index=db_chunk.chunk_index,
-                    domain="legal",
+                    domain="smart_home",
                     node_type=db_chunk.node_type or "leaf",
                     relationships=db_chunk.relationships or {},
                 )
@@ -660,7 +661,7 @@ async def enrich_document_summaries(ctx: dict, document_id: str, parent_chunk_id
                     end=db_chunk.chunk_end or len(db_chunk.content),
                     tokens=db_chunk.token_count or 0,
                     chunk_index=db_chunk.chunk_index,
-                    domain="legal",
+                    domain="smart_home",
                     node_type="parent",
                 )
                 parent_results.append(cr)

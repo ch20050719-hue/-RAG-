@@ -20,7 +20,12 @@ from app.mcp.decorators import local_tool
 
 logger = logging.getLogger(__name__)
 
-VALID_AGENT_ROLES = ["Finance_Agent", "Tax_Agent", "Legal_Agent"]
+VALID_AGENT_ROLES = [
+    "Home_Butler_Agent",
+    "Environment_Agent",
+    "Device_Control_Agent",
+    "Comfort_Agent",
+]
 
 
 class TimeQueryInput(BaseModel):
@@ -43,13 +48,13 @@ class TaskDelegationInput(BaseModel):
 
     架构意图：
     - 大模型没有生物钟，记忆停留在训练数据截止日期
-    - 当用户提问"今年最新的增值税政策"或"对比上个月营收"时，
-      如果不知道"今年"是 2026 年，大模型会陷入时间线混乱
+    - 当用户提问"今天"、"当前"或"上次"的设备状态时，
+      如果没有绝对时间基准，大模型会误判状态时间
 
     使用场景（【必须】调用此工具）：
     - 用户请求包含相对时间词：今年、去年、上个月、本季度、下周
     - 需要计算历史数据对比
-    - 处理政策查询时需要明确时间范围
+    - 处理设备历史状态和场景计划时需要明确时间范围
     - 任何需要区分"现在"和"过去"的场景
 
     返回维度：
@@ -126,7 +131,7 @@ async def get_current_time_and_context(
     - 通过 DAG 构建任务依赖关系，实现精确的任务调度
 
     防呆设计：
-    1. 角色白名单校验：仅允许 Finance_Agent / Tax_Agent / Legal_Agent
+    1. 角色白名单校验：仅允许智能家居专家角色
     2. 循环依赖检测：检测任务依赖是否形成环
     3. DAG 有效性验证：确保依赖关系是有向无环图
 
@@ -189,9 +194,10 @@ async def delegate_task_to_blackboard(
             }, ensure_ascii=False)
 
         priority_map = {
-            "Finance_Agent": TaskPriority.HIGH,
-            "Tax_Agent": TaskPriority.HIGH,
-            "Legal_Agent": TaskPriority.NORMAL
+            "Home_Butler_Agent": TaskPriority.HIGH,
+            "Environment_Agent": TaskPriority.NORMAL,
+            "Device_Control_Agent": TaskPriority.CRITICAL,
+            "Comfort_Agent": TaskPriority.NORMAL
         }
 
         for i, task in enumerate(sub_tasks):

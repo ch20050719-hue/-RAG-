@@ -17,7 +17,7 @@ class PIIType(Enum):
     ID_CARD = "id_card"
     BANK_ACCOUNT = "bank_account"
     ADDRESS = "address"
-    TAX_ID = "tax_id"
+    BUSINESS_ID = "business_id"
     CREDIT_CARD = "credit_card"
 
 
@@ -43,7 +43,7 @@ class PIIAnonymizer:
     4. 身份证号
     5. 银行账号
     6. 地址
-    7. 纳税人识别号（15-20位）
+    7. 业务标识号（15-20位）
     8. 信用卡号
     """
     
@@ -69,7 +69,7 @@ class PIIAnonymizer:
             PIIType.BANK_ACCOUNT: re.compile(
                 r'(?<!\d)\d{16,19}(?!\d)'
             ),
-            PIIType.TAX_ID: re.compile(
+            PIIType.BUSINESS_ID: re.compile(
                 r'(?<!\d)\d{15}|\d{18}|\d{20}(?!\d)'
             ),
             PIIType.CREDIT_CARD: re.compile(
@@ -79,7 +79,7 @@ class PIIAnonymizer:
         
         self.chinese_name_patterns = [
             r'姓名[：:]\s*([\u4e00-\u9fff]{2,4})',
-            r'纳税人[：:]\s*([\u4e00-\u9fff]{2,10})',
+            r'设备拥有者[：:]\s*([\u4e00-\u9fff]{2,10})',
             r'公司名称[：:]\s*([\u4e00-\u9fff]{2,30})',
             r'当事人[：:]\s*([\u4e00-\u9fff]{2,10})',
             r'法定代表人[：:]\s*([\u4e00-\u9fff]{2,4})',
@@ -92,7 +92,7 @@ class PIIAnonymizer:
             PIIType.EMAIL: ("[EMAIL_{index}]", 0.95),
             PIIType.ID_CARD: ("[ID_{index}]", 0.98),
             PIIType.BANK_ACCOUNT: ("[BANK_{index}]", 0.98),
-            PIIType.TAX_ID: ("[TAX_ID_{index}]", 0.95),
+            PIIType.BUSINESS_ID: ("[BUSINESS_ID_{index}]", 0.95),
             PIIType.CREDIT_CARD: ("[CARD_{index}]", 0.98),
         }
         
@@ -131,10 +131,6 @@ class PIIAnonymizer:
                     phone = original
                     if len(phone) == 11:
                         placeholder = f"{phone[:3]}****{phone[-4:]}"
-                elif preserve_format and pii_type == PIIType.TAX_ID:
-                    tax_id = original
-                    if len(tax_id) == 18:
-                        placeholder = f"{tax_id[:6]}****{tax_id[-4:]}"
                 
                 result = result[:match.start()] + placeholder + result[match.end():]
         
@@ -154,7 +150,7 @@ class PIIAnonymizer:
         """检查是否是通用术语"""
         generic_terms = [
             "有限公司", "股份有限公司", "有限责任公司",
-            "公司", "企业", "集团", "个人", "纳税人"
+            "公司", "企业", "集团", "个人", "设备拥有者"
         ]
         return any(term in text for term in generic_terms)
     

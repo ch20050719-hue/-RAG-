@@ -146,7 +146,7 @@ class StateManager:
         session_id="sess-001",
         tenant_id="tenant-001",
         user_id="user-001",
-        user_query="分析税务问题"
+        user_query="检查书房环境状态"
     )
     
     # 更新状态

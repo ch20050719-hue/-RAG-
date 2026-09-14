@@ -53,12 +53,11 @@ from app.schemas.multi_agent import (
 from app.api import deps
 from app.models.user import User
 from app.services.redis_service import redis_service
+from app.security.interaction_safety import SafetyAbort, interaction_guard
+from app.security.interaction_context import prepare_stream_interaction, validate_interaction_input
+from app.security.session_access import can_access_session
 from app.multi_agent_system import AgentOrchestrator, OrchestrationContext
-from app.multi_agent_system.agents import (
-    FinanceSpecialist,
-    TaxSpecialist,
-    LegalSpecialist
-)
+from app.multi_agent_system.agents import HomeSpecialistAgent
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -66,6 +65,22 @@ router = APIRouter()
 # ── 会话 → 多智能体工作流任务 映射 ──
 # 供 POST /query-cancel/{session_id} 主动停止正在进行的流式生成。任务完成后自动注销。
 _ma_session_tasks: Dict[str, asyncio.Task] = {}
+_ma_session_owners: Dict[str, tuple[str, str]] = {}
+
+
+def _finish_interaction_from_task(task: asyncio.Task, interaction_id: str) -> None:
+    """根据后台任务真实结果记录安全交互终态。"""
+    if task.cancelled():
+        status_value = "cancelled"
+    else:
+        error = task.exception()
+        if isinstance(error, SafetyAbort):
+            status_value = "terminated"
+        elif error is not None:
+            status_value = "failed"
+        else:
+            status_value = "completed"
+    asyncio.create_task(interaction_guard.finish(interaction_id, status_value))
 
 
 async def _save_ma_session_bg(
@@ -112,9 +127,7 @@ async def _save_ma_session_bg(
 
 
 orchestrator: Optional[AgentOrchestrator] = None
-finance_specialist: Optional[FinanceSpecialist] = None
-tax_specialist: Optional[TaxSpecialist] = None
-legal_specialist: Optional[LegalSpecialist] = None
+home_specialist: Optional[HomeSpecialistAgent] = None
 
 
 def get_orchestrator(tenant_id: str = None, user_id: str = None):
@@ -142,28 +155,13 @@ def get_orchestrator(tenant_id: str = None, user_id: str = None):
     return orchestrator
 
 
-def get_finance_specialist():
-    """获取或创建金融专家实例"""
-    global finance_specialist
-    if finance_specialist is None:
-        finance_specialist = FinanceSpecialist()
-    return finance_specialist
-
-
-def get_tax_specialist():
-    """获取或创建税务专家实例"""
-    global tax_specialist
-    if tax_specialist is None:
-        tax_specialist = TaxSpecialist()
-    return tax_specialist
-
-
-def get_legal_specialist():
-    """获取或创建法律专家实例"""
-    global legal_specialist
-    if legal_specialist is None:
-        legal_specialist = LegalSpecialist()
-    return legal_specialist
+def get_home_specialist():
+    """获取已初始化的智能家居总管家。"""
+    if home_specialist is not None:
+        return home_specialist
+    if orchestrator is not None:
+        return orchestrator.home_specialists.get("home_butler")
+    return None
 
 
 @router.post("/query-stream")
@@ -192,9 +190,20 @@ async def process_multi_agent_query_stream(
     session_id = request.session_id or f"thread_{uuid_module.uuid4().hex[:16]}"
     enable_reflection = request.enable_reflection
     enable_rag = request.context.get("enable_rag", True) if request.context else True
+    async with prepare_stream_interaction(
+            session_id,
+            str(current_user.id),
+            str(tenant_context.get("tenant_id") or ""),
+            request.query,
+            metadata={"external_tool": bool(enable_rag)},
+    ) as safety_handle:
+        pass
+
+    workflow_started = False
 
     async def event_stream():
         """SSE 事件流生成器"""
+        nonlocal workflow_started
         orch = AgentOrchestrator(
             tenant_id=tenant_context['tenant_id'],
             user_id=str(current_user.id)
@@ -214,21 +223,20 @@ async def process_multi_agent_query_stream(
             "receptionist": "receptionist",
             "intent_router": "intent_router",
             "rag_retrieval": "rag_retrieval",
-            "finance_specialist": "finance_specialist",
-            "tax_specialist": "tax_specialist",
-            "legal_specialist": "legal_specialist",
+            "home_specialist": "home_specialist",
             "reflection": "reflection",
             "final": "final",
         }
 
         # 记录当前活跃的专家节点，供 chunk 事件标注 agent（前端据此区分/标注是哪个专家在输出）
         _active_agent = {"name": None}
-        _SPECIALIST_NODES = {"finance_specialist", "tax_specialist", "legal_specialist"}
+        _SPECIALIST_NODES = {"home_specialist"}
 
         # 进度回调：每个 LangGraph 节点执行时触发
         async def progress_callback(node_name: str, node_state: dict):
             if node_name == "__end__":
                 return
+            await interaction_guard.checkpoint(safety_handle.interaction_id)
             if node_name in _SPECIALIST_NODES:
                 _active_agent["name"] = node_name
             stage = stage_map.get(node_name, node_name)
@@ -255,6 +263,11 @@ async def process_multi_agent_query_stream(
 
         # 流式 token 回调：专家最终回答生成时逐 token 推送（真正的流式输出）
         async def chunk_callback(token: str):
+            await interaction_guard.checkpoint(
+                safety_handle.interaction_id,
+                output_delta=len(token),
+                text=token,
+            )
             evt = {"type": "chunk", "content": token}
             if _active_agent["name"]:
                 evt["agent"] = _active_agent["name"]
@@ -279,9 +292,23 @@ async def process_multi_agent_query_stream(
                 progress_callback=progress_callback,
             )
         )
+        workflow_started = True
         # 注册 会话→任务 映射，供 /query-cancel 主动停止；完成后自动注销
         _ma_session_tasks[session_id] = workflow_task
-        workflow_task.add_done_callback(lambda _t, _sid=session_id: _ma_session_tasks.pop(_sid, None))
+        _ma_session_owners[session_id] = (
+            str(current_user.id),
+            str(tenant_context.get("tenant_id") or ""),
+        )
+
+        def _clear_task(_task, _session_id=session_id):
+            _ma_session_tasks.pop(_session_id, None)
+            _ma_session_owners.pop(_session_id, None)
+
+        workflow_task.add_done_callback(_clear_task)
+        await interaction_guard.attach_task(safety_handle.interaction_id, workflow_task)
+        workflow_task.add_done_callback(
+            lambda _t, _sid=safety_handle.interaction_id: _finish_interaction_from_task(_t, _sid)
+        )
 
         # 从队列读取事件并流式发送，直到工作流完成
         final_response = "处理完成"
@@ -306,6 +333,10 @@ async def process_multi_agent_query_stream(
             _cancelled = True
             final_response = "（已停止生成）"
             logger.info(f"[SSE] 多智能体生成被用户停止 | session={session_id[:8]}")
+        except SafetyAbort:
+            _cancelled = True
+            final_response = "（已因安全策略终止生成）"
+            logger.warning(f"[SSE] 多智能体生成触发安全终止 | session={session_id[:8]}")
         except Exception as e:
             logger.error(f"[SSE] 工作流结果获取失败: {e}")
             final_response = f"处理异常: {str(e)[:200]}"
@@ -319,6 +350,11 @@ async def process_multi_agent_query_stream(
             CHUNK_SIZE = 4
             for i in range(0, len(final_response), CHUNK_SIZE):
                 chunk_text = final_response[i:i + CHUNK_SIZE]
+                await interaction_guard.checkpoint(
+                    safety_handle.interaction_id,
+                    output_delta=len(chunk_text),
+                    text=chunk_text,
+                )
                 yield f"data: {json.dumps({'type': 'chunk', 'content': chunk_text}, ensure_ascii=False)}\n\n"
                 await asyncio.sleep(0)
 
@@ -364,8 +400,21 @@ async def process_multi_agent_query_stream(
             enable_reflection=enable_reflection,
         ))
 
+    async def guarded_event_stream():
+        status_value = "failed"
+        try:
+            async for item in event_stream():
+                yield item
+            status_value = "completed"
+        except asyncio.CancelledError:
+            status_value = "cancelled"
+            raise
+        finally:
+            if not workflow_started:
+                await interaction_guard.finish(safety_handle.interaction_id, status_value)
+
     return StreamingResponse(
-        event_stream(),
+        guarded_event_stream(),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -373,28 +422,23 @@ async def process_multi_agent_query_stream(
             "X-Accel-Buffering": "no",
         },
     )
-
-    return StreamingResponse(
-        event_stream(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
-
 
 @router.post("/query-cancel/{session_id}")
 async def cancel_multi_agent_query(
     session_id: str,
     current_user: User = Depends(deps.get_current_user),
+    tenant_context: dict = Depends(deps.get_tenant_context),
 ):
     """主动停止某会话正在进行的多智能体流式生成（前端点击「停止」按钮）。
 
     取消后台 LangGraph 工作流任务 → 随之关闭各专家正在进行的上游 LLM 流，停止烧 token。
     已流式输出的部分前端已渲染；done 事件会带 cancelled=true 标记。
     """
+    owner = _ma_session_owners.get(session_id)
+    expected_owner = (str(current_user.id), str(tenant_context.get("tenant_id") or ""))
+    if owner is not None and owner != expected_owner:
+        raise HTTPException(status_code=404, detail="任务不存在")
+
     _task = _ma_session_tasks.get(session_id)
     if _task is not None and not _task.done():
         _task.cancel()
@@ -424,10 +468,24 @@ async def process_multi_agent_query(
     start_time = time.time()
     request_id = str(uuid.uuid4())
     session_id = request.session_id or str(uuid.uuid4())
+    safety_id = f"multi-agent:{session_id}"
+    safety_status = "failed"
+    safety_handle = None
     
     try:
+        try:
+            safety_handle = await interaction_guard.start(
+                safety_id,
+                str(current_user.id),
+                str(tenant_context.get("tenant_id") or ""),
+                request.query,
+                metadata={"external_tool": True},
+            )
+        except SafetyAbort as exc:
+            raise HTTPException(status_code=429 if exc.decision.score < 8 else 403,
+                                detail="请求触发安全策略，已终止处理") from exc
         logger.info(f"处理多智能体查询 - 请求ID: {request_id}, 会话ID: {session_id}")
-        logger.info(f"用户查询: {request.query}")
+        logger.info("用户查询字符数: %d", len(request.query))
         logger.info(f"租户ID: {tenant_context['tenant_id']}")
         
         orch = get_orchestrator(tenant_id=tenant_context['tenant_id'], user_id=str(current_user.id))
@@ -516,6 +574,11 @@ async def process_multi_agent_query(
             processing_time=processing_time,
             metadata=result.metadata or {}
         )
+        await interaction_guard.checkpoint(
+            safety_id,
+            output_delta=len(result.final_response or ""),
+            text=result.final_response or "",
+        )
         
         logger.info(f"查询处理完成 - 请求ID: {request_id}, 耗时: {processing_time:.2f}秒")
 
@@ -539,8 +602,13 @@ async def process_multi_agent_query(
             enable_reflection=request.enable_reflection,
         ))
 
+        safety_status = "completed"
         return response
 
+    except HTTPException:
+        raise
+    except SafetyAbort as exc:
+        raise HTTPException(status_code=403, detail="本次回答已因安全策略终止") from exc
     except (ValueError, KeyError) as e:
         logger.error(f"处理多智能体查询数据错误 - 请求ID: {request_id}, 错误: {str(e)}", exc_info=True)
         raise HTTPException(status_code=400, detail=f"处理查询数据错误: {str(e)}")
@@ -550,6 +618,9 @@ async def process_multi_agent_query(
     except Exception as e:
         logger.error(f"处理多智能体查询失败 - 请求ID: {request_id}, 错误: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"处理查询失败: {str(e)}")
+    finally:
+        if safety_handle is not None:
+            await interaction_guard.finish(safety_id, safety_status)
 
 
 @router.post("/query-async")
@@ -579,6 +650,13 @@ async def process_multi_agent_query_async(
     
     task_id = f"lgwf_{uuid_module.uuid4().hex[:16]}"
     thread_id = request.session_id or f"thread_{uuid_module.uuid4().hex[:16]}"
+    await validate_interaction_input(
+        f"multi-agent-async-admission:{uuid_module.uuid4().hex}",
+        str(current_user.id),
+        str(tenant_context.get("tenant_id") or ""),
+        request.query,
+        metadata={"external_tool": True, "execution": "background"},
+    )
     
     try:
         task_record = AgentTaskStatus(
@@ -707,7 +785,7 @@ async def execute_workflow_background(
         # 🆕 使用 LangGraph 工作流（process_user_request），带进度回调
         progress_map = {
             "receptionist": 5, "intent_router": 10, "rag_retrieval": 20,
-            "finance_specialist": 40, "tax_specialist": 40, "legal_specialist": 40,
+            "home_specialist": 40,
             "reflection": 80, "final": 90,
         }
 
@@ -766,26 +844,24 @@ async def query_specialist(
     直接调用指定的专家智能体进行专业分析
     """
     start_time = time.time()
+    await validate_interaction_input(
+        f"specialist-admission:{uuid.uuid4().hex}",
+        str(current_user.id),
+        str(tenant_context.get("tenant_id") or ""),
+        request.query,
+        metadata={"external_tool": True},
+    )
     
     try:
         specialist_type = request.specialist_type
         
-        if specialist_type == SpecialistType.FINANCE:
-            specialist = get_finance_specialist()
-            result = await specialist.run(
-                query=request.query,
-                context=request.context,
-                **request.parameters
-            )
-        elif specialist_type == SpecialistType.TAX:
-            specialist = get_tax_specialist()
-            result = await specialist.run(
-                query=request.query,
-                context=request.context,
-                **request.parameters
-            )
-        elif specialist_type == SpecialistType.LEGAL:
-            specialist = get_legal_specialist()
+        if specialist_type in {
+            SpecialistType.HOME_BUTLER,
+            SpecialistType.ENVIRONMENT,
+            SpecialistType.DEVICE_CONTROL,
+            SpecialistType.COMFORT,
+        }:
+            specialist = get_home_specialist()
             result = await specialist.run(
                 query=request.query,
                 context=request.context,
@@ -888,6 +964,8 @@ async def list_ma_history(
 @router.get("/sessions/{session_id}", response_model=SessionStatus)
 async def get_session_status(
     session_id: str,
+    current_user: User = Depends(deps.get_current_user),
+    tenant_context: dict = Depends(deps.get_tenant_context),
     db_session: AsyncSession = Depends(deps.get_db)
 ):
     """
@@ -912,6 +990,12 @@ async def get_session_status(
             raise HTTPException(status_code=404, detail="会话不存在")
         
         session_obj, message_count = session_data
+        if not can_access_session(
+            session_obj,
+            current_user.id,
+            tenant_context.get("tenant_id"),
+        ):
+            raise HTTPException(status_code=404, detail="会话不存在")
         
         return SessionStatus(
             session_id=str(session_obj.id),
@@ -939,6 +1023,8 @@ async def get_session_status(
 @router.post("/sessions", response_model=SessionCreateResponse)
 async def create_session(
     request: SessionCreateRequest,
+    current_user: User = Depends(deps.get_current_user),
+    tenant_context: dict = Depends(deps.get_tenant_context),
     db_session: AsyncSession = Depends(deps.get_db)
 ):
     """
@@ -948,13 +1034,19 @@ async def create_session(
     """
     try:
         from app.models.chat import ChatSession
+
+        tenant_id = str(tenant_context.get("tenant_id") or "")
+        if str(request.user_id) != str(current_user.id):
+            raise HTTPException(status_code=403, detail="不能为其他用户创建会话")
+        if request.tenant_id and str(request.tenant_id) != tenant_id:
+            raise HTTPException(status_code=403, detail="不能覆盖服务端租户上下文")
         
         session_id = str(uuid.uuid4())
         
         new_session = ChatSession(
             id=session_id,
-            user_id=request.user_id,
-            tenant_id=request.tenant_id,
+            user_id=current_user.id,
+            tenant_id=tenant_id,
             title="新多智能体会话"
         )
         
@@ -967,6 +1059,8 @@ async def create_session(
             metadata=request.metadata or {}
         )
         
+    except HTTPException:
+        raise
     except (ValueError, KeyError) as e:
         logger.error(f"创建会话数据错误: {str(e)}", exc_info=True)
         raise HTTPException(status_code=400, detail=f"创建会话数据错误: {str(e)}")
@@ -991,9 +1085,9 @@ async def check_system_health():
     overall_healthy = True
     
     try:
-        finance = get_finance_specialist()
+        home = get_home_specialist()
         agents_status.append(AgentHealthStatus(
-            agent_type=SpecialistType.FINANCE,
+            agent_type=SpecialistType.HOME_BUTLER,
             is_available=True,
             response_time=None,
             last_heartbeat=datetime.now(),
@@ -1001,7 +1095,7 @@ async def check_system_health():
         ))
     except (ValueError, KeyError) as e:
         agents_status.append(AgentHealthStatus(
-            agent_type=SpecialistType.FINANCE,
+            agent_type=SpecialistType.HOME_BUTLER,
             is_available=False,
             response_time=None,
             last_heartbeat=datetime.now(),
@@ -1010,7 +1104,7 @@ async def check_system_health():
         overall_healthy = False
     except (OSError, IOError) as e:
         agents_status.append(AgentHealthStatus(
-            agent_type=SpecialistType.FINANCE,
+            agent_type=SpecialistType.HOME_BUTLER,
             is_available=False,
             response_time=None,
             last_heartbeat=datetime.now(),
@@ -1019,7 +1113,7 @@ async def check_system_health():
         overall_healthy = False
     except Exception as e:
         agents_status.append(AgentHealthStatus(
-            agent_type=SpecialistType.FINANCE,
+            agent_type=SpecialistType.HOME_BUTLER,
             is_available=False,
             response_time=None,
             last_heartbeat=datetime.now(),
@@ -1028,9 +1122,9 @@ async def check_system_health():
         overall_healthy = False
     
     try:
-        tax = get_tax_specialist()
+        home = get_home_specialist()
         agents_status.append(AgentHealthStatus(
-            agent_type=SpecialistType.TAX,
+            agent_type=SpecialistType.ENVIRONMENT,
             is_available=True,
             response_time=None,
             last_heartbeat=datetime.now(),
@@ -1038,7 +1132,7 @@ async def check_system_health():
         ))
     except (ValueError, KeyError) as e:
         agents_status.append(AgentHealthStatus(
-            agent_type=SpecialistType.TAX,
+            agent_type=SpecialistType.ENVIRONMENT,
             is_available=False,
             response_time=None,
             last_heartbeat=datetime.now(),
@@ -1047,7 +1141,7 @@ async def check_system_health():
         overall_healthy = False
     except (OSError, IOError) as e:
         agents_status.append(AgentHealthStatus(
-            agent_type=SpecialistType.TAX,
+            agent_type=SpecialistType.ENVIRONMENT,
             is_available=False,
             response_time=None,
             last_heartbeat=datetime.now(),
@@ -1056,7 +1150,7 @@ async def check_system_health():
         overall_healthy = False
     except Exception as e:
         agents_status.append(AgentHealthStatus(
-            agent_type=SpecialistType.TAX,
+            agent_type=SpecialistType.ENVIRONMENT,
             is_available=False,
             response_time=None,
             last_heartbeat=datetime.now(),
@@ -1065,9 +1159,9 @@ async def check_system_health():
         overall_healthy = False
     
     try:
-        legal = get_legal_specialist()
+        home = get_home_specialist()
         agents_status.append(AgentHealthStatus(
-            agent_type=SpecialistType.LEGAL,
+            agent_type=SpecialistType.DEVICE_CONTROL,
             is_available=True,
             response_time=None,
             last_heartbeat=datetime.now(),
@@ -1075,7 +1169,7 @@ async def check_system_health():
         ))
     except (ValueError, KeyError) as e:
         agents_status.append(AgentHealthStatus(
-            agent_type=SpecialistType.LEGAL,
+            agent_type=SpecialistType.DEVICE_CONTROL,
             is_available=False,
             response_time=None,
             last_heartbeat=datetime.now(),
@@ -1084,7 +1178,7 @@ async def check_system_health():
         overall_healthy = False
     except (OSError, IOError) as e:
         agents_status.append(AgentHealthStatus(
-            agent_type=SpecialistType.LEGAL,
+            agent_type=SpecialistType.DEVICE_CONTROL,
             is_available=False,
             response_time=None,
             last_heartbeat=datetime.now(),
@@ -1093,7 +1187,7 @@ async def check_system_health():
         overall_healthy = False
     except Exception as e:
         agents_status.append(AgentHealthStatus(
-            agent_type=SpecialistType.LEGAL,
+            agent_type=SpecialistType.DEVICE_CONTROL,
             is_available=False,
             response_time=None,
             last_heartbeat=datetime.now(),
@@ -1237,9 +1331,10 @@ async def get_agent_metrics():
     registered_agents = agent_stats.get("agents", {})
 
     specialist_types = [
-        ("finance_specialist", "金融专家"),
-        ("tax_specialist", "税务专家"),
-        ("legal_specialist", "法律专家"),
+        ("home_butler", "智能家居总管家"),
+        ("environment", "环境感知专家"),
+        ("device_control", "设备控制专家"),
+        ("comfort", "舒适度专家"),
     ]
 
     agent_metrics = []
@@ -1900,11 +1995,11 @@ async def get_pipeline_history(
 import numpy as np
 
 INTENT_KEYWORDS = {
-    "tax": ["税务", "税收", "税", "纳税", "报税", "企业所得税", "增值税", "个人所得税"],
-    "legal": ["法律", "合同", "法规", "条款", "权利", "义务", "违法", "合规"],
-    "finance": ["财务", "会计", "报表", "资产", "负债", "利润", "成本", "预算"],
-    "audit": ["审计", "检查", "核查", "盘点"],
-    "expense": ["报销", "费用", "支出", "差旅"],
+    "device_control": ["打开", "关闭", "台灯", "风扇", "控制"],
+    "device_status": ["设备", "状态", "在线", "离线"],
+    "environment_query": ["温度", "湿度", "光照", "人体", "环境"],
+    "scene_execution": ["场景", "睡眠", "离家", "节能"],
+    "safety_check": ["安全", "风险", "危险", "确认"],
 }
 
 INTENT_EXAMPLES = {
@@ -1922,46 +2017,16 @@ INTENT_EXAMPLES = {
         "推荐一部电影",
         "最近有什么新闻",
     ],
-    "tax": [
-        "企业所得税怎么计算",
-        "增值税发票如何抵扣",
-        "个人所得税申报",
-        "税务筹划方案",
-        "企业税收优惠",
-    ],
-    "legal": [
-        "合同审查注意事项",
-        "劳动合同权利义务",
-        "企业合规管理",
-        "合同违约处理",
-        "知识产权保护",
-    ],
-    "finance": [
-        "财务报表分析",
-        "利润表制作",
-        "企业成本控制",
-        "预算编制流程",
-        "现金流量管理",
-    ],
-    "audit": [
-        "年度审计报告",
-        "内部审计流程",
-        "审计资料准备",
-        "库存盘点流程",
-        "财务审计注意",
-    ],
-    "expense": [
-        "报销流程说明",
-        "差旅费报销标准",
-        "员工报销单填写",
-        "费用预算控制",
-        "报销审核流程",
-    ],
+    "device_control": ["打开书桌台灯", "关闭桌面风扇", "控制设备"],
+    "device_status": ["查看当前设备状态", "设备是否在线", "列出所有设备"],
+    "environment_query": ["读取书房温度", "查看湿度和光照", "当前环境怎么样"],
+    "scene_execution": ["执行睡眠模式", "执行离家模式", "开启节能场景"],
+    "safety_check": ["检查控制是否安全", "查看设备安全规则", "确认远程控制风险"],
 }
 
 INTENT_HIGH_RISK_KEYWORDS = [
-    "删除", "批量", "导出", "全部", "敏感", "配置", "权限", "税务申报",
-    "合同生成", "审计请求", "外部共享", "清空", "修改系统"
+    "删除", "批量", "全部", "敏感", "配置", "权限", "危险控制",
+    "远程控制", "外部共享", "清空", "修改系统"
 ]
 
 _embedding_cache: Dict[str, List[float]] = {}
@@ -2074,9 +2139,11 @@ async def classify_single_intent(message: str, use_advanced: bool = True) -> Int
                 break
 
     is_high_risk = any(kw in message for kw in INTENT_HIGH_RISK_KEYWORDS)
-    is_expense_related = "expense" in detected_intents or any(
-        kw in message for kw in ["报销", "费用", "支出"]
-    )
+    # 兼容响应字段名，但其语义已切换为“设备动作请求”。
+    is_expense_related = any(
+        intent in detected_intents
+        for intent in ["home_control", "device_switch", "device_status", "sensor_reading", "sleep_mode", "energy_save"]
+    ) or any(kw in message for kw in ["打开", "关闭", "控制", "设备状态", "场景"])
 
     stage = "keyword"
     confidence = min(len(detected_intents) * 0.3 + 0.4, 0.95)
@@ -2119,7 +2186,7 @@ async def classify_single_intent(message: str, use_advanced: bool = True) -> Int
     if is_high_risk:
         reasoning_parts.append("⚠️高风险关键词")
     if is_expense_related:
-        reasoning_parts.append("💰费用相关")
+        reasoning_parts.append("🏠设备/场景动作相关")
 
     final_reasoning = " | ".join(reasoning_parts) if reasoning_parts else reasoning
 

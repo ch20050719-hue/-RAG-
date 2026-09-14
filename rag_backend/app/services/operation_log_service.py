@@ -45,8 +45,8 @@ class OperationType(str, Enum):
     DOC_DELETE = "doc_delete"
     PERMISSION_CHANGE = "permission_change"
     ADMIN_ACTION = "admin_action"
-    FINANCIAL_DOC_UPLOAD = "financial_doc_upload"
-    TAX_REPORT_UPLOAD = "tax_report_upload"
+    DEVICE_DOC_UPLOAD = "device_doc_upload"
+    SCENARIO_DOC_UPLOAD = "scenario_doc_upload"
 
 
 class OperationLogger:

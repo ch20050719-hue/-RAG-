@@ -8,10 +8,10 @@ domains:
 allowed_agents:
   - orchestrator
   - react
-  - tax
-  - legal
-  - finance
-  - policy_notification
+  - home_butler
+  - environment
+  - device_control
+  - comfort
 triggers:
   keywords:
     - latest

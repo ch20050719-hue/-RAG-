@@ -10,8 +10,8 @@ MCP 工具装饰器
     async def query_database(...):
         ...
     
-    @cloud_tool(description="计算税务")
-    async def calculate_tax(...):
+    @cloud_tool(description="调用受控智能家居通信服务")
+    async def publish_home_event(...):
         ...
 """
 

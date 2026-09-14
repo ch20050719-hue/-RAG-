@@ -47,7 +47,7 @@ const flowChartContainer = ref<HTMLElement | null>(null)
 const simulation = ref<any>(null)
 
 const langSmithUrl = computed(() => {
-  const project = import.meta.env.VITE_LANGSMITH_PROJECT || 'financial_rag'
+  const project = import.meta.env.VITE_LANGSMITH_PROJECT || 'smart_home_rag'
   return `https://smith.langchain.com/projects/${project}?public=true`
 })
 

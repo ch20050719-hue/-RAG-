@@ -80,7 +80,7 @@ class WorkflowTrace(Base):
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     
-    workflow_type = Column(String(100), nullable=False, index=True, comment="工作流类型: tax_submission/policy_notification/contract_review等")
+    workflow_type = Column(String(100), nullable=False, index=True, comment="工作流类型: device_control/environment/scene_execution等")
     workflow_version = Column(String(50), nullable=True, comment="工作流版本")
     
     session_id = Column(UUID, ForeignKey("chat_sessions.id"), nullable=True, index=True, comment="关联的会话ID")

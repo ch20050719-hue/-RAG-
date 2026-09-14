@@ -123,15 +123,10 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
         "/api/v1/multi-agent/monitor/health",
         "/api/v1/multi-agent/metrics",
         "/api/v1/multi-agent/pipelines/active",
-        "/api/v1/financial-data/download-template",
-        "/api/v1/financial-data/download-test-templates",
-        "/api/v1/financial-data",
-        "/api/v1/financial-data/",
         "/debug/ping",
         "/debug/test-upload",
         "/api/debug/ping",
         "/api/debug/test-upload",
-        "/api/debug/tax-upload-diagnostic",
     ]
 
     async def dispatch(self, request: Request, call_next):
@@ -232,10 +227,6 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
             request.state.tenant_id = tenant_id
             request.state.user_id = user_id
             request.state.request_id = str(uuid.uuid4())
-            
-            # 只在慢路径打印
-            if "/tax-reports" in request.url.path:
-                print(f"🏠 [{user_id[:8]}] {request.method} {request.url.path}")
             
             response = await call_next(request)
             

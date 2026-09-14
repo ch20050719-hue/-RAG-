@@ -18,7 +18,7 @@ state = StateFactory.create_initial_state(
     session_id="session-123",
     tenant_id="tenant-456",
     user_id="user-789",
-    user_query="分析公司财务状况"
+    user_query="查询书房设备状态"
 )
 
 # 验证状态

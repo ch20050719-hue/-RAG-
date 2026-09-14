@@ -11,6 +11,7 @@
 import re
 import json
 import logging
+import os
 from typing import Dict, List, Any, Optional, TYPE_CHECKING
 from enum import Enum
 from pydantic import BaseModel, Field, ConfigDict
@@ -39,23 +40,17 @@ class IntentCategory(str, Enum):
     CHIT_CHAT = "chit_chat"
     KNOWLEDGE_QUERY = "knowledge_query"
     DOCUMENT_SEARCH = "document_search"
-    FINANCIAL_ANALYSIS = "financial_analysis"
-    ACCOUNTING_QUERY = "accounting_query"
-    INVESTMENT_ADVISORY = "investment_advisory"
-    COST_CONTROL = "cost_control"
-    TAX_CALCULATION = "tax_calculation"
-    TAX_PLANNING = "tax_planning"
-    TAX_COMPLIANCE = "tax_compliance"
-    TAX_DECLARATION = "tax_declaration"
-    CONTRACT_REVIEW = "contract_review"
-    LEGAL_CONSULTATION = "legal_consultation"
-    COMPLIANCE_CHECK = "compliance_check"
-    IP_PROTECTION = "ip_protection"
     REPORT_GENERATION = "report_generation"
     DATA_EXTRACTION = "data_extraction"
-    RISK_ANALYSIS = "risk_analysis"
     COMPLEX_TASK = "complex_task"
     MULTI_SPECIALIST = "multi_specialist"
+    HOME_CONTROL = "home_control"
+    DEVICE_SWITCH = "device_switch"
+    DEVICE_STATUS = "device_status"
+    SENSOR_READING = "sensor_reading"
+    COMFORT_ASSESSMENT = "comfort_assessment"
+    SLEEP_MODE = "sleep_mode"
+    ENERGY_SAVE = "energy_save"
     UNKNOWN = "unknown"
 
 
@@ -134,16 +129,15 @@ class IntentRouterAgent(BaseAgent):
         "help": r".*?(help|帮助|怎么用|如何使用).*",
         "thanks": r"^.*?(谢谢|thanks|感谢)[\s,，.]*",
         "config_query": r".*?(有没有打开|是否启用|开启了吗|关闭了吗|当前状态|当前配置|我的设置|会话状态)",
-        # 仅匹配不包含具体领域的通用技能询问（^ 锚定开头防止 re.search 从中间位置绕过负向先行断言）
-        # 带"财务/税务/法律/金融"等领域的应路由到对应 specialist 展示实际注册的技能
-        "skill_query": r"^(?=.*(?:技能|skill|能力))(?=.*(?:有哪|是什么|有哪些|有什么|列出|介绍|展示))(?!.*(?:财务|金融|税务|税收|法律|法务|合规|合同|投资|审计)).*",
+        "skill_query": r"^(?=.*(?:技能|skill|能力))(?=.*(?:有哪|是什么|有哪些|有什么|列出|介绍|展示)).*",
     }
     SKILL_QUERY_FALLBACK = (
-        "我具备以下领域的专业技能：\n\n"
-        "**财务领域**：投资分析、财务数据分析、成本控制、预算管理、财务报表分析等\n"
-        "**税务领域**：增值税计算、企业所得税、税务筹划、发票管理等\n"
-        "**法律领域**：合同审查、知识产权、劳动法、合规检查等\n\n"
-        "请告诉我您具体想了解哪个领域，我可以为您详细说明该领域可用的功能和技能。"
+        "我具备以下智能家居能力：\n\n"
+        "**设备控制**：查询设备状态、打开或关闭已注册设备、校验控制指令\n"
+        "**环境感知**：读取温度、湿度、光照和在线状态\n"
+        "**场景联动**：睡眠、离家和节能场景\n"
+        "**安全保障**：设备白名单、幂等请求、离线拒绝和 MQTT 回执校验\n\n"
+        "请描述您要查询或控制的设备，我会先核对状态与安全规则。"
     )
     
     ENTITY_PATTERNS = {
@@ -168,17 +162,11 @@ class IntentRouterAgent(BaseAgent):
             ],
             "entity_type": "日期"
         },
-        "tax_type": {
+        "device": {
             "patterns": [
-                r"(增值税|企业所得税|个人所得税|消费税|关税|城建税|教育费附加|地方教育附加)",
+                r"(desk_light|desk_fan|书桌灯|风扇|灯|传感器)",
             ],
-            "entity_type": "税种"
-        },
-        "contract_type": {
-            "patterns": [
-                r"(采购合同|销售合同|服务合同|租赁合同|劳动合同|咨询合同)",
-            ],
-            "entity_type": "合同类型"
+            "entity_type": "设备"
         },
     }
     
@@ -257,6 +245,9 @@ class IntentRouterAgent(BaseAgent):
     def _load_system_prompt(self) -> str:
         """从外部文件加载系统提示词"""
         try:
+            home_prompt = Path(__file__).resolve().parents[2] / "prompts" / "agents" / "intent_router" / "home_system.md"
+            if home_prompt.exists():
+                return home_prompt.read_text(encoding="utf-8")
             return load_agent_prompt(
                 agent_name="intent_router",
                 filename="system.md",
@@ -288,64 +279,19 @@ class IntentRouterAgent(BaseAgent):
     
     def _build_default_prompt(self) -> str:
         """构建默认提示词"""
-        return """# 意图路由智能体
+        return """# 智能家居意图路由智能体
 
-## 角色定位
-你是专业的意图路由智能体，负责理解用户问题、分析意图、评估复杂度，并决定最佳处理策略。
+你负责识别用户的智能家居意图，并选择知识库检索、设备查询、设备控制或场景联动路径。
 
-## 核心能力
+意图类别包括：greeting、chit_chat、knowledge_query、document_search、home_control、
+device_switch、device_status、sensor_reading、comfort_assessment、sleep_mode、energy_save、
+complex_task、multi_specialist 和 unknown。
 
-### 1. 快速简单检测（优先执行，不调用LLM）
-以下情况直接返回回答：
-- 问候语："你好"、"您好"、"hi"等 → 返回友好问候
-- 感谢："谢谢"、"感谢"等 → 返回礼貌回复
-- 帮助请求：包含"帮助"、"怎么用"等 → 返回使用指南
-- 时间查询：包含"现在几点"、"今天几号"等 → 返回当前时间
+涉及设备控制时，必须保留设备标识、目标状态、请求幂等标识，并遵守设备白名单、在线状态、
+参数范围、过期时间和设备回执规则。无法确认设备或安全条件时，应路由到澄清或人工复核。
 
-### 2. 意图分类
-识别以下意图类别：
-- **日常类**: greeting(问候), chit_chat(闲聊)
-- **知识类**: knowledge_query(知识查询), document_search(文档搜索)
-- **财务类**: financial_analysis, accounting_query, investment_advisory, cost_control, risk_analysis
-- **税务类**: tax_calculation, tax_planning, tax_compliance, tax_declaration
-- **法务类**: contract_review, legal_consultation, compliance_check, ip_protection
-- **报告类**: report_generation, data_extraction
-- **复杂类**: complex_task, multi_specialist
-
-### 3. 实体提取
-识别的实体类型：
-- 金额: 数字+货币单位
-- 日期: 具体日期或日期范围
-- 税种: 增值税、所得税等
-- 合同类型: 采购合同、服务合同等
-
-### 4. 复杂度评估
-- **low**: 简单计算、单一事实查询、定义类问题
-- **medium**: 单一领域分析、需要工具计算
-- **high**: 多领域交叉、需要多步推理
-- **very_high**: 综合审查、多专家协作、报告生成
-
-### 5. 路由策略
-- **direct_answer**: 直接回答（问候、闲聊）
-- **rag_retrieval**: RAG检索（知识查询）
-- **single_specialist**: 单专家处理
-- **multi_specialist_parallel/sequential**: 多专家并行/串行处理
-- **report_queue**: 报告队列
-
-## 输出格式
-```json
-{
-  "intent": "意图类别",
-  "sub_intent": "子意图（可选）",
-  "entities": [...],
-  "complexity": "low/medium/high/very_high",
-  "requires_specialists": ["specialist1"],
-  "routing_strategy": "routing_strategy",
-  "confidence": 0.0-1.0,
-  "needs_human_review": true/false,
-  "reasoning": "推理过程"
-}
-```"""
+输出 JSON：intent、sub_intent、entities、complexity、requires_specialists、routing_strategy、
+confidence、needs_human_review、reasoning。"""
     
     def _is_simple_greeting(self, text: str) -> Optional[str]:
         """检测简单问候语（正则匹配，不调用LLM）"""
@@ -380,37 +326,29 @@ class IntentRouterAgent(BaseAgent):
         else:
             time_greeting = "晚上好"
         
-        return f"{time_greeting}！欢迎使用企业智能助手。我是您的AI助手，可以帮助您解答财务、税务、法律等方面的问题。请问有什么可以帮到您的？"
+        return f"{time_greeting}！欢迎使用智能家居助手。我可以帮您查询设备状态、执行安全控制并管理家居场景。请问需要什么帮助？"
     
     def _build_help_response(self) -> str:
         """构建帮助响应"""
         return """📖 **智能助手使用指南**
 
-我可以帮助您处理以下类型的问题：
+我可以帮助您处理以下智能家居问题：
 
-**💰 财务分析**
-- 财务报表分析
-- 成本控制建议
-- 投资风险评估
+**🏠 设备控制**
+- 查询已注册设备及在线状态
+- 打开或关闭书桌灯、风扇等设备
+- 按 request_id 保证重复请求不重复执行
 
-**📋 税务咨询**
-- 税务政策查询
-- 发票管理指导
-- 税务筹划建议
+**🌡️ 环境感知**
+- 查询温度、湿度、光照和人体传感器
+- 识别过期或异常读数
 
-**⚖️ 法律顾问**
-- 合同审查
-- 合规检查
-- 法律咨询
+**🌙 场景联动**
+- 睡眠模式、离家模式和节能建议
+- MQTT 消息收发与设备回执
 
-**📄 报告生成**
-- 财务分析报告
-- 风险评估报告
-- 综合审查报告
-
-**💬 其他**
-- 企业知识查询
-- 常见问题解答
+**📚 知识库问答**
+- 检索智能家居设备说明和安全规则
 
 请直接输入您的问题，我会尽力为您解答！"""
 
@@ -503,32 +441,26 @@ class IntentRouterAgent(BaseAgent):
     ) -> List[str]:
         """确定需要的专家"""
         intent_specialist_map = {
-            IntentCategory.FINANCIAL_ANALYSIS: ["finance"],
-            IntentCategory.ACCOUNTING_QUERY: ["finance"],
-            IntentCategory.INVESTMENT_ADVISORY: ["finance"],
-            IntentCategory.COST_CONTROL: ["finance"],
-            IntentCategory.RISK_ANALYSIS: ["finance"],
-            IntentCategory.TAX_CALCULATION: ["tax"],
-            IntentCategory.TAX_PLANNING: ["tax"],
-            IntentCategory.TAX_COMPLIANCE: ["tax"],
-            IntentCategory.TAX_DECLARATION: ["tax"],
-            IntentCategory.CONTRACT_REVIEW: ["legal"],
-            IntentCategory.LEGAL_CONSULTATION: ["legal"],
-            IntentCategory.COMPLIANCE_CHECK: ["finance", "tax", "legal"],
-            IntentCategory.IP_PROTECTION: ["legal"],
+            IntentCategory.HOME_CONTROL: ["home_butler"],
+            IntentCategory.DEVICE_SWITCH: ["device_control"],
+            IntentCategory.DEVICE_STATUS: ["device_control"],
+            IntentCategory.SENSOR_READING: ["environment"],
+            IntentCategory.COMFORT_ASSESSMENT: ["environment"],
+            IntentCategory.SLEEP_MODE: ["comfort"],
+            IntentCategory.ENERGY_SAVE: ["comfort"],
         }
         
         specialists = intent_specialist_map.get(intent, [])
         
         if intent in [IntentCategory.COMPLEX_TASK, IntentCategory.MULTI_SPECIALIST]:
-            specialists = ["finance", "tax", "legal"]
+            specialists = ["home_butler", "environment", "device_control"]
         
         if routing_strategy in [
             RoutingStrategy.MULTI_SPECIALIST_PARALLEL,
             RoutingStrategy.MULTI_SPECIALIST_SEQUENTIAL
         ]:
             if not specialists:
-                specialists = ["finance", "tax", "legal"]
+                specialists = ["home_butler"]
         
         return specialists if specialists else ["general"]
     
@@ -556,67 +488,43 @@ class IntentRouterAgent(BaseAgent):
     ) -> Dict[str, Any]:
         """基于规则的意图分类"""
         text_lower = text.lower()
-        
+
+        # 智能家居规则始终启用，避免环境变量导致业务路由回到旧领域。
+        home_rules = (
+            (("打开", "开启", "关闭", "关掉", "开灯", "关灯", "开风扇", "关风扇", "on", "off"),
+             ("灯", "light", "风扇", "fan"), IntentCategory.DEVICE_SWITCH),
+            (("状态", "列表", "在线", "离线"), ("设备", "灯", "风扇", "device", "light", "fan"), IntentCategory.DEVICE_STATUS),
+            (("温度", "湿度", "光照", "人体", "传感器", "环境"), (), IntentCategory.SENSOR_READING),
+            (("睡眠", "睡觉"), (), IntentCategory.SLEEP_MODE),
+            (("离家", "出门", "节能", "省电"), (), IntentCategory.ENERGY_SAVE),
+        )
+        for action_words, object_words, home_intent in home_rules:
+            if any(word in text_lower for word in action_words) and (
+                not object_words or any(word in text_lower for word in object_words)
+            ):
+                return {
+                    "intent": home_intent,
+                    "confidence": 0.95,
+                    "reasoning": "智能家居领域规则命中",
+                    "needs_report_generation": False,
+                }
+
         report_keywords = [
             "生成报告", "生成一份报告", "输出一份报告",
             "给我一份报告", "给我报告", "需要报告",
-            "生成分析报告", "生成财务报告", "生成税务报告",
+            "生成分析报告", "生成家居报告",
         ]
         needs_report = any(kw in text_lower for kw in report_keywords)
         
-        multi_patterns = [
-            (["政策", "影响"], IntentCategory.KNOWLEDGE_QUERY, "政策影响分析"),
-            (["政策", "优惠"], IntentCategory.KNOWLEDGE_QUERY, "政策优惠分析"),
-            (["政策", "解读"], IntentCategory.KNOWLEDGE_QUERY, "政策解读"),
-            (["政策", "咨询"], IntentCategory.KNOWLEDGE_QUERY, "政策咨询"),
-            (["企业", "税务", "风险"], IntentCategory.TAX_COMPLIANCE, "企业税务风险"),
-            (["税务", "筹划"], IntentCategory.TAX_PLANNING, "税务筹划"),
-            (["税务", "合规"], IntentCategory.TAX_COMPLIANCE, "税务合规"),
-            (["发票", "管理"], IntentCategory.TAX_DECLARATION, "发票管理"),
-            (["发票", "风险"], IntentCategory.TAX_COMPLIANCE, "发票风险"),
-            (["企业", "财务", "风险"], IntentCategory.RISK_ANALYSIS, "企业财务风险"),
-            (["财务系统", "风险"], IntentCategory.RISK_ANALYSIS, "财务系统风险"),
-            # 🆕 技能询问: 当"技能/能力"与领域关键词同时出现时路由到对应专家
-            (["财务", "技能"], IntentCategory.FINANCIAL_ANALYSIS, "财务技能询问"),
-            (["财务", "能力"], IntentCategory.FINANCIAL_ANALYSIS, "财务能力询问"),
-            (["税务", "技能"], IntentCategory.TAX_CALCULATION, "税务技能询问"),
-            (["税务", "能力"], IntentCategory.TAX_CALCULATION, "税务能力询问"),
-            (["法律", "技能"], IntentCategory.LEGAL_CONSULTATION, "法律技能询问"),
-            (["法律", "能力"], IntentCategory.LEGAL_CONSULTATION, "法律能力询问"),
-            (["法务", "技能"], IntentCategory.LEGAL_CONSULTATION, "法务技能询问"),
-            (["法务", "能力"], IntentCategory.LEGAL_CONSULTATION, "法务能力询问"),
-        ]
-        
-        for keywords, intent, _ in multi_patterns:
-            if all(kw in text_lower for kw in keywords):
-                return {
-                    "intent": intent,
-                    "confidence": 0.9,
-                    "reasoning": f"检测到关键词: {', '.join(keywords)}",
-                    "needs_report_generation": needs_report
-                }
-        
         keyword_map = {
-            "税务": IntentCategory.TAX_CALCULATION,
-            "发票": IntentCategory.TAX_DECLARATION,
-            "税": IntentCategory.TAX_CALCULATION,
-            "财务": IntentCategory.FINANCIAL_ANALYSIS,
-            "报表": IntentCategory.FINANCIAL_ANALYSIS,
-            "利润": IntentCategory.FINANCIAL_ANALYSIS,
-            "盈利": IntentCategory.FINANCIAL_ANALYSIS,
-            "合同": IntentCategory.CONTRACT_REVIEW,
-            "法律": IntentCategory.LEGAL_CONSULTATION,
-            "法务": IntentCategory.LEGAL_CONSULTATION,
-            "政策": IntentCategory.KNOWLEDGE_QUERY,
-            "法规": IntentCategory.KNOWLEDGE_QUERY,
-            "通知": IntentCategory.KNOWLEDGE_QUERY,
-            "补贴": IntentCategory.KNOWLEDGE_QUERY,
-            "优惠": IntentCategory.KNOWLEDGE_QUERY,
-            "合规": IntentCategory.COMPLIANCE_CHECK,
             "报告": IntentCategory.REPORT_GENERATION,
             "查询": IntentCategory.KNOWLEDGE_QUERY,
             "知识库": IntentCategory.KNOWLEDGE_QUERY,
-            # 🆕 技能关键词与领域关键词的多词组合已在 multi_patterns 中处理
+            "设备": IntentCategory.DEVICE_STATUS,
+            "灯": IntentCategory.DEVICE_STATUS,
+            "风扇": IntentCategory.DEVICE_STATUS,
+            "传感器": IntentCategory.SENSOR_READING,
+            "舒适": IntentCategory.COMFORT_ASSESSMENT,
         }
         
         for keyword, intent in keyword_map.items():
@@ -685,7 +593,7 @@ class IntentRouterAgent(BaseAgent):
         report_keywords = [
             "生成报告", "生成一份报告", "输出一份报告",
             "给我一份报告", "给我报告", "需要报告",
-            "生成分析报告", "生成财务报告", "生成税务报告",
+            "生成分析报告", "生成家居报告",
             "生成分析文档", "生成分析材料", "请生成报告"
         ]
         needs_report = any(kw in text_lower for kw in report_keywords)

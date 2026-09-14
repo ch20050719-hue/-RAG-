@@ -10,18 +10,18 @@ Repository 模式基类
 
 使用方式：
     from app.repositories.base import BaseRepository
-    from app.models import TaxReport
+    from app.models import Device
     
-    class TaxReportRepository(BaseRepository[TaxReport]):
+    class DeviceRepository(BaseRepository[Device]):
         def __init__(self, session: AsyncSession):
-            super().__init__(session, TaxReport)
+            super().__init__(session, Device)
         
         async def get_by_filename(self, filename: str):
             return await self.list(filename=filename)
     
     # 使用
     async def get_report(db: AsyncSession, report_id: str, tenant_id: str):
-        repo = TaxReportRepository(db)
+        repo = DeviceRepository(db)
         return await repo.get(report_id, tenant_id=tenant_id)
 """
 

@@ -25,27 +25,16 @@ logger = logging.getLogger(__name__)
 # 保留 :Entity 基标签确保向后兼容，附加知识域标签支持精细化查询
 # 例如 COMPANY 类型的实体同时带有 :Entity 和 :Company 标签
 ENTITY_TYPE_LABEL_MAP: Dict[str, str] = {
-    EntityType.COMPANY: "Company",
-    EntityType.PERSON: "Person",
-    EntityType.DEPARTMENT: "Department",
-    EntityType.FINANCIAL_METRIC: "FinancialMetric",
-    EntityType.FINANCIAL_REPORT: "FinancialReport",
-    EntityType.ACCOUNT: "Account",
-    EntityType.BUDGET: "Budget",
-    EntityType.TAX_TYPE: "TaxType",
-    EntityType.TAX_POLICY: "TaxPolicy",
-    EntityType.TAX_RATE: "TaxRate",
-    EntityType.TAX_EXEMPTION: "TaxExemption",
-    EntityType.CONTRACT: "Contract",
-    EntityType.LEGAL_CASE: "LegalCase",
-    EntityType.REGULATION: "Regulation",
-    EntityType.CLAUSE: "Clause",
-    EntityType.PRODUCT: "Product",
-    EntityType.SERVICE: "Service",
+    EntityType.DEVICE: "Device",
+    EntityType.SENSOR: "Sensor",
+    EntityType.ROOM: "Room",
+    EntityType.SCENARIO: "Scenario",
+    EntityType.SAFETY_RULE: "SafetyRule",
+    EntityType.ACTION: "Action",
+    EntityType.STATE: "State",
+    EntityType.TECHNOLOGY: "Technology",
     EntityType.LOCATION: "Location",
     EntityType.DATE_PERIOD: "DatePeriod",
-    EntityType.EVENT: "Event",
-    EntityType.TECHNOLOGY: "Technology",
 }
 
 
@@ -162,7 +151,7 @@ class Neo4jManager:
 
         新增多标签策略：
         - 所有实体保留 :Entity 基标签（向后兼容）
-        - 根据 entity_type 附加领域标签，如 :Company, :Person, :TaxType
+        - 根据 entity_type 附加智能家居领域标签，如 :Device, :Sensor, :Scenario
         - 支持精细化图遍历：MATCH (c:Company) 比 MATCH (e:Entity {type:'COMPANY'}) 更高效
         """
         if not self.driver:

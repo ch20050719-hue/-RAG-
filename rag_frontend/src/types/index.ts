@@ -126,8 +126,8 @@ export interface SearchResultRequest {
   score_threshold: number
 }
 
-// Audit Types
-export type AuditType = 'financial' | 'legal' | 'tax' | 'compliance'
+// Smart-home safety review types
+export type AuditType = 'device_safety' | 'scenario_safety' | 'mqtt_security'
 export type AuditSeverity = 'low' | 'medium' | 'high' | 'critical'
 
 export interface AuditDocument {
@@ -145,7 +145,7 @@ export interface Finding {
   evidence?: string
   agent_name?: string
   risk_score?: number
-  legal_basis?: string[]
+  rule_basis?: string[]
   recommendations?: string[]
 }
 

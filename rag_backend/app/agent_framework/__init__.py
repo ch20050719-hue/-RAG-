@@ -22,39 +22,8 @@ from .core.react_agent import ReActAgent
 from .core.plan_agent import PlanAgent
 from .core.reflect_agent import ReflectAgent
 from .components import ResultSynthesizer
-from app.multi_agent_system.agents.report_generator import ReportGenerator
 from .tools.tool_manager import ToolManager
 from .llm.zhipu_adapter import ZhipuAdapter
-
-try:
-    from app.multi_agent_system.agents.report_generator import ReportGenerator as _ReportGenerator
-    from app.agent_framework.tools.tool_manager import ToolManager
-    from app.agent_framework.llm.zhipu_adapter import ZhipuAdapter
-    from app.core.config import settings
-    
-    def _create_report_generator(llm_adapter=None, tool_manager=None):
-        """创建报表生成器实例"""
-        if llm_adapter is None:
-            if settings.ZHIPU_API_KEY:
-                llm_adapter = ZhipuAdapter(api_key=settings.ZHIPU_API_KEY, model_name=settings.ZHIPU_MODEL)
-            else:
-                llm_adapter = None
-        if tool_manager is None:
-            tool_manager = ToolManager()
-        
-        if llm_adapter is not None:
-            return _ReportGenerator(llm_adapter=llm_adapter, tool_manager=tool_manager)
-        else:
-            return None
-    
-    report_generator = _create_report_generator()
-    
-except ImportError:
-    _ReportGenerator = None
-    report_generator = None
-
-ReportAgent = _ReportGenerator
-report_agent = report_generator
 
 __version__ = "1.2.0"
 
@@ -67,12 +36,6 @@ __all__ = [
     
     # 智能组件
     "ResultSynthesizer",
-    
-    # 报表智能体
-    "ReportAgent",
-    "report_agent",
-    "ReportGenerator",
-    "report_generator",
     
     # 工具
     "ToolManager",

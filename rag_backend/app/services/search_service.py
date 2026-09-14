@@ -20,13 +20,13 @@ logger = logging.getLogger(__name__)
 
 class SearchService:
     PROCESS_QUERY_TERMS = [
-        "怎么", "如何", "流程", "步骤", "申报", "办理", "操作", "提交", "填写",
-        "材料", "资料", "缴款", "登录", "审核", "确认"
+        "怎么", "如何", "流程", "步骤", "设置", "连接", "操作", "提交", "填写",
+        "设备", "传感器", "场景", "登录", "校验", "确认"
     ]
     PROCESS_EVIDENCE_TERMS = [
         "步骤", "流程", "第一", "第二", "第三", "首先", "然后", "最后", "登录",
-        "填写", "选择", "上传", "提交", "确认", "审核", "缴款", "申报表",
-        "附列资料", "办税", "电子税务局"
+        "填写", "选择", "上传", "提交", "确认", "校验", "绑定", "配网",
+        "设备手册", "安全规则", "MQTT"
     ]
     CODE_FRAGMENT_TERMS = [
         "class ", "def ", "async def", "function ", "import ", "return ", "await ",
@@ -198,7 +198,7 @@ class SearchService:
                         )
                         params[param_key] = fval
 
-                # [v2 增强] JSONB 数组包含过滤（财务指标实体检索）
+                # [v2 增强] JSONB 数组包含过滤（家居设备类型实体检索）
                 # 内联 JSON 值，避免 asyncpg 混合参数风格问题
                 if jsonb_array_filter:
                     for fkey, fval in jsonb_array_filter.items():

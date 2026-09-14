@@ -187,61 +187,6 @@ class AgentWrapper:
                 logger.info(f"🗑️ Agent 已注销: {self.config.name}")
 
 
-def wrap_tax_specialist(
-    agent_instance: Any,
-    base_url: str = "http://localhost:8000"
-) -> AgentWrapper:
-    """包装税务专家 Agent"""
-    config = AgentWrapperConfig(
-        name="tax_specialist",
-        description="专业税务分析智能体，支持税务计算、合规审查、政策解读",
-        url=f"{base_url}/a2a/tax_specialist",
-        skills=[
-            {"id": "tax_calculation", "name": "税务计算", "description": "计算各类税费"},
-            {"id": "tax_compliance", "name": "税务合规", "description": "税务合规性审查"},
-            {"id": "tax_policy", "name": "税务政策", "description": "税收优惠政策解读"}
-        ],
-        tags=["税务", "财务", "合规"]
-    )
-    return AgentWrapper(agent_instance, config)
-
-
-def wrap_finance_specialist(
-    agent_instance: Any,
-    base_url: str = "http://localhost:8000"
-) -> AgentWrapper:
-    """包装财务专家 Agent"""
-    config = AgentWrapperConfig(
-        name="finance_specialist",
-        description="专业财务分析智能体，支持财务报表分析、财务指标计算",
-        url=f"{base_url}/a2a/finance_specialist",
-        skills=[
-            {"id": "financial_analysis", "name": "财务分析", "description": "财务报表和指标分析"},
-            {"id": "ratio_calculation", "name": "比率计算", "description": "财务比率计算"}
-        ],
-        tags=["财务", "分析"]
-    )
-    return AgentWrapper(agent_instance, config)
-
-
-def wrap_legal_specialist(
-    agent_instance: Any,
-    base_url: str = "http://localhost:8000"
-) -> AgentWrapper:
-    """包装法律专家 Agent"""
-    config = AgentWrapperConfig(
-        name="legal_specialist",
-        description="专业法律合规智能体，支持合同审查、法规咨询",
-        url=f"{base_url}/a2a/legal_specialist",
-        skills=[
-            {"id": "contract_review", "name": "合同审查", "description": "合同风险点识别"},
-            {"id": "legal_advice", "name": "法律咨询", "description": "法规解读和建议"}
-        ],
-        tags=["法律", "合规", "合同"]
-    )
-    return AgentWrapper(agent_instance, config)
-
-
 def wrap_react_agent(
     agent_instance: Any,
     base_url: str = "http://localhost:8000"

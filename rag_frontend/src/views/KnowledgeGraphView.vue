@@ -191,26 +191,13 @@ async function handleQueryEntity() {
 
 function getEntityTypeColor(type: string): string {
   const colors: Record<string, string> = {
-    'Company': 'bg-blue-100 text-blue-700 border-blue-300',
-    'Person': 'bg-emerald-100 text-emerald-700 border-emerald-300',
-    'Department': 'bg-cyan-100 text-cyan-700 border-cyan-300',
-    'FinancialMetric': 'bg-amber-100 text-amber-700 border-amber-300',
-    'FinancialReport': 'bg-amber-100 text-amber-700 border-amber-300',
-    'Account': 'bg-amber-100 text-amber-700 border-amber-300',
-    'Budget': 'bg-amber-100 text-amber-700 border-amber-300',
-    'TaxType': 'bg-purple-100 text-purple-700 border-purple-300',
-    'TaxPolicy': 'bg-purple-100 text-purple-700 border-purple-300',
-    'TaxRate': 'bg-purple-100 text-purple-700 border-purple-300',
-    'TaxExemption': 'bg-purple-100 text-purple-700 border-purple-300',
-    'Contract': 'bg-rose-100 text-rose-700 border-rose-300',
-    'LegalCase': 'bg-rose-100 text-rose-700 border-rose-300',
-    'Regulation': 'bg-rose-100 text-rose-700 border-rose-300',
-    'Clause': 'bg-rose-100 text-rose-700 border-rose-300',
-    'Product': 'bg-teal-100 text-teal-700 border-teal-300',
-    'Service': 'bg-teal-100 text-teal-700 border-teal-300',
-    'Location': 'bg-green-100 text-green-700 border-green-300',
-    'DatePeriod': 'bg-orange-100 text-orange-700 border-orange-300',
-    'Event': 'bg-orange-100 text-orange-700 border-orange-300',
+    'Device': 'bg-blue-100 text-blue-700 border-blue-300',
+    'Sensor': 'bg-cyan-100 text-cyan-700 border-cyan-300',
+    'Room': 'bg-green-100 text-green-700 border-green-300',
+    'Scenario': 'bg-purple-100 text-purple-700 border-purple-300',
+    'SafetyRule': 'bg-rose-100 text-rose-700 border-rose-300',
+    'Action': 'bg-orange-100 text-orange-700 border-orange-300',
+    'State': 'bg-teal-100 text-teal-700 border-teal-300',
     'Technology': 'bg-indigo-100 text-indigo-700 border-indigo-300',
     'Entity': 'bg-gray-100 text-gray-700 border-gray-300',
     'default': 'bg-gray-100 text-gray-700 border-gray-300'
@@ -329,23 +316,13 @@ function renderGraph() {
   currentLinkSel = linkSel
 
   const nodeColors: Record<string, string> = {
-    'Company': '#3b82f6',
-    'Person': '#10b981',
-    'Department': '#06b6d4',
-    'FinancialMetric': '#f59e0b',
-    'FinancialReport': '#f59e0b',
-    'Account': '#f59e0b',
-    'Budget': '#f59e0b',
-    'TaxType': '#8b5cf6',
-    'TaxPolicy': '#8b5cf6',
-    'TaxRate': '#8b5cf6',
-    'TaxExemption': '#8b5cf6',
-    'Contract': '#e11d48',
-    'LegalCase': '#e11d48',
-    'Regulation': '#e11d48',
-    'Clause': '#e11d48',
-    'Product': '#14b8a6',
-    'Service': '#14b8a6',
+    'Device': '#3b82f6',
+    'Sensor': '#06b6d4',
+    'Room': '#22c55e',
+    'Scenario': '#8b5cf6',
+    'SafetyRule': '#e11d48',
+    'Action': '#f97316',
+    'State': '#14b8a6',
     'Location': '#22c55e',
     'DatePeriod': '#f97316',
     'Event': '#ef4444',
@@ -356,7 +333,7 @@ function renderGraph() {
 
   function getNodeColor(type: string): string {
     if (!type) return nodeColors.default
-    // 兼容新旧类型名：COMPANY -> Company, TAX_TYPE -> TaxType, FINANCIAL_METRIC -> FinancialMetric
+    // 兼容知识图谱类型的大小写与历史数据格式
     const normalized = type
       .split('_')
       .map(s => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase())
@@ -780,12 +757,12 @@ function resetView() {
             </button>
           </div>
           <div class="flex flex-wrap gap-3 mb-4 text-sm text-gray-500">
-            <span>🔵 Company</span>
-            <span>🟢 Person</span>
-            <span>🟣 TaxType/Policy</span>
-            <span>🔴 Contract</span>
-            <span>🟠 FinancialMetric</span>
-            <span>🟡 Location</span>
+            <span>🔵 Device</span>
+            <span>🟢 Room</span>
+            <span>🟣 Scenario</span>
+            <span>🔴 SafetyRule</span>
+            <span>🟠 Action</span>
+            <span>🔷 Sensor</span>
             <span>⚫ 其他</span>
           </div>
           <div ref="graphContainer" class="w-full h-[500px]"></div>

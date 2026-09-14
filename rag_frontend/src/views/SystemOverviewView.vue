@@ -111,7 +111,7 @@
           </template>
           
           <div class="grid grid-cols-2 gap-4">
-            <router-link to="/system-audit" class="no-underline">
+            <router-link to="/security-audit" class="no-underline">
               <div class="p-4 rounded-lg border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 transition-all cursor-pointer">
                 <Shield :size="24" class="text-indigo-600 mb-2" />
                 <h4 class="font-semibold text-slate-800 mb-1">系统审计</h4>

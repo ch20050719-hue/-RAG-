@@ -226,19 +226,15 @@ function getCategoryColor(category: string): string {
   const colorMap: Record<string, string> = {
     '金额信息': 'bg-amber-100 text-amber-700',
     '百分比异常': 'bg-orange-100 text-orange-700',
-    '财务合规': 'bg-emerald-100 text-emerald-700',
-    '发票管理': 'bg-blue-100 text-blue-700',
-    '税率合规': 'bg-cyan-100 text-cyan-700',
-    '税务合规': 'bg-purple-100 text-purple-700',
-    '合同管理': 'bg-indigo-100 text-indigo-700',
-    '日期审查': 'bg-pink-100 text-pink-700',
-    '法律合规': 'bg-rose-100 text-rose-700',
+    '设备控制': 'bg-blue-100 text-blue-700',
+    '环境感知': 'bg-cyan-100 text-cyan-700',
+    '场景联动': 'bg-purple-100 text-purple-700',
+    '设备安全': 'bg-rose-100 text-rose-700',
     '门卫审核': 'bg-gray-100 text-gray-700',
     '安全拦截': 'bg-red-100 text-red-700',
     '执行错误': 'bg-red-100 text-red-700',
     'research': 'bg-teal-100 text-teal-700',
-    '优惠政策': 'bg-green-100 text-green-700',
-    '进项管理': 'bg-blue-100 text-blue-700',
+    '舒适度': 'bg-green-100 text-green-700',
   }
   return colorMap[category] || 'bg-slate-100 text-slate-700'
 }

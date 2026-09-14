@@ -136,7 +136,7 @@ const categories = [
 
   { id: 'chat', label: '群聊消息', icon: MessageSquare, count: computed(() => stats.value.byCategory.chat) },
 
-  { id: 'policy', label: '政策更新', icon: FileText, count: computed(() => stats.value.byCategory.policy) },
+  { id: 'device', label: '设备安全', icon: FileText, count: computed(() => stats.value.byCategory.device) },
 
   { id: 'task', label: '任务提醒', icon: Clock, count: computed(() => stats.value.byCategory.task) },
 
@@ -258,7 +258,7 @@ function getCategoryIcon(category: string) {
 
     chat: MessageSquare,
 
-    policy: FileText,
+    device: FileText,
 
     task: Clock,
 
@@ -278,7 +278,7 @@ function getCategoryColor(category: string): { bg: string; text: string } {
 
     chat: { bg: 'bg-green-100', text: 'text-green-700' },
 
-    policy: { bg: 'bg-blue-100', text: 'text-blue-700' },
+    device: { bg: 'bg-blue-100', text: 'text-blue-700' },
 
     task: { bg: 'bg-purple-100', text: 'text-purple-700' },
 

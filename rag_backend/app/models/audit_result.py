@@ -20,14 +20,14 @@ class AuditResult(Base):
     tenant_id = Column(String(50), nullable=False, index=True)
     
     # Agent 信息
-    agent_name = Column(String(50), index=True)  # finance/tax/legal
+    agent_name = Column(String(50), index=True)  # home_butler/environment/device_control/comfort
     
     # 审查结果
     findings = Column(JSONB)  # 发现的问题列表
     risk_score = Column(Float)  # 风险评分 0-100
     confidence = Column(Float)  # 置信度 0-1
     recommendations = Column(JSONB)  # 改进建议
-    legal_basis = Column(JSONB)  # 法律依据
+    legal_basis = Column(JSONB)  # 规则依据（保留字段以兼容已有结果接口）
     
     # 时间戳
     created_at = Column(DateTime(timezone=True), default=func.now(), server_default=func.now())

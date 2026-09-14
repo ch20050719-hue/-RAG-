@@ -1,87 +1,31 @@
+"""智能家居多智能体运行时。
+
+对外保留 AgentOrchestrator、IntentRouterAgent 等稳定入口；领域专家、工具和
+场景执行均限定在智能家居模块内。
 """
-多智能体系统模块
 
-导出核心类和组件
-"""
-
-from .state import (
-    AuditState,
-    AuditType,
-    RiskLevel,
-    Finding,
-    Conflict,
-    Report,
-    create_initial_state,
-    TaskStatus,
-    TaskPriority,
-    AgentRole,
-    TaskContext,
-    AgentRegistry,
-    BlackboardEvent
-)
-
-from .agent_router import AgentRouter, RouteDecision, RouteMode, RoutingRule
-from .coordinator import AgentCoordinator
 from .orchestrator import AgentOrchestrator, OrchestrationContext
-
-# 为了向后兼容，添加别名
-MultiAgentCoordinator = AgentCoordinator
-from .message_bus import MessageBus, MessageType, AgentMessage
-from .task_decomposer import TaskDecomposer, DocumentType, AuditPriority
-from .result_merger import ResultMerger
-
-# Agent 相关
 from .agents.base_specialist import BaseSpecialistAgent
+from .agents.home_specialist import HomeSpecialistAgent, create_home_specialist
 from .agents.intent_router_agent import (
     IntentRouterAgent,
     IntentRoutingResult,
     IntentCategory,
     ComplexityLevel,
     RoutingStrategy,
-    IntentAnalysisResult
+    IntentAnalysisResult,
 )
 
 __all__ = [
-    # 状态管理
-    "AuditState",
-    "AuditType", 
-    "RiskLevel",
-    "Finding",
-    "Conflict",
-    "Report",
-    "create_initial_state",
-    
-    # 任务管理（整合自 task_blackboard.py）
-    "TaskStatus",
-    "TaskPriority",
-    "AgentRole",
-    "TaskContext",
-    "AgentRegistry",
-    "BlackboardEvent",
-    
-    # 核心组件
-    "AgentRouter",
-    "RouteDecision",
-    "RouteMode",
-    "RoutingRule",
-    "AgentCoordinator",
     "AgentOrchestrator",
     "OrchestrationContext",
-    "MultiAgentCoordinator",  # 别名
-    "MessageBus",
-    "MessageType",
-    "AgentMessage",
-    "TaskDecomposer",
-    "DocumentType",
-    "AuditPriority",
-    "ResultMerger",
-    
-    # Agent 基类
     "BaseSpecialistAgent",
+    "HomeSpecialistAgent",
+    "create_home_specialist",
     "IntentRouterAgent",
     "IntentRoutingResult",
     "IntentCategory",
     "ComplexityLevel",
     "RoutingStrategy",
-    "IntentAnalysisResult"
+    "IntentAnalysisResult",
 ]

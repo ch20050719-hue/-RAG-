@@ -395,10 +395,10 @@ class LangGraphWorkflowTask(ARAbstractTask):
             "receptionist": 5,
             "intent": 10,
             "rag_retrieval": 20,
-            "finance_specialist": 40,
-            "tax_specialist": 40,
-            "legal_specialist": 40,
-            "report_specialist": 40,
+            "home_specialist": 40,
+            "device_control": 45,
+            "environment": 45,
+            "safety_check": 50,
             "aggregator": 60,
             "reflection": 80,
             "final_answer": 95,
@@ -418,7 +418,7 @@ class LangGraphWorkflowTask(ARAbstractTask):
             }
         
         specialist_count = len(specialist_progress)
-        active_specialists = ["finance", "tax", "legal", "report"]
+        active_specialists = ["home_butler", "environment", "device_control", "comfort"]
         in_progress = [s for s in active_specialists if s not in specialist_progress]
         
         if in_progress:

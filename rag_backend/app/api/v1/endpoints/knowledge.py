@@ -420,8 +420,8 @@ async def process_document_task(doc_id: UUID, tenant_id: str):
         except Exception as e:
             print(f"最终状态标记失败: {e}")
 
-    # Phase 2: 仅 legal 领域异步充血（不阻塞主流程）
-    if domain == "legal":
+    # Phase 2: 智能家居知识异步充血（不阻塞主流程）
+    if domain == "smart_home":
         import asyncio as _asyncio
         _asyncio.ensure_future(_run_phase2_enrichment(doc_id, tenant_id, chunks_to_insert))
 
@@ -470,7 +470,7 @@ async def _run_phase2_enrichment(doc_id: UUID, tenant_id: str, chunks: list):
     不阻塞 process_document_task 的主流程，通过 asyncio.create_task 调度。
     """
     from app.models.document_enrichment_job import EnrichmentJob
-    print(f"[Phase 2] 开始 legal 文档充血: {doc_id}")
+    print(f"[Phase 2] 开始智能家居文档充血: {doc_id}")
 
     # 收集 PARENT chunk ID
     parent_chunk_ids = [
@@ -487,7 +487,7 @@ async def _run_phase2_enrichment(doc_id: UUID, tenant_id: str, chunks: list):
         try:
             resolve_job = EnrichmentJob(
                 document_id=doc_id, job_type="entity_resolve",
-                domain="legal", status="running",
+                domain="smart_home", status="running",
                 payload={"chunk_count": len(chunks)}, max_retries=5,
             )
             db.add(resolve_job)
@@ -545,7 +545,7 @@ async def _run_phase2_enrichment(doc_id: UUID, tenant_id: str, chunks: list):
                         tokens=db_chunk.token_count or 0,
                         heading_path=db_chunk.heading_path,
                         chunk_index=db_chunk.chunk_index,
-                        domain="legal",
+                        domain="smart_home",
                         node_type=db_chunk.node_type or "leaf",
                         relationships=db_chunk.relationships or {},
                     )
@@ -588,7 +588,7 @@ async def _run_phase2_enrichment(doc_id: UUID, tenant_id: str, chunks: list):
                         end=pchunk.chunk_end or len(pchunk.content or ""),
                         tokens=pchunk.token_count or 0,
                         chunk_index=pchunk.chunk_index,
-                        domain="legal", node_type="parent",
+                        domain="smart_home", node_type="parent",
                     )
                     parent_results.append(cr)
 

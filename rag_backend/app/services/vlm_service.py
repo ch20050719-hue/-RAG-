@@ -171,7 +171,7 @@ class VLMService:
     async def analyze_chart(
         self,
         image_bytes: bytes,
-        role: str = "财务分析师"
+        role: str = "智能家居分析助手"
     ) -> str:
         """
         分析图表内容

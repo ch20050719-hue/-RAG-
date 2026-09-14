@@ -6,7 +6,7 @@
 存储企业/租户的配置信息，包括企业名称、Logo、主题设置等
 """
 
-from sqlalchemy import Column, String, DateTime, Text, Boolean, Integer, Index, ARRAY
+from sqlalchemy import Column, String, DateTime, Text, Boolean, Integer, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy import func
 import uuid
@@ -43,11 +43,10 @@ class TenantSettings(Base):
     admin_email = Column(String(255), nullable=True)  # 管理员邮箱
     admin_phone = Column(String(50), nullable=True)  # 管理员电话
 
-    # 企业画像（用于政策智能匹配）
+    # 租户画像（保留为通用扩展字段）
     industry = Column(String(100), nullable=True, index=True)  # 企业所属行业
     region = Column(String(100), nullable=True, index=True)  # 企业所在地区
     scale = Column(String(50), nullable=True, index=True)  # 企业规模
-    tax_types = Column(ARRAY(String), default=[])  # 税种类型（可多选）
 
     # 系统设置
     max_users = Column(Integer, default=10)  # 最大用户数
@@ -62,8 +61,6 @@ class TenantSettings(Base):
     enable_knowledge_graph = Column(Boolean, default=False)  # 是否启用知识图谱
     enable_human_review = Column(Boolean, default=True)  # 是否启用人工审核
     enable_audit = Column(Boolean, default=False)  # 是否启用审计功能
-    enable_tax_report = Column(Boolean, default=False)  # 是否启用税务报表
-    enable_financial_data = Column(Boolean, default=False)  # 是否启用财务数据
 
     # 主题和界面设置
     primary_color = Column(String(20), default="#1890ff")  # 主色调

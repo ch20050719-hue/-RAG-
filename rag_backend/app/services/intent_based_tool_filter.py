@@ -110,15 +110,11 @@ class IntentPatternMatcher:
         }
         
         self._tool_keywords: Dict[str, List[str]] = {
-            "search_enterprise_knowledge": ["企业", "公司", "制度", "文档"],
-            "calculate_tax_vat": ["增值税", "税额", "含税"],
-            "calculate_corporate_tax": ["企业所得税", "企业税"],
-            "calculate_personal_tax": ["个人所得税", "个税"],
-            "check_contract_essentials": ["合同", "条款", "必备"],
-            "match_legal_provisions": ["法律", "条款", "匹配"],
-            "calculate_asset_liability_ratio": ["资产负债", "负债率"],
-            "calculate_current_ratio": ["流动比率", "短期"],
-            "calculate_quick_ratio": ["速动比率", "立即"],
+            "search_enterprise_knowledge": ["设备", "传感器", "场景", "手册"],
+            "read_home_environment": ["温度", "湿度", "光照", "环境"],
+            "get_device_status": ["设备", "状态", "在线", "离线"],
+            "check_device_safety": ["安全", "风险", "危险", "确认"],
+            "run_home_scenario": ["场景", "睡眠", "离家", "节能"],
         }
     
     def match_intent(self, query: str) -> List[Tuple[IntentCategory, float]]:
@@ -163,20 +159,9 @@ class IntentPatternMatcher:
                 "search_keywords_in_knowledge",
                 "search_documents_by_topic"
             ],
-            IntentCategory.CALCULATION: [
-                "calculate_tax_vat",
-                "calculate_corporate_tax",
-                "calculate_personal_tax"
-            ],
-            IntentCategory.VALIDATION: [
-                "check_contract_essentials",
-                "match_legal_provisions"
-            ],
-            IntentCategory.ANALYSIS: [
-                "calculate_asset_liability_ratio",
-                "calculate_current_ratio",
-                "calculate_quick_ratio"
-            ],
+            IntentCategory.CALCULATION: ["read_home_environment"],
+            IntentCategory.VALIDATION: ["check_device_safety"],
+            IntentCategory.ANALYSIS: ["read_home_environment", "get_device_status"],
         }
         
         for category, confidence in intents:

@@ -29,10 +29,10 @@ class IntentCategory(str, Enum):
 
 class SpecialistType(str, Enum):
     """专家类型"""
-    FINANCE = "finance"
-    TAX = "tax"
-    LEGAL = "legal"
-    REPORT = "report"
+    HOME_BUTLER = "home_butler"
+    ENVIRONMENT = "environment"
+    DEVICE_CONTROL = "device_control"
+    COMFORT = "comfort"
     REFLECTION = "reflection"
 
 

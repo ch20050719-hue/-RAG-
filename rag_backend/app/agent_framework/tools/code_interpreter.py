@@ -1,7 +1,7 @@
 """
 Code Interpreter 工具
 
-为 Agent 提供受限的 Python 执行沙箱，专为财税法务场景的数值计算设计。
+为 Agent 提供受限的 Python 执行沙箱，用于智能家居参数和通用数值计算。
 
 关键安全机制（**多层防御**）：
 1. AST 校验：在编译前拒绝危险节点（导入非白名单模块、访问 dunder 属性等）
@@ -11,9 +11,8 @@ Code Interpreter 工具
 5. 输出截断：stdout 上限 10KB，防止 prompt 爆炸
 
 适用场景：
-- 财务：折旧表、现金流贴现、比率分析
-- 税务：分级税额、税收优惠测算、汇算清缴
-- 法务：罚款计算、违约金、时效推算
+- 智能家居：温湿度阈值、场景参数和设备统计
+- 通用：基础数学、JSON 和时间计算
 
 不适用：网络/文件 I/O、动态 import、长任务
 """
@@ -264,11 +263,11 @@ def _safe_serialize(value: Any) -> Any:
     name="execute_python",
     description=(
         "在受限沙箱中执行 Python 代码，可用 math/statistics/decimal/numpy/pandas/"
-        "sympy。返回 stdout 与最后一个表达式的值。适合精确的财务/税务/法务数值"
+        "sympy。返回 stdout 与最后一个表达式的值，适合安全的家居参数计算"
         "计算（折旧、税额、利息、贴现等），LLM 自身的算术不可信场景请优先调用此工具。"
     ),
     category="computation",
-    tags=["math", "calculator", "finance", "tax", "legal"],
+    tags=["math", "calculator", "smart_home"],
     timeout=35,
 )
 async def execute_python(code: str, timeout: float = DEFAULT_TIMEOUT_SECONDS) -> Dict[str, Any]:

@@ -1,11 +1,9 @@
 import { ref, computed, readonly } from 'vue'
 import { notificationsApi, type Notification as GeneralNotification } from '@/api/notifications'
 import { groupChatApi } from '@/api/group-chat'
-import { policyApi } from '@/api/policy'
-import { getEnterpriseId } from '@/utils/request'
 import { ElMessage } from 'element-plus'
 
-export type NotificationCategory = 'all' | 'system' | 'policy' | 'task' | 'chat'
+export type NotificationCategory = 'all' | 'system' | 'task' | 'chat'
 
 export interface UnifiedNotification {
   id: string
@@ -37,388 +35,159 @@ const stats = ref<UnifiedStats>({
   total: 0,
   unread: 0,
   today: 0,
-  byCategory: { all: 0, system: 0, policy: 0, task: 0, chat: 0 },
-  byPriority: { low: 0, medium: 0, high: 0, urgent: 0 }
+  byCategory: { all: 0, system: 0, task: 0, chat: 0 },
+  byPriority: { low: 0, medium: 0, high: 0, urgent: 0 },
 })
 const isLoading = ref(false)
 const isInitialized = ref(false)
 
-interface LoadNotificationOptions {
-  isArchived?: boolean
+interface LoadNotificationOptions { isArchived?: boolean }
+
+const priorityConfig: Record<string, { iconColor: string; bgColor: string }> = {
+  urgent: { iconColor: 'text-red-600', bgColor: 'bg-red-100' },
+  high: { iconColor: 'text-orange-600', bgColor: 'bg-orange-100' },
+  medium: { iconColor: 'text-blue-600', bgColor: 'bg-blue-100' },
+  low: { iconColor: 'text-gray-600', bgColor: 'bg-gray-100' },
 }
 
 export function useUnifiedNotifications() {
-  const unreadCount = computed(() => {
-    return notifications.value.filter(n => !n.isRead).length
-  })
+  const unreadCount = computed(() => notifications.value.filter(item => !item.isRead).length)
 
   async function loadNotifications(category: NotificationCategory = 'all', force = false, options: LoadNotificationOptions = {}) {
-    if (isLoading.value) return
-    if (isInitialized.value && !force) return
-
+    if (isLoading.value || (isInitialized.value && !force)) return
     isLoading.value = true
     try {
-      const enterpriseId = getEnterpriseId()
-      const isArchived = options.isArchived ?? false
       const source = category === 'chat' || category === 'task' || category === 'system' ? category : undefined
-      const [generalRes, policyRes] = await Promise.allSettled([
-        category === 'all' || category === 'system' || category === 'task' || category === 'chat'
-          ? notificationsApi.listNotifications({ page_size: 100, source, is_archived: isArchived })
-          : Promise.resolve(null),
-        !isArchived && (category === 'all' || category === 'policy') && enterpriseId && enterpriseId !== 'default'
-          ? policyApi.getNotifications(enterpriseId, undefined, 50)
-          : Promise.resolve({ notifications: [] })
-      ])
-
-      const unified: UnifiedNotification[] = []
-
-      if (generalRes.status === 'rejected') {
-        console.warn('Failed to load general notifications:', generalRes.reason)
-      }
-      if (policyRes.status === 'rejected') {
-        console.warn('Failed to load policy notifications:', policyRes.reason)
-      }
-
-      if (generalRes.status === 'fulfilled' && generalRes.value) {
-        const general = generalRes.value.notifications || []
-        unified.push(...general.map(n => transformGeneralNotification(n)))
-      }
-
-      if (policyRes.status === 'fulfilled' && policyRes.value) {
-        const policies = policyRes.value.notifications || []
-        unified.push(...policies.map(n => transformPolicyNotification(n)))
-      }
-
-      unified.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-
-      notifications.value = unified
-      calculateStats()
+      const response = await notificationsApi.listNotifications({
+        page_size: 100,
+        source,
+        is_archived: options.isArchived ?? false,
+      })
+      const next = (response.notifications || [])
+        .map(transformGeneralNotification)
+        .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
+      notifications.value = next
+      calculateStats(next)
       isInitialized.value = true
     } catch (error: any) {
+      if (error?.response?.status === 401 || error?.response?.status === 403) throw error
       console.error('Failed to load notifications:', error)
-      if (error?.response?.status === 401 || error?.response?.status === 403) {
-        throw error
-      }
       ElMessage.error('加载通知失败')
     } finally {
       isLoading.value = false
     }
   }
 
-  function transformGeneralNotification(n: GeneralNotification): UnifiedNotification {
-    const priority = normalizePriority(n.priority)
-    const type = n.notification_type || n.type || 'info'
-    const priorityConfig = getPriorityConfig(priority)
-    const source = n.source || inferGeneralSource(type)
-    const rawId = n.id || `${source}-${n.timestamp || n.created_at || Date.now()}`
-
+  function transformGeneralNotification(item: GeneralNotification): UnifiedNotification {
+    const priority = ['low', 'medium', 'high', 'urgent'].includes(item.priority || '') ? item.priority as UnifiedNotification['priority'] : 'medium'
+    const source = item.source || 'system'
+    const category: NotificationCategory = source === 'chat' ? 'chat' : source === 'task' ? 'task' : 'system'
+    const config = priorityConfig[priority]
+    const rawId = item.id || `${source}-${item.timestamp || item.created_at || Date.now()}`
     return {
       id: `general-${rawId}`,
-      category: getGeneralCategory(source),
-      title: n.title,
-      message: n.message || n.content || '',
-      icon: getNotificationIcon(type),
-      iconColor: priorityConfig.iconColor,
-      bgColor: priorityConfig.bgColor,
-      isRead: n.is_read ?? n.read ?? false,
-      isArchived: n.is_archived ?? false,
+      category,
+      title: item.title,
+      message: item.message || item.content || '',
+      icon: item.notification_type === 'warning' ? 'AlertTriangle' : item.notification_type === 'error' ? 'XCircle' : 'Bell',
+      iconColor: config.iconColor,
+      bgColor: config.bgColor,
+      isRead: item.is_read ?? item.read ?? false,
+      isArchived: item.is_archived ?? false,
       priority,
-      actionUrl: n.action_url,
-      metadata: n.metadata,
-      createdAt: n.created_at || n.timestamp || new Date().toISOString(),
-      sourceId: rawId
+      actionUrl: item.action_url,
+      metadata: item.metadata,
+      createdAt: item.created_at || item.timestamp || new Date().toISOString(),
+      sourceId: rawId,
     }
   }
 
-  function transformChatNotification(n: any): UnifiedNotification {
-    const iconMap: Record<string, { icon: string; iconColor: string; bgColor: string }> = {
-      invitation: { icon: 'UserPlus', iconColor: 'text-blue-600', bgColor: 'bg-blue-100' },
-      message: { icon: 'MessageSquare', iconColor: 'text-green-600', bgColor: 'bg-green-100' },
-      member_joined: { icon: 'UserCheck', iconColor: 'text-emerald-600', bgColor: 'bg-emerald-100' },
-      member_left: { icon: 'UserMinus', iconColor: 'text-gray-600', bgColor: 'bg-gray-100' }
-    }
-    const config = iconMap[n.type] || iconMap.message
-
-    return {
-      id: `chat-${n.id}`,
-      category: 'chat',
-      title: n.title || getChatNotificationTitle(n),
-      message: n.message || n.content || '',
-      icon: config.icon,
-      iconColor: config.iconColor,
-      bgColor: config.bgColor,
-      isRead: n.is_read || false,
-      isArchived: n.is_archived ?? false,
-      priority: 'medium',
-      metadata: n,
-      createdAt: n.created_at || n.timestamp || new Date().toISOString(),
-      sourceId: n.id
-    }
-  }
-
-  function transformPolicyNotification(n: any): UnifiedNotification {
-    const statusConfig: Record<string, { iconColor: string; bgColor: string }> = {
-      pending: { iconColor: 'text-amber-600', bgColor: 'bg-amber-100' },
-      sent: { iconColor: 'text-blue-600', bgColor: 'bg-blue-100' },
-      acknowledged: { iconColor: 'text-emerald-600', bgColor: 'bg-emerald-100' },
-      dismissed: { iconColor: 'text-gray-600', bgColor: 'bg-gray-100' }
-    }
-    const config = statusConfig[n.status] || statusConfig.pending
-
-    return {
-      id: `policy-${n.id}`,
-      category: 'policy',
-      title: n.title || '政策更新通知',
-      message: n.message || n.content || '',
-      icon: 'FileText',
-      iconColor: config.iconColor,
-      bgColor: config.bgColor,
-      isRead: n.status === 'acknowledged' || n.status === 'dismissed',
-      isArchived: n.status === 'dismissed',
-      priority: 'high',
-      actionUrl: n.policy_id ? `/policy/${n.policy_id}` : undefined,
-      metadata: n,
-      createdAt: n.created_at,
-      sourceId: n.id
-    }
-  }
-
-  function getChatNotificationTitle(n: any): string {
-    const titles: Record<string, string> = {
-      invitation: '收到群聊邀请',
-      message: '收到新消息',
-      member_joined: '新成员加入',
-      member_left: '成员离开'
-    }
-    return titles[n.type] || '群聊通知'
-  }
-
-  function getNotificationIcon(type: string): string {
-    const icons: Record<string, string> = {
-      info: 'Info',
-      warning: 'AlertTriangle',
-      error: 'XCircle',
-      success: 'CheckCircle',
-      in_app: 'Bell',
-      tax_reminder: 'Clock',
-      policy_update: 'FileText',
-      anomaly_alert: 'AlertTriangle',
-      system_alert: 'AlertTriangle'
-    }
-    return icons[type] || 'Bell'
-  }
-
-  function inferGeneralSource(type: string): string {
-    if (type === 'tax_reminder') return 'task'
-    if (type === 'policy_update') return 'policy'
-    return 'system'
-  }
-
-  function getGeneralCategory(source: string): NotificationCategory {
-    if (source === 'chat') return 'chat'
-    if (source === 'task') return 'task'
-    if (source === 'policy') return 'policy'
-    return 'system'
-  }
-
-  function normalizePriority(priority?: string): UnifiedNotification['priority'] {
-    if (priority === 'low' || priority === 'medium' || priority === 'high' || priority === 'urgent') {
-      return priority
-    }
-    return 'medium'
-  }
-
-  function getPriorityConfig(priority: string): { iconColor: string; bgColor: string } {
-    const configs: Record<string, { iconColor: string; bgColor: string }> = {
-      urgent: { iconColor: 'text-red-600', bgColor: 'bg-red-100' },
-      high: { iconColor: 'text-orange-600', bgColor: 'bg-orange-100' },
-      medium: { iconColor: 'text-blue-600', bgColor: 'bg-blue-100' },
-      low: { iconColor: 'text-gray-600', bgColor: 'bg-gray-100' }
-    }
-    return configs[priority] || configs.medium
-  }
-
-  function calculateStats() {
-    const now = new Date()
-    const today = now.toDateString()
-
+  function calculateStats(items = notifications.value) {
+    const today = new Date().toDateString()
     stats.value = {
-      total: notifications.value.length,
-      unread: notifications.value.filter(n => !n.isRead).length,
-      today: notifications.value.filter(n => new Date(n.createdAt).toDateString() === today).length,
+      total: items.length,
+      unread: items.filter(item => !item.isRead).length,
+      today: items.filter(item => new Date(item.createdAt).toDateString() === today).length,
       byCategory: {
-        all: notifications.value.length,
-        system: notifications.value.filter(n => n.category === 'system').length,
-        policy: notifications.value.filter(n => n.category === 'policy').length,
-        task: notifications.value.filter(n => n.category === 'task').length,
-        chat: notifications.value.filter(n => n.category === 'chat').length
+        all: items.length,
+        system: items.filter(item => item.category === 'system').length,
+        task: items.filter(item => item.category === 'task').length,
+        chat: items.filter(item => item.category === 'chat').length,
       },
       byPriority: {
-        urgent: notifications.value.filter(n => n.priority === 'urgent').length,
-        high: notifications.value.filter(n => n.priority === 'high').length,
-        medium: notifications.value.filter(n => n.priority === 'medium').length,
-        low: notifications.value.filter(n => n.priority === 'low').length
-      }
+        urgent: items.filter(item => item.priority === 'urgent').length,
+        high: items.filter(item => item.priority === 'high').length,
+        medium: items.filter(item => item.priority === 'medium').length,
+        low: items.filter(item => item.priority === 'low').length,
+      },
     }
   }
 
-  async function markAsRead(notificationId: string) {
-    const notification = notifications.value.find(n => n.id === notificationId)
-    if (!notification) return
+  function splitId(id: string): [string, string] {
+    const index = id.indexOf('-')
+    return index < 0 ? [id, ''] : [id.slice(0, index), id.slice(index + 1)]
+  }
 
+  async function markAsRead(id: string) {
+    const item = notifications.value.find(notification => notification.id === id)
+    if (!item || item.isRead) return
+    const [, sourceId] = splitId(id)
     try {
-      const [prefix, id] = splitNotificationId(notificationId)
-      if (prefix === 'general' && id) {
-        await notificationsApi.markAsRead(id)
-      } else if (prefix === 'chat' && id) {
-        await groupChatApi.markNotificationRead(id)
-      } else if (prefix === 'policy' && id) {
-        await policyApi.acknowledgeNotification(id)
-      }
-      notification.isRead = true
+      if (item.category === 'chat') await groupChatApi.markNotificationRead(sourceId)
+      else await notificationsApi.markAsRead(sourceId)
+      notifications.value = notifications.value.map(notification => notification.id === id ? { ...notification, isRead: true } : notification)
       calculateStats()
-    } catch (error) {
-      console.error('Failed to mark as read:', error)
-    }
+    } catch (error) { console.error('Failed to mark notification as read:', error) }
   }
 
-  async function markAllAsRead(category?: NotificationCategory) {
+  async function markAllAsRead(category: NotificationCategory = 'all') {
     try {
-      if (!category || category === 'all' || category === 'system' || category === 'task') {
-        await notificationsApi.markAllAsRead()
-      }
-
-      const unreadNotifications = notifications.value.filter(n =>
-        !category || category === 'all' || n.category === category
-      )
-
-      for (const n of unreadNotifications) {
-        if (!n.isRead) {
-          await markAsRead(n.id)
-        }
-      }
-
-      notifications.value.forEach(n => {
-        if (!category || category === 'all' || n.category === category) {
-          n.isRead = true
-        }
-      })
+      await notificationsApi.markAllAsRead()
+      notifications.value = notifications.value.map(item => category === 'all' || item.category === category ? { ...item, isRead: true } : item)
       calculateStats()
       ElMessage.success('已全部标为已读')
-    } catch (error) {
-      console.error('Failed to mark all as read:', error)
-      ElMessage.error('操作失败')
-    }
+    } catch (error) { console.error('Failed to mark all notifications as read:', error); ElMessage.error('操作失败') }
   }
 
-  async function deleteNotification(notificationId: string) {
-    const notification = notifications.value.find(n => n.id === notificationId)
-    if (!notification) return
-
+  async function deleteNotification(id: string) {
+    const item = notifications.value.find(notification => notification.id === id)
+    if (!item) return
+    const [, sourceId] = splitId(id)
     try {
-      const [prefix, id] = splitNotificationId(notificationId)
-      if (prefix === 'general' && id) {
-        await notificationsApi.deleteNotification(id)
-      } else if (prefix === 'chat' && id) {
-        await groupChatApi.deleteNotification(id)
-      } else if (prefix === 'policy' && id) {
-        await policyApi.dismissNotification(id, '用户删除')
-      }
-      notifications.value = notifications.value.filter(n => n.id !== notificationId)
+      if (item.category === 'chat') await groupChatApi.deleteNotification(sourceId)
+      else await notificationsApi.deleteNotification(sourceId)
+      notifications.value = notifications.value.filter(notification => notification.id !== id)
       calculateStats()
       ElMessage.success('删除成功')
-    } catch (error) {
-      console.error('Failed to delete notification:', error)
-      ElMessage.error('删除失败')
-    }
+    } catch (error) { console.error('Failed to delete notification:', error); ElMessage.error('删除失败') }
   }
 
-  async function archiveNotification(notificationId: string) {
-    const notification = notifications.value.find(n => n.id === notificationId)
-    if (!notification) return
-
+  async function archiveNotification(id: string) {
+    const [, sourceId] = splitId(id)
     try {
-      const [prefix, id] = splitNotificationId(notificationId)
-      if ((prefix === 'general' || prefix === 'chat') && id) {
-        await notificationsApi.archiveNotification(id)
-      } else if (prefix === 'policy' && id) {
-        await policyApi.dismissNotification(id, '用户归档')
-      }
-      notifications.value = notifications.value.filter(n => n.id !== notificationId)
+      await notificationsApi.archiveNotification(sourceId)
+      notifications.value = notifications.value.filter(notification => notification.id !== id)
       calculateStats()
       ElMessage.success('归档成功')
-    } catch (error) {
-      console.error('Failed to archive notification:', error)
-      ElMessage.error('归档失败')
-    }
+    } catch (error) { console.error('Failed to archive notification:', error); ElMessage.error('归档失败') }
   }
 
-  function splitNotificationId(notificationId: string): [string, string] {
-    const index = notificationId.indexOf('-')
-    if (index === -1) {
-      return [notificationId, '']
-    }
-    return [notificationId.slice(0, index), notificationId.slice(index + 1)]
+  async function acceptInvitation(id: string) {
+    try { await groupChatApi.acceptInvitation(id); notifications.value = notifications.value.filter(item => item.id !== `chat-${id}`); calculateStats(); return true }
+    catch (error) { console.error('Failed to accept invitation:', error); return false }
   }
 
-  function filterByCategory(category: NotificationCategory): UnifiedNotification[] {
-    if (category === 'all') {
-      return notifications.value
-    }
-    return notifications.value.filter(n => n.category === category)
-  }
-
-  function filterUnread(): UnifiedNotification[] {
-    return notifications.value.filter(n => !n.isRead)
-  }
-
-  function refresh() {
-    isInitialized.value = false
-    loadNotifications('all', true)
-  }
-
-  async function acceptInvitation(invitationId: string) {
-    try {
-      await groupChatApi.acceptInvitation(invitationId)
-      notifications.value = notifications.value.filter(n => n.id !== `chat-${invitationId}`)
-      calculateStats()
-      ElMessage.success('已接受邀请')
-      return true
-    } catch (error) {
-      console.error('Failed to accept invitation:', error)
-      ElMessage.error('接受邀请失败')
-      return false
-    }
-  }
-
-  async function declineInvitation(invitationId: string) {
-    try {
-      await groupChatApi.declineInvitation(invitationId)
-      notifications.value = notifications.value.filter(n => n.id !== `chat-${invitationId}`)
-      calculateStats()
-      ElMessage.success('已拒绝邀请')
-      return true
-    } catch (error) {
-      console.error('Failed to decline invitation:', error)
-      ElMessage.error('拒绝邀请失败')
-      return false
-    }
+  async function declineInvitation(id: string) {
+    try { await groupChatApi.declineInvitation(id); notifications.value = notifications.value.filter(item => item.id !== `chat-${id}`); calculateStats(); return true }
+    catch (error) { console.error('Failed to decline invitation:', error); return false }
   }
 
   return {
-    notifications: readonly(notifications),
-    stats: readonly(stats),
-    isLoading: readonly(isLoading),
-    unreadCount,
-    loadNotifications,
-    markAsRead,
-    markAllAsRead,
-    archiveNotification,
-    deleteNotification,
-    acceptInvitation,
-    declineInvitation,
-    filterByCategory,
-    filterUnread,
-    refresh
+    notifications: readonly(notifications), stats: readonly(stats), isLoading: readonly(isLoading), unreadCount,
+    loadNotifications, markAsRead, markAllAsRead, archiveNotification, deleteNotification,
+    acceptInvitation, declineInvitation,
+    filterByCategory: (category: NotificationCategory) => category === 'all' ? notifications.value : notifications.value.filter(item => item.category === category),
+    filterUnread: () => notifications.value.filter(item => !item.isRead),
+    refresh: () => { isInitialized.value = false; void loadNotifications('all', true) },
   }
 }

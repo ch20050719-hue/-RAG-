@@ -7,7 +7,7 @@ import { get, post, put, del } from '@/utils/request'
 export type ProviderGroup = 'cloud' | 'local'
 
 // 对话模型可配置的角色（与后端 AgentType 对应）
-export type ChatRole = 'chat' | 'finance' | 'tax' | 'legal'
+export type ChatRole = 'chat' | 'home_butler' | 'environment' | 'device_control' | 'comfort'
 
 export interface ProviderInfo {
   id: string

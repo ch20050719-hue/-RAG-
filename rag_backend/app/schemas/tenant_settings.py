@@ -33,11 +33,10 @@ class TenantSettingsBase(BaseModel):
     admin_email: Optional[EmailStr] = Field(None, description="管理员邮箱")
     admin_phone: Optional[str] = Field(None, max_length=50, description="管理员电话")
 
-    # 企业画像（用于政策智能匹配）
+    # 租户画像（通用配置）
     industry: Optional[str] = Field(None, max_length=100, description="企业所属行业")
     region: Optional[str] = Field(None, max_length=100, description="企业所在地区")
     scale: Optional[str] = Field(None, max_length=50, description="企业规模")
-    tax_types: List[str] = Field(default=[], description="税种类型（可多选）")
 
     max_users: int = Field(default=10, ge=1, le=100000, description="最大用户数")
     max_storage_gb: int = Field(default=100, ge=1, le=100000, description="最大存储空间(GB)")
@@ -50,8 +49,6 @@ class TenantSettingsBase(BaseModel):
     enable_knowledge_graph: bool = Field(default=False, description="是否启用知识图谱")
     enable_human_review: bool = Field(default=True, description="是否启用人工审核")
     enable_audit: bool = Field(default=False, description="是否启用审计功能")
-    enable_tax_report: bool = Field(default=False, description="是否启用税务报表")
-    enable_financial_data: bool = Field(default=False, description="是否启用财务数据")
 
     primary_color: str = Field(default="#1890ff", description="主色调")
     secondary_color: Optional[str] = Field(None, description="次要色调")
@@ -91,11 +88,10 @@ class TenantSettingsUpdate(BaseModel):
     admin_email: Optional[EmailStr] = Field(None, description="管理员邮箱")
     admin_phone: Optional[str] = Field(None, max_length=50, description="管理员电话")
 
-    # 企业画像（用于政策智能匹配）
+    # 租户画像（通用配置）
     industry: Optional[str] = Field(None, max_length=100, description="企业所属行业")
     region: Optional[str] = Field(None, max_length=100, description="企业所在地区")
     scale: Optional[str] = Field(None, max_length=50, description="企业规模")
-    tax_types: Optional[List[str]] = Field(None, description="税种类型（可多选）")
 
     max_users: Optional[int] = Field(None, ge=1, le=100000, description="最大用户数")
     max_storage_gb: Optional[int] = Field(None, ge=1, le=100000, description="最大存储空间(GB)")
@@ -108,8 +104,6 @@ class TenantSettingsUpdate(BaseModel):
     enable_knowledge_graph: Optional[bool] = Field(None, description="是否启用知识图谱")
     enable_human_review: Optional[bool] = Field(None, description="是否启用人工审核")
     enable_audit: Optional[bool] = Field(None, description="是否启用审计功能")
-    enable_tax_report: Optional[bool] = Field(None, description="是否启用税务报表")
-    enable_financial_data: Optional[bool] = Field(None, description="是否启用财务数据")
 
     primary_color: Optional[str] = Field(None, description="主色调")
     secondary_color: Optional[str] = Field(None, description="次要色调")
@@ -182,8 +176,6 @@ class FeatureToggleRequest(BaseModel):
             'enable_knowledge_graph',
             'enable_human_review',
             'enable_audit',
-            'enable_tax_report',
-            'enable_financial_data'
         ]
         if v not in valid_features:
             raise ValueError(f'无效的功能名称。有效值: {", ".join(valid_features)}')

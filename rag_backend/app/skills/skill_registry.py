@@ -33,7 +33,7 @@ class SkillMetadata(BaseModel):
     name: str = Field(..., description="技能名称, 与目录名一致")
     description: str = Field(..., description="技能描述, 用于自动发现匹配")
     when_to_use: str = Field("", description="何时触发该技能的提示")
-    domain: Optional[str] = Field(None, description="所属领域: finance/tax/legal/general")
+    domain: Optional[str] = Field(None, description="所属领域: smart_home/general")
     allowed_tools: List[str] = Field(default_factory=list, description="预授权工具列表")
     compatibility: str = Field("", description="环境依赖说明")
     custom: Dict[str, Any] = Field(default_factory=dict, alias="metadata", description="自定义元数据")
@@ -139,7 +139,7 @@ def discover_skills(scan_paths: List[Path]) -> Dict[str, SkillEntry]:
 
     支持两种目录结构 (可混合):
     1. 域范围:  skills/{domain}/{skill_name}/SKILL.md  (推荐)
-       domain 从父目录名推断, 支持 finance/tax/legal/public
+       domain 从父目录名推断, 支持 smart_home/general
     2. 扁平:    skills/{skill_name}/SKILL.md  (向后兼容)
        domain 从 frontmatter metadata.domain 读取
 
@@ -148,7 +148,7 @@ def discover_skills(scan_paths: List[Path]) -> Dict[str, SkillEntry]:
     skills: Dict[str, SkillEntry] = {}
 
     # 合法的领域目录名
-    DOMAIN_DIRS = {"finance", "tax", "legal", "public"}
+    DOMAIN_DIRS = {"smart_home", "general"}
 
     for base_path in scan_paths:
         if not base_path.exists():
@@ -163,7 +163,7 @@ def discover_skills(scan_paths: List[Path]) -> Dict[str, SkillEntry]:
 
             dir_name = child.name
 
-            # 判断是否是领域目录 (skills/finance/ 等)
+            # 判断是否是领域目录 (skills/smart_home/ 等)
             if dir_name in DOMAIN_DIRS:
                 # 域范围结构: skills/{domain}/{skill_name}/
                 domain_from_dir = dir_name
@@ -231,9 +231,9 @@ class SkillRegistry:
         await SkillRegistry.initialize([Path("skills/"), ...])
 
         # 查询
-        skill = SkillRegistry.get_skill("financial-data-entry")
+        skill = SkillRegistry.get_skill("device-safety-check")
         all_skills = SkillRegistry.list_skills()
-        matches = await SkillRegistry.match("录入财务数据")
+        matches = await SkillRegistry.match("检查设备安全")
     """
 
     _skills: Dict[str, SkillEntry] = {}
@@ -338,17 +338,16 @@ class SkillRegistry:
 
         输出格式:
         ## Available Skills
-        ### Finance
-        - **financial-data-entry**: 引导用户录入财务数据, 含验证、分类、持久化
-        - **financial-analysis**: 财务报表分析与比率计算
+        ### Smart Home
+        - **device-safety-check**: 检查设备控制风险并请求必要确认
+        - **home-scenario-control**: 执行受控的家居场景
 
         返回空字符串 if no skills found for domain.
         """
         skills = cls.list_skills_by_domain(domain)
 
-        # 也包含 public 领域的通用技能
-        public_skills = cls.list_skills_by_domain("public")
-        all_skills = skills + public_skills
+        general_skills = cls.list_skills_by_domain("general")
+        all_skills = skills + general_skills
 
         if not all_skills:
             return ""

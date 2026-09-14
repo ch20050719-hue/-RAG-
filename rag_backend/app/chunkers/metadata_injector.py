@@ -46,9 +46,9 @@ class ContextStack:
         (r"(\d{4})\s*年", "year", None),
         (r"Q([1-4])", "quarter", lambda m: f"Q{m.group(1)}"),
         (r"第([一二三四])季度", "quarter", lambda m: f"Q{len(m.group(1).encode('utf-8')) - 2}"),
-        (r"(利润表|资产负债表|现金流量表|所有者权益变动表)", "report_type", None),
-        (r"([\u4e00-\u9fa5]{2,10}(?:公司|集团|有限))", "company", None),
-        (r"(人民币|USD|CNY|美元|欧元|港币)", "currency", None),
+        (r"(设备手册|传感器指南|场景定义|安全规则)", "doc_type", None),
+        (r"(desk_light|desk_fan|ESP32|书桌灯|风扇|传感器)", "device", None),
+        (r"(书房|客厅|卧室|厨房)", "room", None),
     ]
 
     def __init__(self):

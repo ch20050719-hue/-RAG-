@@ -118,8 +118,8 @@ class AgentPool:
     
     使用示例：
         pool = AgentPool(
-            agent_type="finance",
-            factory=create_finance_agent,
+            agent_type="device_control",
+            factory=create_home_specialist,
             config=PoolConfig(min_size=2, max_size=5)
         )
         

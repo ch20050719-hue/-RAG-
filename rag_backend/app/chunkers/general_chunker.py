@@ -27,7 +27,8 @@ class GeneralChunker:
     LEAF_TOKEN_TARGET = 256       # 小块 Token 目标
     PARENT_TOKEN_TARGET = 1024    # 大块 Token 目标
 
-    def __init__(self):
+    def __init__(self, domain: str = "general"):
+        self.domain = domain
         self._inner = StructuredDocumentChunker()
 
     def chunk(
@@ -56,7 +57,7 @@ class GeneralChunker:
 
         # 标记为 parent
         for chunk in parent_chunks:
-            chunk.domain = "general"
+            chunk.domain = self.domain
             chunk.node_type = "parent"
 
         # Step 2: 对每个父块做细分（256 token 目标）
@@ -64,7 +65,7 @@ class GeneralChunker:
         for parent in parent_chunks:
             leaves = self._split_into_leaves(parent)
             for leaf in leaves:
-                leaf.domain = "general"
+                leaf.domain = self.domain
                 leaf.node_type = "leaf"
                 leaf.relationships = {"PARENT": parent.chunk_index}
             leaf_chunks.extend(leaves)
@@ -133,7 +134,7 @@ class GeneralChunker:
                         end=leaf_start + len(current_leaf),
                         tokens=current_tokens,
                         heading_path=parent.heading_path,
-                        domain="general",
+                        domain=self.domain,
                         node_type="leaf",
                         metadata=dict(parent.metadata),
                     )
@@ -154,7 +155,7 @@ class GeneralChunker:
                     end=leaf_start + len(current_leaf),
                     tokens=current_tokens,
                     heading_path=parent.heading_path,
-                    domain="general",
+                    domain=self.domain,
                     node_type="leaf",
                     metadata=dict(parent.metadata),
                 )

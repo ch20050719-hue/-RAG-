@@ -69,11 +69,11 @@ class TaskStatusResponse(BaseModel):
                 "thread_id": "session_xyz789",
                 "status": "running",
                 "task_type": "langgraph_workflow",
-                "current_node": "finance_specialist",
+                "current_node": "home_specialist",
                 "progress_percent": 40,
-                "progress_message": "正在执行 finance 专家...",
+                "progress_message": "正在执行智能家居专家...",
                 "specialist_progress": {
-                    "finance": {"completed": False, "confidence": 0.85}
+                    "home_butler": {"completed": False, "confidence": 0.85}
                 },
                 "created_at": "2025-04-23T10:00:00Z",
                 "can_resume": True,
@@ -133,7 +133,7 @@ class ThreadHydrationResponse(BaseModel):
                 "task_info": {
                     "task_id": "lgwf_abc123def456",
                     "status": "running",
-                    "current_node": "finance_specialist",
+                    "current_node": "home_specialist",
                     "progress_percent": 40
                 },
                 "recommendations": [

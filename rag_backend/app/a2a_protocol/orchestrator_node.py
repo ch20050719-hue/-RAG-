@@ -118,12 +118,9 @@ async def _make_routing_decision(
     query_lower = user_query.lower()
 
     keyword_mapping = {
-        "tax": ["税务", "税", "增值税", "所得税", "tax", "taxation"],
-        "finance": ["财务", "利润", "资产", "负债", "报表", "finance", "financial"],
-        "legal": ["法律", "合同", "合规", "法规", "legal", "contract"],
-        "finance_specialist": ["投资", "融资", "估值", "并购", "investment"],
-        "tax_specialist": ["报税", "抵扣", "优惠", "tax", "taxation"],
-        "legal_specialist": ["审查", "风险", "条款", "legal", "compliance"]
+        "home": ["设备", "灯", "风扇", "空调", "插座", "门锁", "窗帘", "场景"],
+        "environment": ["温度", "湿度", "空气质量", "环境", "传感器"],
+        "safety": ["安全", "风险", "确认", "紧急"],
     }
 
     for agent_name, keywords in keyword_mapping.items():
@@ -182,17 +179,14 @@ async def multi_agent_orchestrator_node(state: Dict[str, Any]) -> Dict[str, Any]
 
     logger.info("🔄 多专家协作模式")
 
-    complex_keywords = [
-        "税务和财务", "税务和合同", "财务和法律",
-        "并购税务", "投资税务", "融资合规"
-    ]
+    complex_keywords = ["回家并开灯", "离家并关闭", "睡眠并锁门", "场景联动", "联动控制"]
 
     needs_multi = any(kw in user_query for kw in complex_keywords)
 
     if needs_multi:
         target_agents = [
             card.name for card in available_agents
-            if any(kw in card.name.lower() for kw in ["tax", "finance", "legal"])
+            if any(kw in card.name.lower() for kw in ["home", "environment", "device", "comfort"])
         ]
 
         if len(target_agents) >= 2:
@@ -248,7 +242,7 @@ def create_orchestrator_with_llm(llm_adapter: Any) -> callable:
 根据用户问题，选择最合适的专家智能体。
 
 分析步骤：
-1. 理解用户问题的领域（税务、财务、法律等）
+1. 理解用户问题属于设备控制、环境感知、场景联动、安全校验还是知识查询
 2. 评估问题复杂度（简单查询 vs 多专家协作）
 3. 选择最匹配的专家智能体
 

@@ -6,7 +6,7 @@ PARENT 节点摘要生成器 (Summary Generator)
 2. Batch Prompt 将多个文本合并为一次 LLM 调用
 3. 超时 + 降级：超时或失败时取原文前 50 字符为兜底
 
-注意：仅用于 legal domain 的 PARENT 节点。
+用于智能家居知识文档的 PARENT 节点摘要。
 分布式环境下应通过 ARQ 任务队列调度（参见 arq_tasks.py）。
 """
 
@@ -23,7 +23,7 @@ class SummaryGenerator:
     """
     PARENT 节点摘要生成器。
 
-    为法律文档章节的 PARENT 节点生成 50 字摘要，
+    为智能家居知识章节的 PARENT 节点生成 50 字摘要，
     作为检索时的语义锚点。
     """
 

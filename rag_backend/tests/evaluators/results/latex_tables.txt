@@ -1,0 +1,39 @@
+% =========================================================
+% 毕业论文对比实验表 (LaTeX 三线表 Booktabs 格式)
+% =========================================================
+
+\begin{table}[htbp]
+\centering
+\caption{不同架构基线在企业新人知识问答评测集上的综合性能对比}
+\label{tab:baseline_comparison}
+\begin{tabular}{lcccccc}
+\toprule
+模型架构 & 准确率 (\%) & 忠实度 (\%) & 幻觉率 (\%) & 防诱导率 (\%) & 跨领域覆盖 (\%) & 综合得分 \\
+\midrule
+M1 (Zero-Shot LLM) & 27.1 & 37.5 & 62.5 & 56.2 & 88.9 & \textbf{45.2} \\
+M2 (Vanilla RAG) & 54.6 & 64.2 & 35.8 & 93.8 & 86.1 & \textbf{66.7} \\
+M3 (Multi-Agent w/o Critic) & 44.1 & 54.3 & 45.7 & 68.8 & 97.2 & \textbf{59.2} \\
+M4 (Ours: Full System) & 56.7 & 67.7 & 32.3 & 100.0 & 94.4 & \textbf{69.4} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =========================================================
+% 毕业论文消融实验表 (Ablation Study Table)
+% =========================================================
+
+\begin{table}[htbp]
+\centering
+\caption{系统核心模块消融实验结果对比}
+\label{tab:ablation_study}
+\begin{tabular}{lccccc}
+\toprule
+实验配置 & 准确率 (\%) & 忠实度 (\%) & 边界防守 (\%) & 综合得分 & 相对增益 (\Delta) \\
+\midrule
+M4 (Ours: Full System) & 56.7 & 67.7 & 100.0 & 69.4 & +0.00 (Baseline) \\
+Ablation 1: w/o Critic (即 M3) & 44.1 & 54.3 & 68.8 & 59.2 & -10.19 \\
+Ablation 2: w/o Multi-Agent (即 M2) & 54.6 & 64.2 & 93.8 & 66.7 & -2.75 \\
+Ablation 3: w/o RAG \& Agent (即 M1) & 27.1 & 37.5 & 56.2 & 45.2 & -24.23 \\
+\bottomrule
+\end{tabular}
+\end{table}

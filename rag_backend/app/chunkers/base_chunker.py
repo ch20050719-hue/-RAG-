@@ -10,12 +10,12 @@ class ChunkResult:
     增强后的切块结果数据类 (v2)
 
     新增字段：
-    - domain: 所属领域 (finance/tax/legal/general)
+    - domain: 所属领域 (smart_home/general)
     - node_type: 节点类型 (root/parent/leaf)
     - relationships: 节点关系映射 {"PARENT": "uuid", ...}
-    - summary: PARENT 节点摘要（仅 legal domain）
+    - summary: PARENT 节点摘要
     - block_type: 源自 DocumentBlock.type 的原始块类型
-    - entity_map: 实体替换映射表（仅 legal domain）
+    - entity_map: 家居实体元数据映射表
     """
     content: str                    # 切片文本内容
     start: int                      # 在原文中的起始位置
@@ -25,11 +25,11 @@ class ChunkResult:
     metadata: Dict[str, Any] = field(default_factory=dict)  # 额外的元数据
 
     # ==== v2 新增字段 ====
-    domain: str = "general"                     # finance / tax / legal / general
+    domain: str = "general"                     # smart_home / general
     node_type: str = "leaf"                     # root / parent / leaf
     chunk_index: int = 0                        # 全局序号（在同一文档内唯一）
     relationships: Dict[str, Any] = field(default_factory=dict)  # {"PARENT": "uuid", "CHILDREN": [...]}
-    summary: str = None                         # PARENT 节点摘要（仅 legal 领域）
+    summary: str = None                         # PARENT 节点摘要
     block_type: str = None                      # table / paragraph / code / list
     entity_map: Dict[str, str] = field(default_factory=dict)  # {"甲方": "XX科技有限公司"}
 

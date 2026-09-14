@@ -9,7 +9,7 @@ Skill Matcher - 意图-技能匹配器
 
 使用方式:
     matcher = SkillMatcher()
-    matches = await matcher.match(query="录入财务数据", domain="finance")
+    matches = await matcher.match(query="查询设备状态", domain="smart_home")
 """
 
 import logging
@@ -24,7 +24,7 @@ class SkillMatcher:
     意图-技能匹配器
 
     与 IntentRouterAgent 协同工作:
-    - IntentRouter 识别 domain (finance/tax/legal/general)
+    - IntentRouter 识别 domain (smart_home/general)
     - SkillMatcher 在该 domain 内做技能匹配
     """
 
@@ -74,7 +74,7 @@ class SkillMatcher:
         """
         检查用户是否通过 /skill-name 显式调用技能
 
-        例如: "使用 financial-data-entry 录入数据" 或 "/financial-data-entry"
+        例如: "使用 home-device-control 控制设备" 或 "/home-device-control"
         """
         # 格式 1: 以 / 开头
         if query.startswith("/"):

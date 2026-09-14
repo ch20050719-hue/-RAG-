@@ -13,7 +13,7 @@ export interface Notification {
   read?: boolean
   is_archived?: boolean
   metadata?: Record<string, any>
-  source?: 'system' | 'task' | 'policy' | 'financial' | 'contract' | 'manual' | string
+  source?: 'system' | 'task' | 'device' | 'scenario' | 'manual' | string
   action_url?: string
   created_at?: string
   timestamp?: string

@@ -265,8 +265,6 @@ async def check_features(
             "enable_knowledge_graph": settings.enable_knowledge_graph,
             "enable_human_review": settings.enable_human_review,
             "enable_audit": settings.enable_audit,
-            "enable_tax_report": settings.enable_tax_report,
-            "enable_financial_data": settings.enable_financial_data
         }
     }
 
@@ -297,8 +295,6 @@ async def check_features_by_tenant(
             "enable_knowledge_graph": settings.enable_knowledge_graph,
             "enable_human_review": settings.enable_human_review,
             "enable_audit": settings.enable_audit,
-            "enable_tax_report": settings.enable_tax_report,
-            "enable_financial_data": settings.enable_financial_data
         }
     }
 

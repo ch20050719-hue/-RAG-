@@ -75,7 +75,7 @@ async def create_review_request(
             task_id=request_data.task_id,
             tenant_id=tenant_context['tenant_id'],
             user_id=current_user.id,
-            review_type=request_data.review_type.value if request_data.review_type else "tax",
+            review_type=request_data.review_type.value if request_data.review_type else "device_action",
             priority=request_data.priority.value if request_data.priority else "normal",
             trigger_reason=request_data.trigger_reason,
             trigger_details=request_data.trigger_details,
@@ -219,7 +219,7 @@ async def list_review_requests(
             try:
                 review_type_enum = ReviewTypeEnum(req.review_type)
             except (ValueError, KeyError):
-                review_type_enum = ReviewTypeEnum.TAX
+                review_type_enum = ReviewTypeEnum.DEVICE_ACTION
             
             try:
                 priority_enum = ReviewPriorityEnum(req.priority)
@@ -489,43 +489,6 @@ async def update_review_request(
         
         await db.execute(text(update_sql), update_dict)
         await db.commit()
-        
-        task_id = str(req.task_id) if req.task_id else None
-        
-        if action_type == "complete" and task_id:
-            try:
-                from app.models.tax_report import TaxReport
-                from sqlalchemy import update as sql_update
-                await db.execute(
-                    sql_update(TaxReport)
-                    .where(TaxReport.id == task_id)
-                    .values(
-                        status="completed",
-                        updated_at=datetime.utcnow()
-                    )
-                )
-                await db.commit()
-            except Exception as e:
-                logger.warning(f"[HumanReview] 更新 TaxReport 状态失败: {e}")
-                await db.rollback()
-        
-        elif action_type == "reject" and task_id:
-            try:
-                from app.models.tax_report import TaxReport
-                from sqlalchemy import update as sql_update
-                await db.execute(
-                    sql_update(TaxReport)
-                    .where(TaxReport.id == task_id)
-                    .values(
-                        status="failed",
-                        processing_message=f"审核拒绝: {update_data.review_comments or '无'}",
-                        updated_at=datetime.utcnow()
-                    )
-                )
-                await db.commit()
-            except Exception as e:
-                logger.warning(f"[HumanReview] 更新 TaxReport 状态失败: {e}")
-                await db.rollback()
         
         if action_type:
             try:

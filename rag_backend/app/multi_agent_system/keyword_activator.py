@@ -213,9 +213,9 @@ class KeywordActivator:
     5. 智能任务提取
     """
     
-    # 默认触发关键词（财务报销场景）
+    # 默认触发关键词（智能家居场景）
     DEFAULT_TRIGGER_KEYWORDS = [
-        "报销", "出差", "花了", "发票", "天气",
+        "台灯", "风扇", "设备", "环境", "温度", "场景",
         "@智能体", "@助手", "费用", "预算",
         "审批", "申请", "差旅", "机票", "酒店",
         "餐费", "交通", "补贴"
@@ -276,26 +276,25 @@ class KeywordActivator:
         """初始化默认触发规则"""
         tenant = self.tenant_id or "default"
         
-        # 财务相关关键词
-        finance_keywords = [
-            "报销", "发票", "费用", "预算", "审批", "申请",
-            "差旅", "机票", "酒店", "餐费", "交通", "补贴",
-            "付款", "收款", "账单", "结算"
+        # 智能家居关键词
+        home_keywords = [
+            "设备", "灯", "风扇", "空调", "插座", "门锁", "窗帘",
+            "温度", "湿度", "空气质量", "状态", "打开", "关闭", "场景"
         ]
         
-        for keyword in finance_keywords:
+        for keyword in home_keywords:
             rule = TriggerRule(
-                rule_id=self._generate_rule_id("finance", keyword),
-                name=f"财务-{keyword}",
+                rule_id=self._generate_rule_id("home", keyword),
+                name=f"家居-{keyword}",
                 tenant_id=tenant,
                 trigger_type=TriggerType.KEYWORD,
                 trigger_value=keyword if self.case_sensitive else keyword.lower(),
-                target_agents=["FinanceSpecialist"],
-                action="finance_query"
+                target_agents=["Home_Butler_Agent"],
+                action="home_query"
             )
             self.add_rule(rule)
         
-        # 天气查询关键词
+        # 环境查询关键词
         weather_keywords = ["天气", "气温", "温度", "下雨", "晴天"]
         
         for keyword in weather_keywords:
@@ -305,8 +304,8 @@ class KeywordActivator:
                 tenant_id=tenant,
                 trigger_type=TriggerType.KEYWORD,
                 trigger_value=keyword if self.case_sensitive else keyword.lower(),
-                target_agents=["DailyServiceSpecialist"],
-                action="weather_query"
+                target_agents=["Environment_Agent"],
+                action="environment_query"
             )
             self.add_rule(rule)
         
@@ -319,7 +318,7 @@ class KeywordActivator:
                 trigger_type=TriggerType.KEYWORD,
                 trigger_value=keyword if self.case_sensitive else keyword.lower(),
                 activation_level=ActivationLevel.HIGH,
-                target_agents=["FinanceSpecialist", "Coordinator"],
+                target_agents=["Device_Control_Agent", "Coordinator"],
                 action="urgent_processing"
             )
             self.add_rule(rule)

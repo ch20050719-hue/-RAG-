@@ -6,7 +6,7 @@
 
 使用方式：
     from app.services.task_scheduler import task_scheduler, task_manager, TaskScheduler, TaskManager
-    from app.services.task_scheduler import tax_reminder_task, financial_health_report_task, policy_update_push_task, anomaly_check_task
+    from app.services.task_scheduler import home_scenario_task, device_status_check_task
 """
 
 from app.services.task_scheduler import (
@@ -18,10 +18,8 @@ from app.services.task_scheduler import (
     ScheduledTask,
     task_scheduler,
     task_manager,
-    tax_reminder_task,
-    financial_health_report_task,
-    policy_update_push_task,
-    anomaly_check_task,
+    home_scenario_task,
+    device_status_check_task,
 )
 
 __all__ = [
@@ -33,8 +31,6 @@ __all__ = [
     'ScheduledTask',
     'task_scheduler',
     'task_manager',
-    'tax_reminder_task',
-    'financial_health_report_task',
-    'policy_update_push_task',
-    'anomaly_check_task',
+    'home_scenario_task',
+    'device_status_check_task',
 ]

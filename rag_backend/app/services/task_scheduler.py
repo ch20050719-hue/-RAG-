@@ -1,6 +1,6 @@
 """
 定时任务调度器
-提供税务申报提醒、定期报告生成、政策更新推送等功能
+提供智能家居场景定时执行和设备状态检查功能
 
 包含两个主要组件：
 1. TaskScheduler: 调度器核心，管理定时任务的创建、调度和执行
@@ -18,18 +18,10 @@ from enum import Enum
 
 logger = logging.getLogger(__name__)
 
-from app.services.tax_intelligence_service import TaxIntelligenceService
-from app.services.financial_health_service import FinancialHealthService
-from app.services.policy_tracking_service import PolicyTrackingService
-from app.services.admin_notification_service import AdminNotificationService
-
-
 class TaskType(str, Enum):
     """任务类型"""
-    TAX_REMINDER = "tax_reminder"  # 税务申报提醒
-    FINANCIAL_REPORT = "financial_report"  # 定期财务报告
-    POLICY_UPDATE = "policy_update"  # 政策更新推送
-    ANOMALY_CHECK = "anomaly_check"  # 财务异常检查
+    HOME_SCENARIO = "home_scenario"  # 智能家居场景
+    DEVICE_STATUS_CHECK = "device_status_check"  # 设备状态检查
     CUSTOM = "custom"  # 自定义任务
 
 
@@ -94,142 +86,23 @@ class ScheduledTask:
 from dataclasses import dataclass
 
 
-async def tax_reminder_task(params: Dict[str, Any]):
-    """税务申报提醒任务"""
-    try:
-        tenant_id = params.get("tenant_id")
-        tax_type = params.get("tax_type", "vat")
-        user_id = params.get("user_id")
+async def home_scenario_task(params: Dict[str, Any]):
+    """按计划执行受控的智能家居场景。"""
+    from app.home_automation.device_tools import get_device_service
+    from app.home_automation.device_models import HomeScenarioName
 
-        logger.info(f"📋 执行税务申报提醒任务: {tenant_id}, {tax_type}")
-
-        notification_service = AdminNotificationService()
-        await notification_service.send_notification(
-            user_id=user_id,
-            title="税务申报提醒",
-            message=f"您的{tax_type}申报即将到期，请及时处理。",
-            notification_type="tax_reminder",
-            priority="high"
-        )
-
-        logger.info(f"✅ 税务申报提醒已发送: {tenant_id}")
-
-    except (ValueError, KeyError) as e:
-        logger.error(f"❌ 税务申报提醒任务数据错误: {e}", exc_info=True)
-    except (OSError, IOError) as e:
-        logger.error(f"❌ 税务申报提醒任务IO错误: {e}", exc_info=True)
-    except Exception as e:
-        logger.error(f"❌ 税务申报提醒任务失败: {e}", exc_info=True)
+    scenario = HomeScenarioName(str(params.get("scenario", "away")))
+    result = get_device_service().run_scenario(scenario)
+    logger.info("智能家居场景执行完成: %s", scenario.value)
+    return result.model_dump(mode="json")
 
 
-async def financial_health_report_task(params: Dict[str, Any]):
-    """定期财务健康报告生成任务"""
-    try:
-        tenant_id = params.get("tenant_id")
-        user_id = params.get("user_id")
-        period_days = params.get("period_days", 30)
+async def device_status_check_task(params: Dict[str, Any]):
+    """检查设备状态并返回快照。"""
+    from app.home_automation.device_tools import get_device_service
 
-        logger.info(f"📋 执行定期财务健康报告任务: {tenant_id}, 周期: {period_days}天")
-
-        service = FinancialHealthService()
-
-        request = {
-            "tenant_id": tenant_id,
-            "user_id": user_id,
-            "period_start": datetime.now().date() - timedelta(days=period_days),
-            "period_end": datetime.now().date(),
-            "include_anomaly_detection": True,
-            "include_trend_analysis": True
-        }
-
-        result = await service.monitor_financial_health(request)
-
-        logger.info(f"✅ 定期财务健康报告生成完成: {tenant_id}")
-
-        return result
-
-    except (ValueError, KeyError) as e:
-        logger.error(f"❌ 定期财务健康报告任务数据错误: {e}", exc_info=True)
-    except (OSError, IOError) as e:
-        logger.error(f"❌ 定期财务健康报告任务IO错误: {e}", exc_info=True)
-    except Exception as e:
-        logger.error(f"❌ 定期财务健康报告任务失败: {e}", exc_info=True)
-
-
-async def policy_update_push_task(params: Dict[str, Any]):
-    """政策更新推送任务"""
-    try:
-        tenant_id = params.get("tenant_id")
-        subscription_id = params.get("subscription_id")
-
-        logger.info(f"📋 执行政策更新推送任务: {tenant_id}")
-
-        service = PolicyTrackingService()
-        updates = await service.fetch_policy_updates(
-            tenant_id=tenant_id,
-            subscription_id=subscription_id
-        )
-
-        if updates and updates.get("updates"):
-            notification_service = AdminNotificationService()
-            await notification_service.send_notification(
-                user_id=params.get("user_id"),
-                title="政策更新通知",
-                message=f"发现{len(updates['updates'])}条新政策更新",
-                notification_type="policy_update",
-                priority="medium"
-            )
-
-        logger.info(f"✅ 政策更新推送任务完成: {tenant_id}")
-
-    except (ValueError, KeyError) as e:
-        logger.error(f"❌ 政策更新推送任务数据错误: {e}", exc_info=True)
-    except (OSError, IOError) as e:
-        logger.error(f"❌ 政策更新推送任务IO错误: {e}", exc_info=True)
-    except Exception as e:
-        logger.error(f"❌ 政策更新推送任务失败: {e}", exc_info=True)
-
-
-async def anomaly_check_task(params: Dict[str, Any]):
-    """财务异常检查任务"""
-    try:
-        tenant_id = params.get("tenant_id")
-        user_id = params.get("user_id")
-
-        logger.info(f"📋 执行财务异常检查任务: {tenant_id}")
-
-        service = FinancialHealthService()
-
-        request = {
-            "tenant_id": tenant_id,
-            "user_id": user_id,
-            "period_start": datetime.now().date() - timedelta(days=7),
-            "period_end": datetime.now().date(),
-            "include_anomaly_detection": True,
-            "include_trend_analysis": False
-        }
-
-        result = await service.monitor_financial_health(request)
-
-        anomalies = result.get("anomalies_detected", [])
-        if anomalies:
-            notification_service = AdminNotificationService()
-            await notification_service.send_notification(
-                user_id=user_id,
-                title="财务异常预警",
-                message=f"检测到{len(anomalies)}个财务异常，请及时处理。",
-                notification_type="anomaly_alert",
-                priority="high"
-            )
-
-        logger.info(f"✅ 财务异常检查任务完成: {tenant_id}, 检测到{len(anomalies)}个异常")
-
-    except (ValueError, KeyError) as e:
-        logger.error(f"❌ 财务异常检查任务数据错误: {e}", exc_info=True)
-    except (OSError, IOError) as e:
-        logger.error(f"❌ 财务异常检查任务IO错误: {e}", exc_info=True)
-    except Exception as e:
-        logger.error(f"❌ 财务异常检查任务失败: {e}", exc_info=True)
+    devices = get_device_service().list_devices()
+    return {"devices": [device.model_dump(mode="json") for device in devices]}
 
 
 class TaskScheduler:
@@ -608,10 +481,8 @@ class TaskScheduler:
     
     def _get_callback_for_type(self, task_type: TaskType) -> Optional[Callable]:
         callbacks = {
-            TaskType.TAX_REMINDER: tax_reminder_task,
-            TaskType.FINANCIAL_REPORT: financial_health_report_task,
-            TaskType.POLICY_UPDATE: policy_update_push_task,
-            TaskType.ANOMALY_CHECK: anomaly_check_task,
+            TaskType.HOME_SCENARIO: home_scenario_task,
+            TaskType.DEVICE_STATUS_CHECK: device_status_check_task,
         }
         return callbacks.get(task_type)
 
@@ -836,135 +707,50 @@ class TaskManager:
     """任务管理器 - 业务层面的任务配置封装"""
 
     def __init__(self):
-        self.tax_service = TaxIntelligenceService()
-        self.financial_service = FinancialHealthService()
-        self.policy_service = PolicyTrackingService()
         logger.info("✅ 任务管理器初始化完成")
 
-    def setup_tax_reminder(
+    def setup_home_scenario(
         self,
         tenant_id: str,
         user_id: str,
-        tax_type: str,
-        due_date: datetime
+        scenario: str,
+        run_at: datetime,
     ) -> str:
-        """设置税务申报提醒"""
-        task_id = f"tax_reminder_{tenant_id}_{tax_type}_{due_date.strftime('%Y%m%d')}"
-
+        """设置智能家居场景任务。"""
+        task_id = f"home_scenario_{tenant_id}_{scenario}_{run_at.strftime('%Y%m%d%H%M')}"
         task_scheduler.create_task(
             task_id=task_id,
-            task_type=TaskType.TAX_REMINDER,
-            name=f"税务申报提醒 - {tax_type}",
-            description=f"提醒租户{tenant_id}申报{tax_type}",
+            task_type=TaskType.HOME_SCENARIO,
+            name=f"智能家居场景 - {scenario}",
+            description=f"在指定时间执行租户 {tenant_id} 的场景 {scenario}",
             frequency=TaskFrequency.ONCE,
-            next_run_time=due_date - timedelta(days=3),
-            callback=tax_reminder_task,
-            params={
-                "tenant_id": tenant_id,
-                "user_id": user_id,
-                "tax_type": tax_type,
-                "due_date": due_date.isoformat()
-            },
-            enabled=True
+            next_run_time=run_at,
+            callback=home_scenario_task,
+            params={"tenant_id": tenant_id, "user_id": user_id, "scenario": scenario},
+            enabled=True,
         )
-
-        logger.info(f"✅ 已设置税务申报提醒: {task_id}")
         return task_id
 
-    def setup_periodic_financial_report(
+    def setup_device_status_check(
         self,
         tenant_id: str,
         user_id: str,
-        frequency: TaskFrequency = TaskFrequency.WEEKLY
+        frequency: TaskFrequency = TaskFrequency.DAILY,
     ) -> str:
-        """设置定期财务报告生成"""
-        task_id = f"financial_report_{tenant_id}_{frequency.value}"
-
-        next_run = datetime.now()
-        if frequency == TaskFrequency.DAILY:
-            next_run = next_run + timedelta(days=1)
-        elif frequency == TaskFrequency.WEEKLY:
-            next_run = next_run + timedelta(weeks=1)
-        elif frequency == TaskFrequency.MONTHLY:
-            next_run = task_scheduler._add_months(next_run, 1)
-
-        task_scheduler.create_task(
-            task_id=task_id,
-            task_type=TaskType.FINANCIAL_REPORT,
-            name=f"定期财务报告 - {frequency.value}",
-            description=f"定期生成租户{tenant_id}的财务报告",
-            frequency=frequency,
-            next_run_time=next_run,
-            callback=financial_health_report_task,
-            params={
-                "tenant_id": tenant_id,
-                "user_id": user_id,
-                "period_days": 7 if frequency == TaskFrequency.WEEKLY else 30
-            },
-            enabled=True
-        )
-
-        logger.info(f"✅ 已设置定期财务报告: {task_id}")
-        return task_id
-
-    def setup_policy_update_subscription(
-        self,
-        tenant_id: str,
-        user_id: str,
-        subscription_id: str,
-        frequency: TaskFrequency = TaskFrequency.DAILY
-    ) -> str:
-        """设置政策更新订阅"""
-        task_id = f"policy_update_{tenant_id}_{subscription_id}"
-
+        """设置智能家居设备状态检查任务。"""
+        task_id = f"device_status_check_{tenant_id}"
         next_run = datetime.now() + timedelta(days=1)
-
         task_scheduler.create_task(
             task_id=task_id,
-            task_type=TaskType.POLICY_UPDATE,
-            name="政策更新推送",
-            description=f"推送租户{tenant_id}订阅的政策更新",
+            task_type=TaskType.DEVICE_STATUS_CHECK,
+            name="智能家居设备状态检查",
+            description=f"定期检查租户 {tenant_id} 的设备状态",
             frequency=frequency,
             next_run_time=next_run,
-            callback=policy_update_push_task,
-            params={
-                "tenant_id": tenant_id,
-                "user_id": user_id,
-                "subscription_id": subscription_id
-            },
-            enabled=True
+            callback=device_status_check_task,
+            params={"tenant_id": tenant_id, "user_id": user_id},
+            enabled=True,
         )
-
-        logger.info(f"✅ 已设置政策更新订阅: {task_id}")
-        return task_id
-
-    def setup_anomaly_check(
-        self,
-        tenant_id: str,
-        user_id: str,
-        frequency: TaskFrequency = TaskFrequency.DAILY
-    ) -> str:
-        """设置财务异常检查"""
-        task_id = f"anomaly_check_{tenant_id}"
-
-        next_run = datetime.now() + timedelta(days=1)
-
-        task_scheduler.create_task(
-            task_id=task_id,
-            task_type=TaskType.ANOMALY_CHECK,
-            name="财务异常检查",
-            description=f"定期检查租户{tenant_id}的财务异常",
-            frequency=frequency,
-            next_run_time=next_run,
-            callback=anomaly_check_task,
-            params={
-                "tenant_id": tenant_id,
-                "user_id": user_id
-            },
-            enabled=True
-        )
-
-        logger.info(f"✅ 已设置财务异常检查: {task_id}")
         return task_id
 
     def list_tenant_tasks(self, tenant_id: str):

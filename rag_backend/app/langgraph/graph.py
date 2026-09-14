@@ -126,14 +126,10 @@ class MultiAgentWorkflowBuilder:
             workflow.add_node("faithfulness_checker", checker.as_node())
             workflow.add_node("regenerate_aggregator", self._create_regenerate_aggregator_node())
         
-        workflow.add_node("finance_specialist", 
-                         self.node_factory.create_specialist_node(SpecialistType.FINANCE))
-        workflow.add_node("tax_specialist",
-                         self.node_factory.create_specialist_node(SpecialistType.TAX))
-        workflow.add_node("legal_specialist",
-                         self.node_factory.create_specialist_node(SpecialistType.LEGAL))
-        workflow.add_node("report_specialist",
-                         self.node_factory.create_specialist_node(SpecialistType.REPORT))
+        workflow.add_node(
+            "home_specialist",
+            self.node_factory.create_specialist_node(SpecialistType.HOME_BUTLER),
+        )
 
         # 路由枢纽节点（自身不改状态，真正的分支逻辑在其条件边上）
         workflow.add_node("single_specialist_router", self._create_router_passthrough("single_specialist_router"))
@@ -162,10 +158,7 @@ class MultiAgentWorkflowBuilder:
         workflow.add_edge(START, "receptionist")
         workflow.add_edge("receptionist", "intent")
         
-        workflow.add_edge("finance_specialist", "aggregator")
-        workflow.add_edge("tax_specialist", "aggregator")
-        workflow.add_edge("legal_specialist", "aggregator")
-        workflow.add_edge("report_specialist", "aggregator")
+        workflow.add_edge("home_specialist", "aggregator")
         workflow.add_edge("direct_answer", "aggregator")
 
         # 忠实度检查：aggregator → faithfulness_checker → (reflection | regenerate)
@@ -236,18 +229,15 @@ class MultiAgentWorkflowBuilder:
             "single_specialist_router",
             route_by_specialists,
             {
-                "finance_specialist": "finance_specialist",
-                "tax_specialist": "tax_specialist",
-                "legal_specialist": "legal_specialist",
-                "report_specialist": "report_specialist",
-                "direct_answer": "direct_answer"
+                "home_specialist": "home_specialist",
+                "direct_answer": "direct_answer",
             }
         )
         
         workflow.add_conditional_edges(
             "multi_specialist_router",
-            create_parallel_routing(["finance", "tax", "legal", "report"]),
-            ["finance_specialist", "tax_specialist", "legal_specialist", "report_specialist"]
+            create_parallel_routing(["home_butler", "environment", "device_control", "comfort"]),
+            ["home_specialist"]
         )
         
         if self.enable_reflection:
@@ -310,7 +300,7 @@ class MultiAgentWorkflowBuilder:
                 )
                 
                 specialist_result = SpecialistResult(
-                    specialist_type=SpecialistType.REPORT,
+                    specialist_type=SpecialistType.HOME_BUTLER,
                     specialist_name="direct_answer",
                     success=True,
                     query=state["user_query"],

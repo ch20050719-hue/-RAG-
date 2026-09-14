@@ -40,7 +40,7 @@ class StateFactory:
         session_id="session-123",
         tenant_id="tenant-456",
         user_id="user-789",
-        user_query="分析公司财务状况"
+        user_query="执行睡眠模式"
     )
     
     # 复制状态
@@ -99,7 +99,7 @@ class StateFactory:
                 session_id="sess-001",
                 tenant_id="tenant-001",
                 user_id="user-001",
-                user_query="分析税务问题",
+                user_query="检查设备安全状态",
                 intent=IntentCategory.MULTI_SPECIALIST
             )
             ```

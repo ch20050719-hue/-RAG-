@@ -55,14 +55,14 @@ from app.a2a_protocol.transports import get_transport_manager, shutdown_transpor
 manager = await get_transport_manager()
 await manager.initialize(message_bus)
 
-manager.register_local_agent("tax_agent", tax_agent)
+manager.register_local_agent("home_specialist", home_specialist)
 manager.register_remote_agent(
-    "policy_agent",
-    url="http://policy-service:8000/api/v1/a2a/v1"
+    "device_gateway",
+    url="http://device-gateway:8000/api/v1/a2a/v1"
 )
 
 result = await manager.send_message(
-    to_agent="tax_agent",
+    to_agent="home_specialist",
     message={"content": "分析企业所得税风险"},
     tenant_id="tenant-001",
     wait_for_response=True,
@@ -122,7 +122,7 @@ app.include_router(a2a_v1_router, prefix="/api/v1", tags=["A2A Protocol v1"])
 stats = manager.get_statistics()
 print(stats)
 
-location = manager.get_agent_location("tax_agent")
+location = manager.get_agent_location("home_specialist")
 print(location)
 
 health = await manager.health_check_all()

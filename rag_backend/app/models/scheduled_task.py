@@ -12,10 +12,8 @@ import enum
 
 class TaskType(str, enum.Enum):
     """任务类型"""
-    TAX_REMINDER = "tax_reminder"  # 税务申报提醒
-    FINANCIAL_REPORT = "financial_report"  # 定期财务报告
-    POLICY_UPDATE = "policy_update"  # 政策更新推送
-    ANOMALY_CHECK = "anomaly_check"  # 财务异常检查
+    HOME_SCENARIO = "home_scenario"  # 智能家居场景
+    DEVICE_STATUS_CHECK = "device_status_check"  # 设备状态检查
     CUSTOM = "custom"  # 自定义任务
 
 

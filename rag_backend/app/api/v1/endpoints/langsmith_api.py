@@ -133,7 +133,7 @@ async def get_langsmith_status(
     return {
         "enabled": config.get("enabled", False),
         "api_key_configured": bool(config.get("api_key")),
-        "project": config.get("project", "financial_rag"),
+        "project": config.get("project", "smart_home_rag"),
         "endpoint": config.get("endpoint", "https://api.smith.langchain.com"),
         "tracing_enabled": config.get("tracing", False),
         "client_initialized": tracer.client is not None,
@@ -198,7 +198,7 @@ async def get_langsmith_dashboard(
     返回指向 LangSmith Web 界面的各个页面链接
     """
     config = get_langsmith_config()
-    project = config.get("project", "financial_rag")
+    project = config.get("project", "smart_home_rag")
     
     urls = get_dashboard_url(project)
     
@@ -219,7 +219,7 @@ async def get_langsmith_project_info(
     
     if not config.get("enabled") or not tracer.client:
         return {
-            "project_name": config.get("project", "financial_rag"),
+            "project_name": config.get("project", "smart_home_rag"),
             "run_count": 0,
             "last_run_time": None,
             "trace_count": _stats_tracker["total_traces"],
@@ -227,7 +227,7 @@ async def get_langsmith_project_info(
         }
     
     try:
-        project_name = config.get("project", "financial_rag")
+        project_name = config.get("project", "smart_home_rag")
         
         runs = list(tracer.client.list_runs(
             project_name=project_name,
@@ -246,7 +246,7 @@ async def get_langsmith_project_info(
     except Exception as e:
         logger.error(f"[LangSmith] 获取项目信息失败: {e}")
         return {
-            "project_name": config.get("project", "financial_rag"),
+            "project_name": config.get("project", "smart_home_rag"),
             "run_count": 0,
             "last_run_time": None,
             "trace_count": _stats_tracker["total_traces"],
@@ -341,7 +341,7 @@ async def test_langsmith_connection(
         test_run = tracer.client.create_run(
             name="connection_test",
             run_type="tool",
-            project_name=config.get("project", "financial_rag"),
+            project_name=config.get("project", "smart_home_rag"),
             inputs={"test": "LangSmith 连接测试"},
             outputs={"result": "连接成功"},
             tags=["test", "connection"]
@@ -393,7 +393,7 @@ async def get_recent_langsmith_traces(
     
     try:
         runs = list(tracer.client.list_runs(
-            project_name=config.get("project", "financial_rag"),
+            project_name=config.get("project", "smart_home_rag"),
             limit=limit
         ))
         

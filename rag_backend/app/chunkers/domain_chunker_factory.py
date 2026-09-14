@@ -6,11 +6,7 @@
 """
 
 import logging
-from typing import Optional
-from app.chunkers.financial_chunker import FinancialChunker
-from app.chunkers.tax_chunker import TaxChunker
-from app.chunkers.legal_chunker import LegalChunker
-from app.chunkers.general_chunker import GeneralChunker
+from app.chunkers.domains import SUPPORTED_DOCUMENT_DOMAINS
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +16,7 @@ class DomainChunkerFactory:
     领域切块工厂。
 
     用法：
-        chunker = DomainChunkerFactory.get_chunker("finance")
+        chunker = DomainChunkerFactory.get_chunker("smart_home")
         chunks = await chunker.chunk(structured_doc)
     """
 
@@ -33,7 +29,7 @@ class DomainChunkerFactory:
         根据 domain 获取对应的领域切块器。
 
         Args:
-            domain: 文档领域 (finance/tax/legal/general)
+            domain: 文档领域 (smart_home/general)
 
         Returns:
             领域切块器实例
@@ -48,15 +44,11 @@ class DomainChunkerFactory:
     @classmethod
     def _create_chunker(cls, domain: str):
         """创建领域切块器实例"""
-        chunker_map = {
-            "finance": FinancialChunker(),
-            "tax": TaxChunker(),
-            "legal": LegalChunker(),
-            "general": GeneralChunker(),
-        }
+        if domain in {"smart_home", "general"}:
+            from app.chunkers.general_chunker import GeneralChunker
 
-        chunker = chunker_map.get(domain)
-        if not chunker:
+            chunker = GeneralChunker(domain=domain)
+        else:
             raise ValueError(f"不支持的领域类型: {domain}")
 
         logger.info(f"[DomainChunkerFactory] 创建领域切块器: {domain}")
@@ -65,7 +57,7 @@ class DomainChunkerFactory:
     @classmethod
     def get_supported_domains(cls) -> list:
         """返回所有支持的领域列表"""
-        return ["finance", "tax", "legal", "general"]
+        return list(SUPPORTED_DOCUMENT_DOMAINS)
 
 
 # 全局单例

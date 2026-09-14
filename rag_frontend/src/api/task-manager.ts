@@ -4,7 +4,7 @@ export interface ScheduledTask {
   id: string
   name: string
   description: string
-  task_type: 'tax_reminder' | 'financial_report' | 'policy_update' | 'anomaly_check' | 'custom'
+  task_type: 'home_scenario' | 'device_status_check' | 'custom'
   frequency: 'once' | 'daily' | 'weekly' | 'monthly' | 'quarterly'
   next_run_time: string
   last_run_time?: string
@@ -140,45 +140,6 @@ export const taskManagerApi = {
   getStatistics: async (): Promise<TaskStatistics> => {
     return request('/task-manager/statistics', {
       method: 'GET'
-    })
-  },
-
-  setupTaxReminder: async (params: {
-    tax_type: string
-    due_date: string
-  }): Promise<ScheduledTask> => {
-    return request('/task-manager/setup/tax-reminder', {
-      method: 'POST',
-      data: params
-    })
-  },
-
-  setupPeriodicReport: async (params: {
-    report_type: string
-    frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly'
-  }): Promise<ScheduledTask> => {
-    return request('/task-manager/setup/periodic-report', {
-      method: 'POST',
-      data: params
-    })
-  },
-
-  setupPolicyUpdate: async (params: {
-    policy_id: string
-    frequency: 'daily' | 'weekly' | 'monthly'
-  }): Promise<ScheduledTask> => {
-    return request('/task-manager/setup/policy-update', {
-      method: 'POST',
-      data: params
-    })
-  },
-
-  setupAnomalyCheck: async (params: {
-    frequency: 'hourly' | 'daily' | 'weekly'
-  }): Promise<ScheduledTask> => {
-    return request('/task-manager/setup/anomaly-check', {
-      method: 'POST',
-      data: params
     })
   },
 

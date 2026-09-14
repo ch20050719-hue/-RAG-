@@ -44,7 +44,7 @@ interface Issue {
 
 defineProps<{
   issues: Issue[]
-  type?: 'tax' | 'finance' | 'legal'
+  type?: 'device' | 'scenario' | 'safety'
 }>()
 
 const formatNumber = (value: number): string => {

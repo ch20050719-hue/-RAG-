@@ -39,7 +39,7 @@ class AgentCapability:
     """
     agent_id: str
     agent_name: str
-    agent_type: str            # finance, tax, legal, etc.
+    agent_type: str            # home_butler, environment, device_control, comfort
     domains: List[str] = field(default_factory=list)          # 专业领域
     entities: List[str] = field(default_factory=list)        # 可识别的实体类型
     keywords: List[str] = field(default_factory=list)        # 关键词列表
@@ -94,15 +94,15 @@ class AgentCapabilityRegistry:
         
         # 注册智能体能力
         registry.register(AgentCapability(
-            agent_id="finance_1",
-            agent_name="财务专家",
-            agent_type="finance",
-            domains=["risk_analysis", "statement_review"],
-            keywords=["财务", "报表", "风险"]
+            agent_id="home_butler_1",
+            agent_name="智能家居管家",
+            agent_type="home_butler",
+            domains=["device_query", "scene_control"],
+            keywords=["设备", "场景", "状态"]
         ))
         
         # 查询最佳匹配智能体
-        best_match = registry.find_best_match("分析财务风险")
+        best_match = registry.find_best_match("查看客厅灯的状态")
     """
     
     def __init__(self):

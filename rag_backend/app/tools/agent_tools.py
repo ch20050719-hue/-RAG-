@@ -1,7 +1,7 @@
 # app/tools/agent_tools.py
 
 """
-Agent 工具集中管理
+Agent 工具集中管理（智能家居模块）
 
 所有工具定义都在这个文件中，方便添加和管理。
 每个工具都应该有对应的 skill 文件在 app/prompts/skills/ 目录下。
@@ -42,14 +42,6 @@ def get_tool_tenant_id() -> str:
 def get_tool_user_id() -> str:
     """获取当前工具调用的用户 ID"""
     return _current_user_id.get()
-
-try:
-    from app.mcp.financial_tools import create_financial_tools
-    FINANCIAL_TOOLS_AVAILABLE = True
-except ImportError:
-    FINANCIAL_TOOLS_AVAILABLE = False
-    logger.warning("财务工具模块导入失败，相关工具将不可用")
-
 
 GREETING_PATTERNS = [
     r'^[\s]*$',
@@ -109,7 +101,7 @@ def is_greeting_query(query: str) -> bool:
 # 工具定义区域
 # ==========================================
 
-@tool(description="核心企业知识库检索工具。当需要参考公司制度、业务文档等资料时必须调用。必须输入查询关键词 query 和知识库ID kb_id。")
+@tool(description="核心智能家居知识库检索工具。当需要参考设备手册、场景定义或安全规则时调用。必须输入查询关键词 query 和知识库ID kb_id。")
 async def search_enterprise_knowledge(query: str, kb_id: str) -> str:
     """
     根据查询词和知识库ID检索相关文档片段
@@ -498,13 +490,14 @@ def get_all_tools():
         get_enterprise_kb_overview,
     ]
     
-    if FINANCIAL_TOOLS_AVAILABLE:
-        try:
-            financial_tools = create_financial_tools()
-            tools.extend(financial_tools)
-            logger.debug("Loaded %s financial tools", len(financial_tools))
-        except Exception as e:
-            logger.warning(f"财务工具加载失败: {e}")
+    try:
+        from app.home_automation.device_tools import get_home_tools
+
+        home_tools = get_home_tools()
+        tools.extend(home_tools)
+        logger.debug("Loaded %s home automation tools", len(home_tools))
+    except Exception as e:
+        logger.warning(f"家居工具加载失败: {e}")
     
     try:
         from app.services.custom_tool_service import get_published_custom_tool_callables

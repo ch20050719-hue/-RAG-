@@ -731,9 +731,9 @@ class TaskBlackboard:
     # shared_data 使用约束
     MAX_SHARED_DATA_SIZE = 10 * 1024  # 10KB，最大单条数据大小
     RECOMMENDED_DATA_TYPES = {
-        "metadata": "元数据（如 company_id, tax_rate_confirmed）",
+        "metadata": "元数据（如 device_id, safety_checked）",
         "conclusion": "最终结论（如分析结果、决策建议）",
-        "reference": "引用信息（如政策编号、法规条款）",
+        "reference": "引用信息（如设备手册、场景定义）",
         "status": "状态信息（如任务进度、处理结果）"
     }
     FORBIDDEN_DATA_TYPES = {
@@ -751,9 +751,9 @@ class TaskBlackboard:
         黑板是用来传递**指令和状态**的，绝不是用来堆放垃圾的。
         
         ✅ 正确使用：
-        - 元数据（metadata）：如 company_id, tax_rate_confirmed
+        - 元数据（metadata）：如 device_id, safety_checked
         - 最终结论（conclusion）：如分析结果、决策建议
-        - 引用信息（reference）：如政策编号、法规条款
+        - 引用信息（reference）：如设备手册、场景定义
         - 状态信息（status）：如任务进度、处理结果
         
         ❌ 错误使用：
@@ -765,7 +765,7 @@ class TaskBlackboard:
         去向量数据库里现查，而不是把原文塞进 shared_data。
         
         Args:
-            key: 数据键（建议使用有意义的键名，如 "company:A123:tax_result"）
+            key: 数据键（建议使用有意义的键名，如 "home:study:device_status"）
             value: 数据值（必须是轻量级数据，不超过 10KB）
             ttl: 生存时间（秒），0表示永不过期
             
@@ -1001,7 +1001,7 @@ class TaskBlackboard:
         tags1 = task1.tags
         tags2 = task2.tags
         
-        conflicting_tags = {"finance", "tax", "legal"}
+        conflicting_tags = {"device_control", "safety", "scenario"}
         return bool(tags1 & tags2 & conflicting_tags)
     
     # =========================================================================

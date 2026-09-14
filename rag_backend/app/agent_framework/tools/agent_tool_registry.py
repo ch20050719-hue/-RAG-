@@ -1,20 +1,8 @@
 """
 Agent 工具注册器
 
-统一采用 MCP 装饰器（@local_tool/@cloud_tool）注册所有工具，
-同时注册 ToolBase 领域工具类（确定性计算）。
-
-重复工具说明
-------------
-cloud_tools.py 中的以下工具与 ToolBase 工具功能重复：
-  - calculate_tax_vat / calculate_corporate_tax / calculate_personal_tax
-    → 由 tax_calculator（ToolBase）和 calculate_tax（ToolBase）替代
-  - check_contract_essentials → 由 contract_essentials_checker（ToolBase）替代
-  - match_legal_provisions     → 由 legal_clause_matcher（ToolBase）替代
-
-这些 cloud_tools 函数仍保留在 ToolManager 全局注册（供 general 和非专家场景），
-但在 get_specialist_tools_config 中已从对应专家的工具列表中移除，
-避免 LLM function calling 时看到语义相同的重复工具。
+统一采用 MCP 装饰器（@local_tool/@cloud_tool）注册工具，并为智能家居设备工具保留
+稳定的 ToolManager 接口。控制类工具必须通过安全校验和设备服务执行。
 """
 
 import logging
@@ -80,7 +68,7 @@ async def initialize_tool_manager(
     tenant_id: str = "default"
 ) -> dict:
     """
-    初始化工具管理器：MCP 工具 + ToolBase 领域工具 + 代码解释器。
+    初始化工具管理器：通用 RAG/MCP 工具、智能家居工具和代码解释器。
     """
     result = await register_tools(
         tool_manager,
@@ -88,46 +76,8 @@ async def initialize_tool_manager(
         include_local=include_local
     )
 
-    # ── 注册 ToolBase 领域工具类（确定性计算，不依赖 LLM）──
+    # 领域控制工具统一由 home_automation.device_tools 提供；不再注册旧领域 ToolBase。
     toolbase_registered: list = []
-    try:
-        from app.agent_framework.tools.financial_data_tools import (
-            FinancialDataQueryTool,   # query_user_financial_data  — 查询真实 DB
-            TaxCalculationTool as FinTaxCalcTool,  # calculate_tax
-            TaxRecommendationTool,    # get_tax_recommendations
-        )
-        from app.agent_framework.tools.tax_compliance_tools import (
-            TaxCalculationTool as TaxCalcTool,  # tax_calculator（多税种/超额累进）
-            TaxComplianceChecker,               # tax_compliance_checker
-        )
-        from app.agent_framework.tools.legal_compliance_tools import (
-            ContractEssentialsChecker,  # contract_essentials_checker
-            LegalClauseMatcher,         # legal_clause_matcher
-            LaborComplianceChecker,     # labor_compliance_checker
-            IPRiskChecker,              # ip_risk_checker
-        )
-
-        domain_tools = [
-            FinancialDataQueryTool(),
-            FinTaxCalcTool(),
-            TaxRecommendationTool(),
-            TaxCalcTool(),
-            TaxComplianceChecker(),
-            ContractEssentialsChecker(),
-            LegalClauseMatcher(),
-            LaborComplianceChecker(),
-            IPRiskChecker(),
-        ]
-        for tool in domain_tools:
-            try:
-                tool_manager.register_tool(tool)
-                toolbase_registered.append(tool.name)
-            except Exception as e:
-                logger.warning(f"[工具注册] ToolBase 工具注册失败: {tool.name} - {e}")
-
-        logger.info(f"✅ ToolBase 领域工具注册完成：{len(toolbase_registered)} 个")
-    except Exception as e:
-        logger.error(f"❌ ToolBase 工具类导入失败: {e}")
 
     # ── 注册代码解释器（execute_python）──
     # code_interpreter.py 使用 @auto_register_tool，但该装饰器挂载在模块级全局列表上，
@@ -152,107 +102,59 @@ async def initialize_tool_manager(
 
     result["toolbase_tools"] = toolbase_registered
     result["code_tools"] = code_registered
+
+    # 智能家居工具与既有通用 MCP 共存，保持 ToolManager 接口不变。
+    home_registered: list = []
+    try:
+        from app.home_automation.device_tools import get_home_tools
+
+        for home_tool in get_home_tools():
+            tool_manager.register_langchain_tool(home_tool)
+            home_registered.append(home_tool.name)
+        logger.info("✅ 智能家居工具注册完成：%s 个", len(home_registered))
+    except Exception as e:
+        logger.warning("[工具注册] 智能家居工具注册失败（非致命）: %s", e)
+
+    result["home_tools"] = home_registered
     result["total_count"] = (
-        result.get("total_count", 0) + len(toolbase_registered) + len(code_registered)
+        result.get("total_count", 0)
+        + len(toolbase_registered)
+        + len(code_registered)
+        + len(home_registered)
     )
     return result
 
 
 def get_receptionist_tools_config() -> dict:
-    """接待智能体工具配置"""
+    """接待智能体工具配置。"""
     return {
-        "mcp_tools": ["search_web"],
-        "local_tools": ["search_enterprise_knowledge", "search_keywords_in_knowledge",
-                        "get_current_time_and_context"],
+        "mcp_tools": [],
+        "local_tools": ["list_home_devices", "get_device_status", "read_home_environment"],
     }
 
 
 def get_specialist_tools_config(specialty: str = "general") -> dict:
     """
-    各专家 Agent 可用工具列表（用于 _build_openai_tools 过滤）。
-
-    重复工具处理原则：
-    - 税务专家：移除 cloud_tools 的 calculate_tax_vat/corporate/personal，
-      改用 ToolBase 的 tax_calculator / calculate_tax（结果更可靠、支持合规检查）
-    - 法律专家：移除 cloud_tools 的 check_contract_essentials / match_legal_provisions，
-      改用 ToolBase 的 contract_essentials_checker / legal_clause_matcher
-    - 财务专家：保留 cloud_tools 的资产负债/流动比率（纯公式计算，无 ToolBase 对应），
-      移除 calculate_profit_margin（财务专家不走税务计算），
-      ToolBase 的 query_user_financial_data 提供真实数据查询
+    各智能家居 Agent 可用工具列表（用于 _build_openai_tools 过滤）。
     """
     specialty_aliases = {
-        "财务": "finance", "财经": "finance", "finance": "finance", "financial": "finance",
-        "税务": "tax", "税法": "tax", "tax": "tax",
-        "法律": "legal", "法务": "legal", "legal": "legal",
+        "总管家": "home_butler", "home": "home_butler", "home_butler": "home_butler",
+        "环境": "environment", "environment": "environment",
+        "设备": "device_control", "device_control": "device_control",
+        "舒适": "comfort", "comfort": "comfort",
         "通用": "general", "general": "general",
     }
     specialty_key = specialty_aliases.get((specialty or "general").lower(), specialty or "general")
 
+    home_tools = [
+        "list_home_devices", "get_device_status", "read_home_environment",
+        "set_light_state", "set_fan_state", "run_home_scenario",
+    ]
     mapping = {
-        "finance": {
-            # MCP：财务比率计算（纯公式，无 ToolBase 对应）+ 财务健康快照 + 搜索
-            "mcp_tools": [
-                "calculate_asset_liability_ratio",
-                "calculate_current_ratio",
-                "calculate_quick_ratio",
-                "get_financial_health_snapshot",
-                "get_critical_anomalies",
-                "analyze_metric_safety_trend",
-                "get_financial_overview",
-                "get_financial_trend",
-                "search_web",
-                "get_current_time_and_context",
-            ],
-            # ToolBase：查询真实 DB 数据 + 税务计算（财务报告场景）
-            # 注：get_tax_recommendations 需要预处理数据，LLM 无法直接调用，已移除
-            "local_tools": [
-                "query_user_financial_data",
-                "calculate_tax",
-                "search_enterprise_knowledge",
-            ],
-        },
-        "tax": {
-            # MCP：联网搜索税法政策 + 时间基准
-            "mcp_tools": [
-                "search_web",
-                "get_current_time_and_context",
-            ],
-            # ToolBase：查询真实数据 + 税种计算 + 代码计算
-            # 注：tax_compliance_checker 和 get_tax_recommendations 需要预处理的复杂
-            #      结构体入参（tax_data、financial_data+tax_results），LLM 无法直接构造，
-            #      调用必然失败（0ms 即报错）。已从此列表移除，避免无效重试浪费时间。
-            "local_tools": [
-                "query_user_financial_data",
-                "tax_calculator",
-                "calculate_tax",
-                "search_enterprise_knowledge",
-                "execute_python",
-            ],
-        },
-        "legal": {
-            # MCP：合同条款提取（ToolBase 无对应）+ 合规验证 + 实体风险网络 + v2 增强工具 + 搜索
-            # 注：check_contract_essentials / match_legal_provisions 已被 ToolBase 替代
-            "mcp_tools": [
-                "extract_contract_clauses",
-                "verify_compliance_rule",
-                "trace_entity_risk_network",
-                "contract_compliance_deadline",
-                "enterprise_policy_matcher",
-                "dispute_resolution_advisor",
-                "contract_template_matcher",
-                "contract_risk_trend_analyzer",
-                "search_web",
-                "get_current_time_and_context",
-            ],
-            # ToolBase：合同必备条款检查 + 条款匹配 + 劳动合规 + 知识产权风险
-            "local_tools": [
-                "contract_essentials_checker",
-                "legal_clause_matcher",
-                "labor_compliance_checker",
-                "ip_risk_checker",
-                "search_enterprise_knowledge",
-            ],
-        },
+        "home_butler": {"mcp_tools": [], "local_tools": home_tools},
+        "environment": {"mcp_tools": [], "local_tools": ["list_home_devices", "get_device_status", "read_home_environment"]},
+        "device_control": {"mcp_tools": [], "local_tools": ["get_device_status", "set_light_state", "set_fan_state", "run_home_scenario"]},
+        "comfort": {"mcp_tools": [], "local_tools": home_tools},
     }
 
     if specialty_key.lower() == "general":

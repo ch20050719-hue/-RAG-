@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-import asyncio
-import ipaddress
 import re
-import socket
 from typing import Any, Dict
-from urllib.parse import urlparse
 
 import httpx
 
 from app.models.custom_tool import CustomTool, CustomToolKind
+from app.security.outbound_url import OutboundURLPolicyError, validate_resolved_outbound_url
 
 
 class CustomToolRuntimeError(RuntimeError):
@@ -191,25 +188,15 @@ class CustomToolRuntime:
         return result
 
     async def _assert_url_allowed(self, url: str, safety_policy: Dict[str, Any]) -> None:
-        parsed = urlparse(url)
-        if parsed.scheme not in {"https", "http"} or not parsed.hostname:
-            raise CustomToolRuntimeError("Only absolute http/https URLs are allowed")
-
         allowed_domains = safety_policy.get("allowed_domains") or []
-        if allowed_domains and parsed.hostname not in allowed_domains:
-            raise CustomToolRuntimeError(f"Domain is not in allowed_domains: {parsed.hostname}")
-
-        if safety_policy.get("allow_private_network", False):
-            return
-
-        if allowed_domains and parsed.hostname in allowed_domains:
-            return
-
-        infos = await asyncio.to_thread(socket.getaddrinfo, parsed.hostname, None)
-        for info in infos:
-            ip = ipaddress.ip_address(info[4][0])
-            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast:
-                raise CustomToolRuntimeError("Private, loopback, link-local, and multicast IPs are blocked")
+        try:
+            await validate_resolved_outbound_url(
+                url,
+                allowed_hosts=allowed_domains,
+                allow_private=bool(safety_policy.get("allow_private_network", False)),
+            )
+        except OutboundURLPolicyError as exc:
+            raise CustomToolRuntimeError(str(exc)) from exc
 
 
 custom_tool_runtime = CustomToolRuntime()

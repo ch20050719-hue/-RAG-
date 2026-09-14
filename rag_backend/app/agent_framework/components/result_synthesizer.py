@@ -126,7 +126,7 @@ class OutputReviewResult(BaseModel):
 
 class SpecialistInsight(BaseModel):
     """专家洞察结构"""
-    specialist_type: str = Field(description="专家类型：finance/tax/legal")
+    specialist_type: str = Field(description="专家类型：home_butler/environment/device_control/comfort")
     key_findings: List[str] = Field(description="关键发现列表")
     metrics: Dict[str, Any] = Field(default_factory=dict, description="关键指标")
     recommendations: List[str] = Field(default_factory=list, description="建议列表")
@@ -259,7 +259,7 @@ class ResultSynthesizerPrompts:
                 logger.error(f"❌ [主编提示词] 模板缺少必要占位符: {missing}")
         
         logger.warning("⚠️ [主编提示词] 使用备用提示词")
-        return f"""你是顶级企业咨询公司的主编合伙人，负责将多位专家的生肉数据分析整合成一份专业的执行报告。
+        return f"""你是智能家居系统的结果主编，负责将多个家居专家的结果整合成清晰、安全、可执行的响应。
 
 【用户问题】
 {user_query}
@@ -328,7 +328,7 @@ class ResultSynthesizer:
             r'secret[：:]\s*\S+',
             r'秘[密钥][：:]\s*\S+',
             r'\d{6,}[-_]?\d{6,}',
-            r'报销暗号[：:]\s*\S+',
+            r'设备密钥[：:]\s*\S+',
             r'启动密码[：:]\s*\S+',
             r'接口密钥[：:]\s*\S+',
             r'api[_-]?key[：:]\s*\S+',
@@ -379,7 +379,7 @@ class ResultSynthesizer:
         Args:
             task_id: 任务ID
             source_agent: 来源智能体
-            source_type: 来源类型 (finance, tax, legal, etc.)
+            source_type: 来源类型 (home_butler, environment, device_control, comfort)
             content: 内容
             confidence: 置信度 0-1
             metadata: 元数据
@@ -770,9 +770,9 @@ class ResultSynthesizer:
         merged_items = []
         hidden_keys = {
             "success",
-            "has_tax_db_data",
-            "tax_data",
-            "tax_data_error",
+            "device_id",
+            "mqtt_topic",
+            "raw_device_payload",
             "entities",
             "metadata",
             "raw_data",
@@ -895,9 +895,10 @@ class ResultSynthesizer:
 
     def _display_key(self, key: str) -> str:
         return {
-            "tax": "税务分析",
-            "taxspecialist": "税务分析",
-            "tax_specialist": "税务分析",
+            "home_butler": "家居总控",
+            "environment": "环境感知",
+            "device_control": "设备控制",
+            "comfort": "舒适度",
             "recommendations": "建议",
             "risk_points": "风险提示",
             "risks": "风险提示",
@@ -916,17 +917,13 @@ class ResultSynthesizer:
             "review_required": "需要复核",
             "compliant": "合规",
             "non_compliant": "不合规",
-            "TaxType.OTHER": "其他税种",
         }.get(text, text)
 
     def _looks_internal_text(self, text: str) -> bool:
         stripped = text.strip()
         internal_markers = (
-            "has_tax_db_data",
-            "tax_data",
-            "tax_data_error",
-            "TaxType.",
-            "<TaxType.",
+            "arbitrary_topic",
+            "raw_gpio_command",
             "'success':",
             '"success":',
         )
@@ -1246,9 +1243,10 @@ class ResultSynthesizer:
             parts.append("## 📊 专家洞察\n")
             
             specialist_emoji = {
-                "finance": "💰",
-                "tax": "📋",
-                "legal": "⚖️"
+                "home_butler": "🏠",
+                "environment": "🌡️",
+                "device_control": "🔌",
+                "comfort": "🛋️",
             }
             
             for insight in report.specialist_insights:

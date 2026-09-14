@@ -25,7 +25,7 @@ class CapabilityLoader:
 
     使用示例：
         loader = CapabilityLoader()
-        loader.load_from_file("config/agent_capabilities.yaml")
+        loader.load_from_file("config/agent_home_capabilities.yaml")
         loader.register_all(registry)
     """
 
@@ -34,9 +34,20 @@ class CapabilityLoader:
         self._config: Dict[str, Any] = {}
 
     def _get_default_config_path(self) -> Path:
-        """获取默认配置文件路径"""
-        base_dir = Path(__file__).parent
-        return base_dir / "config" / "agent_capabilities.yaml"
+        """获取默认配置文件路径。
+
+        智能家居是当前唯一业务领域。
+
+        ``AGENT_CAPABILITIES_FILE`` 仍作为兼容性覆盖项保留；未显式指定时，
+        无论环境变量如何设置都使用智能家居能力配置，避免部署环境误回退到旧领域。
+        """
+        import os
+
+        base_dir = Path(__file__).parent / "config"
+        explicit = os.getenv("AGENT_CAPABILITIES_FILE", "").strip()
+        if explicit:
+            return Path(explicit)
+        return base_dir / "agent_home_capabilities.yaml"
 
     def load_from_file(self, path: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -82,7 +93,7 @@ class CapabilityLoader:
         根据配置创建 AgentCapability 对象
 
         Args:
-            agent_type: 智能体类型 (finance, tax, legal, etc.)
+            agent_type: 智能体类型（home_butler、environment、device_control、comfort 或 general）
             agent_config: 智能体配置
 
         Returns:

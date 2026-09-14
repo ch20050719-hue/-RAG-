@@ -6,11 +6,11 @@ Skill Decorator - Python @skill 装饰器
 
 使用方式:
     @skill(
-        name="validate-financial-data",
-        description="This skill validates financial data format and completeness.",
-        domain="finance"
+        name="validate-home-command",
+        description="This skill validates smart-home command safety and completeness.",
+        domain="smart_home"
     )
-    async def validate_financial_data(data: dict) -> dict:
+    async def validate_home_command(data: dict) -> dict:
         # 技能逻辑
         ...
 """

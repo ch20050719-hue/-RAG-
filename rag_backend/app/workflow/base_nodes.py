@@ -31,7 +31,7 @@ class NodeExecutionTracker:
         初始化追踪器
         
         Args:
-            monitor: TaxWorkflowMonitor实例
+            monitor: 家居工作流监控器实例
         """
         self.monitor = monitor
         self._node_start_times: Dict[str, float] = {}
@@ -198,13 +198,13 @@ def create_validation_node_tracker(monitor):
     return NodeExecutionTracker(monitor)
 
 
-def create_financial_data_node_tracker(monitor):
-    """创建财务数据节点追踪器"""
+def create_device_status_node_tracker(monitor):
+    """创建设备状态节点追踪器"""
     return NodeExecutionTracker(monitor)
 
 
-def create_tax_calculation_node_tracker(monitor):
-    """创建税务计算节点追踪器"""
+def create_home_scenario_node_tracker(monitor):
+    """创建智能家居场景节点追踪器"""
     return NodeExecutionTracker(monitor)
 
 

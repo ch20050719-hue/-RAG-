@@ -298,7 +298,7 @@ watch(selectedTool, (tool) => {
             生成工具
           </div>
           <div class="space-y-3">
-            <textarea v-model="generatorForm.natural_language" class="h-24 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="例如：创建一个工具，根据发票号调用外部接口查询发票状态"></textarea>
+            <textarea v-model="generatorForm.natural_language" class="h-24 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="例如：创建一个工具，查询设备状态并检查安全规则"></textarea>
             <input v-model="generatorForm.purpose" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="用途" />
             <input v-model="generatorForm.inputs" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="入参说明" />
             <input v-model="generatorForm.outputs" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="出参说明" />

@@ -4,8 +4,8 @@ agent:
   version: "1.0.0"
   mode: "react"
   description: |
-    企业智能体系统的唯一"大脑"和"包工头"。
-    直接面对用户，理解宏大目标，拆解任务，协调专家团队，最终交付报告。
+    智能家居系统的统一协调者。
+    直接面对用户，理解家居目标，拆解设备与环境任务，协调专家并返回执行结果。
 
 prompt:
   system_file: "system.md"
@@ -13,7 +13,7 @@ prompt:
 
 tools:
   - name: "breakdown_task_to_blackboard"
-    description: "将用户宏大目标拆解为 DAG 子任务，写入黑板"
+    description: "将智能家居目标拆解为设备、环境和安全 DAG 子任务，写入黑板"
     parameters:
       - name: "user_goal"
         type: "string"
@@ -22,14 +22,14 @@ tools:
       - name: "required_expertise"
         type: "array"
         required: false
-        description: "需要的专业领域列表"
+        description: "需要的智能家居专家角色列表"
       - name: "priority_tasks"
         type: "array"
         required: false
         description: "高优先级任务标识"
 
   - name: "summarize_final_report"
-    description: "收集黑板结论，生成最终交付报告"
+    description: "收集家居任务结论，生成设备状态与安全摘要"
     parameters:
       - name: "user_query"
         type: "string"
@@ -61,9 +61,9 @@ capabilities:
   - expert_routing
 
 expertise_domains:
-  - coordination
-  - task_planning
-  - report_generation
+  - smart_home_coordination
+  - device_task_planning
+  - home_result_summary
 
 metadata:
   created_at: "2024-04-21"

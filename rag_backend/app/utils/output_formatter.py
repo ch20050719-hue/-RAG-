@@ -123,7 +123,7 @@ class OutputFormatter:
     ]
     
     PRIVATE_INFO_PATTERNS = [
-        r'报销暗号[：:].*',
+        r'设备密钥[：:].*',
         r'启动密码[：:].*',
         r'秘[密钥][：:].*',
         r'password[：:].*',

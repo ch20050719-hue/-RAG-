@@ -108,8 +108,8 @@ async function handleLogin() {
                 <Sparkles :size="24" />
               </div>
               <div>
-                <p class="text-sm font-semibold tracking-wide text-slate-900">企业财税智能平台</p>
-                <p class="text-xs text-emerald-700/80">一站式企业智能服务</p>
+                <p class="text-sm font-semibold tracking-wide text-slate-900">智能家居 RAG 平台</p>
+                <p class="text-xs text-emerald-700/80">设备、环境与安全场景一体化</p>
               </div>
             </div>
 
@@ -118,7 +118,7 @@ async function handleLogin() {
               欢迎回来
             </h1>
             <p class="enter d3 mt-5 max-w-sm text-sm leading-7 text-slate-600">
-              登录后继续使用智能问答、财税分析、合同审核与政策服务工作空间。
+              登录后继续使用智能家居知识问答、设备控制与场景联动工作空间。
             </p>
 
             <div class="enter d4 mt-9 space-y-3">
@@ -132,15 +132,15 @@ async function handleLogin() {
               <div class="feature-chip">
                 <span class="feature-ic"><FileBarChart :size="16" /></span>
                 <div>
-                  <p class="feature-title">财税智能</p>
-                  <p class="feature-sub">税务分析 · 财务健康 · 合同审核</p>
+                  <p class="feature-title">设备智能控制</p>
+                  <p class="feature-sub">状态查询 · 安全校验 · 指令下发</p>
                 </div>
               </div>
               <div class="feature-chip">
                 <span class="feature-ic"><Sparkles :size="16" /></span>
                 <div>
-                  <p class="feature-title">政策服务</p>
-                  <p class="feature-sub">政策匹配 · 通知 · 企业服务</p>
+                  <p class="feature-title">场景联动</p>
+                  <p class="feature-sub">睡眠模式 · 离家模式 · MQTT 联动</p>
                 </div>
               </div>
             </div>

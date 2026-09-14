@@ -1,27 +1,27 @@
 name: enterprise_knowledge_search
-display_name: 企业知识库检索
-description: 检索企业内部知识库，并基于证据来源回答问题。
+display_name: 智能家居知识库检索
+description: 检索设备手册、传感器指南、场景定义和安全规则，并基于来源回答问题。
 version: 1.0.0
 domains:
-  - knowledge
+  - smart_home
   - rag
 allowed_agents:
   - orchestrator
   - react
-  - tax
-  - legal
-  - finance
-  - policy_notification
+  - home_butler
+  - environment
+  - device_control
+  - comfort
 triggers:
   keywords:
     - knowledge base
     - internal document
-    - company policy
-    - enterprise knowledge
+    - device manual
+    - home automation
     - 知识库
     - 内部文档
-    - 公司制度
-    - 企业资料
+    - 设备手册
+    - 家居自动化
 tools:
   - search_enterprise_knowledge
   - list_knowledge_documents

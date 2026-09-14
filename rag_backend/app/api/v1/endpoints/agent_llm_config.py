@@ -412,9 +412,10 @@ async def test_llm_connection(
 # 使用概览中展示的对话角色
 _OVERVIEW_ROLES = [
     ("chat", "默认对话"),
-    ("finance", "金融专家"),
-    ("tax", "税务专家"),
-    ("legal", "法律专家"),
+    ("home_butler", "家居总管家"),
+    ("environment", "环境感知专家"),
+    ("device_control", "设备控制专家"),
+    ("comfort", "舒适度专家"),
 ]
 
 
@@ -650,8 +651,8 @@ async def test_rerank(
 
     payload = {
         "model": model,
-        "query": "增值税专用发票如何抵扣？",
-        "documents": ["增值税专用发票可用于进项税额抵扣。", "企业所得税税率为25%。"],
+        "query": "如何安全地打开书桌台灯？",
+        "documents": ["书桌台灯只允许在设备在线且用户确认后开启。", "温度传感器用于读取环境温度。"],
         "top_n": 2,
         "return_documents": False,
     }

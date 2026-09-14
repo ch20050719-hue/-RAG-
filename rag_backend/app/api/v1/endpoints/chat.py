@@ -27,6 +27,13 @@ from app.models.chat import ChatSession, ChatMessage
 from app.db import AsyncSessionLocal
 from app.core.config import settings
 from app.services.redis_service import redis_service
+from app.security.interaction_safety import SafetyAbort, interaction_guard
+from app.security.interaction_context import (
+    guarded_interaction,
+    prepare_stream_interaction,
+    validate_interaction_input,
+)
+from app.security.session_access import can_access_session
 
 # 引入日志装饰器
 from app.utils.log_decorators import log_user_action
@@ -41,6 +48,21 @@ class OrchestratorChatRequest(BaseModel):
 
 
 router = APIRouter()
+
+
+def _finish_interaction_from_task(task: asyncio.Task, interaction_id: str) -> None:
+    """按后台任务的真实结果收尾安全交互，并取出异常避免未处理告警。"""
+    if task.cancelled():
+        status_value = "cancelled"
+    else:
+        error = task.exception()
+        if isinstance(error, SafetyAbort):
+            status_value = "terminated"
+        elif error is not None:
+            status_value = "failed"
+        else:
+            status_value = "completed"
+    asyncio.create_task(interaction_guard.finish(interaction_id, status_value))
 logger = logging.getLogger(__name__)
 
 STREAM_USER_ERROR_MESSAGE = "抱歉，AI 服务连接中断或网络不稳定，本次回答没有完整生成。请稍后重试。"
@@ -364,9 +386,7 @@ async def execute_orchestrator_background(
             "receptionist": 10,
             "intent_router": 30,
             "rag_retrieval": 45,
-            "finance_specialist": 60,
-            "tax_specialist": 60,
-            "legal_specialist": 60,
+            "home_specialist": 60,
             "reflection": 80,
             "final": 95,
         }
@@ -374,9 +394,7 @@ async def execute_orchestrator_background(
             "receptionist": "正在接收问题...",
             "intent_router": "正在分析意图...",
             "rag_retrieval": "正在检索知识库...",
-            "finance_specialist": "财务专家分析中...",
-            "tax_specialist": "税务专家分析中...",
-            "legal_specialist": "法务专家分析中...",
+            "home_specialist": "智能家居专家处理中...",
             "reflection": "正在进行质量审核...",
             "final": "正在生成最终回答...",
         }
@@ -469,7 +487,7 @@ async def execute_orchestrator_background(
 
 # ==========================================
 #  V1: 无状态接口 (Stateless)
-#  用于：API 调试、简单测试、不登录的场景
+#  用于：API 调试和无会话业务；仍必须经过认证与租户隔离
 # ==========================================
 
 @router.post("/completions", response_model=ChatResponse)
@@ -482,24 +500,35 @@ async def chat_with_rag(
     [V1] 普通 RAG 对话 (非流式，一次性返回) - 支持租户隔离
     """
     start_time = time.time()
+    tenant_id = str(tenant_context.get("tenant_id") or "")
+    principal_id = str(tenant_context.get("user_id") or tenant_id or "anonymous")
+    async with guarded_interaction(
+        f"completion:{uuid.uuid4().hex}", principal_id, tenant_id, request.query,
+        history_items=len(request.history or []),
+    ) as safety_handle:
+        return await _chat_with_rag_guarded(request, tenant_id, start_time, safety_handle.interaction_id)
 
-    print(f"🔍 [V1] 租户 {tenant_context['tenant_id']} 正在搜索: {request.query}")
+
+async def _chat_with_rag_guarded(request, tenant_id: str, start_time: float, interaction_id: str):
+    logger.info("[V1] tenant=%s query_chars=%d", tenant_id, len(request.query))
     
     search_results = await search_service.search(
         query=request.query,
         top_k=request.top_k,
-        tenant_id=tenant_context['tenant_id']
+        tenant_id=tenant_id
     )
     from app.services.multimodal_image_service import sign_result_images
     search_results = await sign_result_images(search_results)
 
     if not search_results:
+        message = "抱歉，知识库中没有找到相关信息。"
+        await interaction_guard.checkpoint(interaction_id, output_delta=len(message), text=message)
         return ChatResponse(
-            answer="抱歉，知识库中没有找到相关信息。",
+            answer=message,
             sources=[],
             total_time=time.time() - start_time,
             model_used="None",
-            tenant_id=tenant_context['tenant_id']
+            tenant_id=tenant_id
         )
 
     context_texts = [item.content for item in search_results]
@@ -509,6 +538,7 @@ async def chat_with_rag(
         context_chunks=context_texts,
         history=request.history
     )
+    await interaction_guard.checkpoint(interaction_id, output_delta=len(ai_answer or ""), text=ai_answer or "")
 
     return ChatResponse(
         answer=ai_answer,
@@ -519,16 +549,34 @@ async def chat_with_rag(
 
 
 @router.post("/completions_stream")
-async def chat_with_rag_stream(request: ChatRequest):
+async def chat_with_rag_stream(
+        request: ChatRequest,
+        current_user: User = Depends(deps.get_current_user),
+        tenant_context: dict = Depends(deps.get_tenant_context),
+):
     """
     [V1] 流式 RAG 对话 (无数据库记录)
     """
-    search_results = await search_service.search(request.query, request.top_k)
-    from app.services.multimodal_image_service import sign_result_images
-    search_results = await sign_result_images(search_results)
-    context_texts = [item.content for item in search_results] if search_results else []
+    tenant_id = str(tenant_context.get("tenant_id") or current_user.tenant_id or "")
+    safety_id = f"completion-stream:{uuid.uuid4().hex}"
+    async with prepare_stream_interaction(
+            safety_id,
+            str(current_user.id),
+            tenant_id,
+            request.query,
+            history_items=len(request.history or []),
+    ):
+        search_results = await search_service.search(
+            query=request.query,
+            top_k=request.top_k,
+            tenant_id=tenant_id,
+            user_id=str(current_user.id),
+        )
+        from app.services.multimodal_image_service import sign_result_images
+        search_results = await sign_result_images(search_results)
+        context_texts = [item.content for item in search_results] if search_results else []
 
-    async def generate_stream():
+    async def _generate_stream_body():
         sources_data = [
             {
                 "filename": res.source_file,
@@ -541,18 +589,39 @@ async def chat_with_rag_stream(request: ChatRequest):
         yield json.dumps({"type": "sources", "data": sources_data}, ensure_ascii=False) + "\n"
 
         if not context_texts:
-            yield json.dumps({"type": "content", "delta": "抱歉，未找到相关信息。"}, ensure_ascii=False) + "\n"
+            message = "抱歉，未找到相关信息。"
+            await interaction_guard.checkpoint(safety_id, output_delta=len(message), text=message)
+            yield json.dumps({"type": "content", "delta": message}, ensure_ascii=False) + "\n"
             return
 
         sync_generator = llm_service.get_answer_stream(request.query, context_texts, request.history)
         async for chunk in iterate_in_threadpool(sync_generator):
             if isinstance(chunk, dict):
                 if "delta" in chunk:
-                    yield json.dumps({"type": "content", "delta": chunk["delta"]}, ensure_ascii=False) + "\n"
+                    delta = str(chunk["delta"])
+                    await interaction_guard.checkpoint(safety_id, output_delta=len(delta), text=delta)
+                    yield json.dumps({"type": "content", "delta": delta}, ensure_ascii=False) + "\n"
                 elif "usage" in chunk:
                     yield json.dumps({"type": "usage", "data": chunk["usage"]}, ensure_ascii=False) + "\n"
             else:
-                yield json.dumps({"type": "content", "delta": str(chunk)}, ensure_ascii=False) + "\n"
+                delta = str(chunk)
+                await interaction_guard.checkpoint(safety_id, output_delta=len(delta), text=delta)
+                yield json.dumps({"type": "content", "delta": delta}, ensure_ascii=False) + "\n"
+
+    async def generate_stream():
+        status = "completed"
+        try:
+            async for item in _generate_stream_body():
+                yield item
+        except SafetyAbort:
+            status = "terminated"
+            yield json.dumps({"type": "security_event", "status": "terminated",
+                              "message": "本次回答已因安全策略终止。"}, ensure_ascii=False) + "\n"
+        except asyncio.CancelledError:
+            status = "cancelled"
+            raise
+        finally:
+            await interaction_guard.finish(safety_id, status)
 
     return StreamingResponse(generate_stream(), media_type="text/event-stream")
 
@@ -566,64 +635,96 @@ class ChatRequestPersistent(ChatRequest):
     session_id: Optional[str] = None  # 如果传了就是继续聊，没传就是新会话
 
 
-@router.post("/completions_stream_v2")
-async def chat_stream_persistent(
-        request: ChatRequestPersistent,
-        current_user: User = Depends(deps.get_current_user)
+async def _prepare_persistent_chat_request(
+    request: ChatRequestPersistent,
+    current_user: User,
+    tenant_id: str,
 ):
+    """在流开始前校验会话归属并准备历史记录。"""
     async with AsyncSessionLocal() as db:
         if not request.session_id:
-            print(f"🆕 用户 {current_user.email} 正在创建新会话...")
             new_session = ChatSession(
                 user_id=current_user.id,
-                title=request.query[:20]
+                tenant_id=tenant_id,
+                title=request.query[:20],
             )
             db.add(new_session)
             await db.commit()
             await db.refresh(new_session)
-
             session_id = str(new_session.id)
             history = []
-            print(f"✅ 新会话创建成功: {session_id}")
         else:
-            session_id = request.session_id
+            try:
+                session_uuid = uuid.UUID(str(request.session_id))
+            except (TypeError, ValueError) as exc:
+                raise HTTPException(status_code=404, detail="会话不存在") from exc
 
-            print(f"🔄 正在查询数据库历史: Session ID {session_id}")
+            session_result = await db.execute(
+                select(ChatSession).where(ChatSession.id == session_uuid)
+            )
+            chat_session = session_result.scalar_one_or_none()
+            if not can_access_session(chat_session, current_user.id, tenant_id):
+                raise HTTPException(status_code=404, detail="会话不存在")
+
+            session_id = str(chat_session.id)
             result = await db.execute(
                 select(ChatMessage)
-                .where(ChatMessage.session_id == session_id)
+                .where(ChatMessage.session_id == session_uuid)
+                .where(ChatMessage.tenant_id == tenant_id)
                 .order_by(ChatMessage.created_at.asc())
             )
-            messages_objs = result.scalars().all()
-
             history = [
-                {"role": m.role, "content": m.content}
-                for m in messages_objs
+                {"role": message.role, "content": message.content}
+                for message in result.scalars().all()
             ]
-            print(f"📜 查到历史记录: {len(history)} 条")
 
-        user_msg = ChatMessage(session_id=session_id, role="user", content=request.query)
-        db.add(user_msg)
+        db.add(ChatMessage(
+            session_id=session_id,
+            role="user",
+            content=request.query,
+            tenant_id=tenant_id,
+        ))
         await db.commit()
 
         result = await db.execute(
             select(ChatMessage)
             .where(ChatMessage.session_id == session_id)
+            .where(ChatMessage.tenant_id == tenant_id)
             .where(ChatMessage.role == "assistant")
         )
-        turn_count = result.scalars().all()
-        current_turn = len(turn_count) + 1
+        current_turn = len(result.scalars().all()) + 1
 
-    search_results = await search_service.search(
-        query=request.query,
-        top_k=request.top_k,
-        kb_id=request.kb_id,
-        tenant_id=str(current_user.tenant_id),
-        user_id=str(current_user.id)
-    )
-    from app.services.multimodal_image_service import sign_result_images
-    search_results = await sign_result_images(search_results)
-    context_texts = [item.content for item in search_results] if search_results else []
+    return session_id, history, current_turn
+
+
+@router.post("/completions_stream_v2")
+async def chat_stream_persistent(
+        request: ChatRequestPersistent,
+        current_user: User = Depends(deps.get_current_user),
+        tenant_context: dict = Depends(deps.get_tenant_context),
+):
+    tenant_id = str(tenant_context.get("tenant_id") or current_user.tenant_id or "")
+    safety_id = f"completion-stream-v2:{uuid.uuid4().hex}"
+    async with prepare_stream_interaction(
+            safety_id,
+            str(current_user.id),
+            tenant_id,
+            request.query,
+            history_items=len(request.history or []),
+    ):
+        session_id, history, current_turn = await _prepare_persistent_chat_request(
+            request, current_user, tenant_id
+        )
+        search_results = await search_service.search(
+            query=request.query,
+            top_k=request.top_k,
+            kb_id=request.kb_id,
+            tenant_id=tenant_id,
+            user_id=str(current_user.id),
+        )
+        from app.services.multimodal_image_service import sign_result_images
+        search_results = await sign_result_images(search_results)
+        context_texts = [item.content for item in search_results] if search_results else []
 
     async def generate_save_stream():
         full_answer = ""
@@ -648,13 +749,16 @@ async def chat_stream_persistent(
             if isinstance(chunk, dict):
                 if "delta" in chunk:
                     full_answer += chunk["delta"]
+                    await interaction_guard.checkpoint(safety_id, output_delta=len(chunk["delta"]), text=chunk["delta"])
                     yield json.dumps({"type": "content", "delta": chunk["delta"]}, ensure_ascii=False) + "\n"
                 elif "usage" in chunk:
                     usage_info = chunk["usage"]
                     yield json.dumps({"type": "usage", "data": usage_info}, ensure_ascii=False) + "\n"
             else:
-                full_answer += str(chunk)
-                yield json.dumps({"type": "content", "delta": str(chunk)}, ensure_ascii=False) + "\n"
+                delta = str(chunk)
+                await interaction_guard.checkpoint(safety_id, output_delta=len(delta), text=delta)
+                full_answer += delta
+                yield json.dumps({"type": "content", "delta": delta}, ensure_ascii=False) + "\n"
 
         try:
             async with AsyncSessionLocal() as db:
@@ -663,6 +767,7 @@ async def chat_stream_persistent(
                     session_id=session_id,
                     role="assistant",
                     content=full_answer,
+                    tenant_id=tenant_id,
                     sources=sources_data,
                     prompt_tokens=usage_info.get("prompt_tokens") if usage_info else None,
                     completion_tokens=usage_info.get("completion_tokens") if usage_info else None,
@@ -682,10 +787,22 @@ async def chat_stream_persistent(
         except Exception as e:
             print(f"❌ 保存 AI 消息失败: {e}")
 
-    return StreamingResponse(
-        generate_save_stream(),
-        media_type="text/event-stream"
-    )
+    async def guarded_save_stream():
+        status = "completed"
+        try:
+            async for item in generate_save_stream():
+                yield item
+        except SafetyAbort:
+            status = "terminated"
+            yield json.dumps({"type": "security_event", "status": "terminated",
+                              "message": "本次回答已因安全策略终止。"}, ensure_ascii=False) + "\n"
+        except asyncio.CancelledError:
+            status = "cancelled"
+            raise
+        finally:
+            await interaction_guard.finish(safety_id, status)
+
+    return StreamingResponse(guarded_save_stream(), media_type="text/event-stream")
 
 
 # ==========================================
@@ -706,14 +823,64 @@ class AgentChatRequest(BaseModel):
     enable_graph_expansion: Optional[bool] = None  # 是否启用图谱扩展
 
 
+async def _prepare_agent_stream_session(
+    request: AgentChatRequest,
+    current_user: User,
+    tenant_id: str,
+) -> str:
+    """校验知识库及已有会话归属，必要时创建新会话。"""
+    async with AsyncSessionLocal() as db:
+        kb_result = await db.execute(
+            select(KnowledgeBase)
+            .where(KnowledgeBase.id == request.kb_id)
+            .where(KnowledgeBase.tenant_id == tenant_id)
+        )
+        knowledge_base = kb_result.scalar_one_or_none()
+        if knowledge_base is None:
+            raise HTTPException(status_code=404, detail="知识库不存在")
+        if knowledge_base.visibility != "enterprise" and knowledge_base.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="越权访问拦截！")
+
+        if request.session_id:
+            try:
+                session_uuid = uuid.UUID(str(request.session_id))
+            except (TypeError, ValueError) as exc:
+                raise HTTPException(status_code=404, detail="会话不存在") from exc
+            session_result = await db.execute(
+                select(ChatSession).where(ChatSession.id == session_uuid)
+            )
+            chat_session = session_result.scalar_one_or_none()
+            if not can_access_session(chat_session, current_user.id, tenant_id):
+                raise HTTPException(status_code=404, detail="会话不存在")
+            return str(chat_session.id)
+
+        new_session = ChatSession(
+            user_id=current_user.id,
+            tenant_id=tenant_id,
+            title=request.query[:20],
+        )
+        db.add(new_session)
+        await db.commit()
+        await db.refresh(new_session)
+        return str(new_session.id)
+
+
 # app/api/v1/endpoints/chat.py 中的 chat_with_agent 函数
 
 @router.post("/agent_chat")
 async def chat_with_agent(
         request: AgentChatRequest,
-        current_user: User = Depends(deps.get_current_user)
+        current_user: User = Depends(deps.get_current_user),
+        tenant_context: dict = Depends(deps.get_tenant_context),
 ):
-    print(f"🤖 [Agent 接口被调用] 用户: {current_user.email} | 问题: {request.query}")
+    tenant_id = str(tenant_context.get("tenant_id") or current_user.tenant_id or "")
+    safety_id = f"agent:{uuid.uuid4().hex}"
+    try:
+        await interaction_guard.start(safety_id, str(current_user.id), tenant_id, request.query)
+    except SafetyAbort as exc:
+        raise HTTPException(status_code=429 if exc.decision.score < 8 else 403,
+                            detail="请求触发安全策略，已终止处理") from exc
+    logger.info("[Agent] user=%s tenant=%s query_chars=%d", current_user.id, tenant_id, len(request.query))
 
     try:
         async with AsyncSessionLocal() as db:
@@ -724,7 +891,8 @@ async def chat_with_agent(
             kb_check = await db.execute(
                 select(KnowledgeBase)
                 .where(KnowledgeBase.id == request.kb_id)
-                .where(KnowledgeBase.user_id == current_user.id)  # 必须同时满足 kb_id 正确且归属当前用户
+                .where(KnowledgeBase.tenant_id == tenant_id)
+                .where((KnowledgeBase.visibility == "enterprise") | (KnowledgeBase.user_id == current_user.id))
             )
             kb = kb_check.scalar_one_or_none()
 
@@ -738,7 +906,11 @@ async def chat_with_agent(
 
             if not request.session_id:
                 # 新会话
-                new_session = ChatSession(user_id=current_user.id, title=request.query[:20])
+                new_session = ChatSession(
+                    user_id=current_user.id,
+                    tenant_id=tenant_id,
+                    title=request.query[:20],
+                )
                 db.add(new_session)
                 await db.commit()
                 await db.refresh(new_session)
@@ -761,6 +933,8 @@ async def chat_with_agent(
         # 🧠 不再手动保存AI回答，记忆系统会自动处理
         # 移除了手动保存AI回答的代码
 
+        await interaction_guard.checkpoint(safety_id, output_delta=len(ai_answer or ""), text=ai_answer or "")
+        await interaction_guard.finish(safety_id, "completed")
         return {
             "session_id": session_id,
             "answer": ai_answer,
@@ -768,18 +942,25 @@ async def chat_with_agent(
             "mode": "agent_with_memory"  # 标识使用了记忆系统
         }
 
+    except SafetyAbort as exc:
+        await interaction_guard.finish(safety_id, "terminated")
+        raise HTTPException(status_code=403, detail="本次回答已因安全策略终止") from exc
     except HTTPException:
+        await interaction_guard.finish(safety_id, "blocked")
         # 拦截上面主动抛出的 403 等 HTTP 异常，直接向上抛出，避免变成 500
         raise
     except (ValueError, KeyError) as e:
+        await interaction_guard.finish(safety_id, "failed")
         print(f"❌ [Agent 运行数据错误]: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except (OSError, IOError) as e:
+        await interaction_guard.finish(safety_id, "failed")
         print(f"❌ [Agent 运行IO错误]: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     except (OSError, IOError) as e:
         raise HTTPException(status_code=500, detail=f"IO错误: {str(e)}")
     except Exception as e:
+        await interaction_guard.finish(safety_id, "failed")
         print(f"❌ [Agent 运行出错]: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -945,44 +1126,17 @@ async def chat_with_agent_stream(
 ):
     print(f"🌊 [Agent 流式接口被调用] 用户: {current_user.email} | kb_id: {request.kb_id} | 问题: {request.query}")
 
-    # 1. 越权校验（知识库权限检查）
-    async with AsyncSessionLocal() as db:
-        print(f"🔍 [KB检查] 查询 KB: kb_id={request.kb_id}")
-        kb_check = await db.execute(
-            select(KnowledgeBase).where(KnowledgeBase.id == request.kb_id)
-        )
-        kb = kb_check.scalar_one_or_none()
-        print(f"🔍 [KB检查] 查询结果: {kb}, visibility={kb.visibility if kb else None}")
-
-        if not kb:
-            print("🔍 [KB检查] KB不存在")
-            raise HTTPException(status_code=404, detail="知识库不存在")
-
-        # 权限检查：企业级KB允许同租户所有用户访问，私人KB只有创建者可访问
-        if kb.visibility == "enterprise":
-            if kb.tenant_id != current_user.tenant_id:
-                print(f"🔍 [KB检查] 企业KB但租户不匹配: KB_tenant={kb.tenant_id}, user_tenant={current_user.tenant_id}")
-                raise HTTPException(status_code=403, detail="越权访问拦截！")
-        else:  # private
-            if kb.user_id != current_user.id:
-                print(f"🔍 [KB检查] 私人KB但用户不匹配: KB_user={kb.user_id}, current_user={current_user.id}")
-                raise HTTPException(status_code=403, detail="越权访问拦截！")
-
-        # 处理session_id
-        if not request.session_id:
-            new_session = ChatSession(user_id=current_user.id, title=request.query[:20])
-            db.add(new_session)
-            await db.commit()
-            await db.refresh(new_session)
-            session_id = str(new_session.id)
-        else:
-            session_id = request.session_id
-
-        # 🧠 不再手动查询历史记录，改用记忆系统
-        # 移除了手动历史查询代码，记忆系统会自动管理对话历史
-
-        # 🧠 不再手动存储用户消息，记忆系统会自动处理
-        # 移除了手动存储用户消息的代码
+    tenant_id = str(tenant_context.get("tenant_id") or getattr(current_user, "tenant_id", "") or "")
+    safety_interaction_id = f"agent-stream:{uuid.uuid4().hex}"
+    async with prepare_stream_interaction(
+            safety_interaction_id,
+            str(current_user.id),
+            tenant_id,
+            request.query,
+            history_items=0,
+            metadata={"external_tool": bool(request.enable_graph_expansion)},
+    ) as safety_handle:
+        session_id = await _prepare_agent_stream_session(request, current_user, tenant_id)
 
     # 2. 后台 Agent 任务 — 与 SSE 解耦
     async def _background_agent_stream(
@@ -998,6 +1152,7 @@ async def chat_with_agent_stream(
         bg_top_k: Optional[int] = None,
         bg_enable_rerank: Optional[bool] = None,
         bg_enable_graph_expansion: Optional[bool] = None,
+        safety_interaction_id: str = "",
     ) -> None:
         """后台运行 Agent 流式对话，与 SSE 连接生命周期无关。"""
         # 设置当前租户和用户上下文，供 get_enterprise_kb_overview 等工具使用
@@ -1015,6 +1170,17 @@ async def chat_with_agent_stream(
         _cached = _get_cached_answer(bg_tenant_id or "", bg_user_query, _cache_variant)
         if _cached is not None:
             logger.info("[CACHE] 简单问题缓存命中，跳过 LLM | query=%s", bg_user_query[:30])
+            try:
+                await interaction_guard.checkpoint(
+                    safety_interaction_id,
+                    output_delta=len(_cached),
+                    text=_cached,
+                )
+            except SafetyAbort:
+                message = "本次交互已因安全策略终止，未发送缓存内容。"
+                _safe_put(bg_queue, ("error", message, 1))
+                _add_to_buffer(bg_session_id, 1, "error", message)
+                raise
             _safe_put(bg_queue, ("chunk", _cached, 1))
             _add_to_buffer(bg_session_id, 1, "chunk", _cached)
             # 缓存命中：仍然要透传一个最小 meta 让前端可保存反馈
@@ -1061,6 +1227,11 @@ async def chat_with_agent_stream(
                 enable_rerank=bg_enable_rerank,
                 enable_graph_expansion=bg_enable_graph_expansion,
             ):
+                await interaction_guard.checkpoint(
+                    safety_interaction_id,
+                    output_delta=len(chunk),
+                    text=chunk if not chunk.startswith("__") else None,
+                )
                 if has_stream_error_marker(chunk):
                     msg = STREAM_USER_ERROR_MESSAGE
                     await persist_chat_message(
@@ -1162,6 +1333,13 @@ async def chat_with_agent_stream(
             _safe_put(bg_queue, ("done", _final_meta, _seq))
             _add_to_buffer(bg_session_id, _seq, "done", _final_meta)
 
+        except SafetyAbort:
+            msg = "本次交互已因安全策略终止，未继续调用模型或工具。"
+            _seq += 1
+            _safe_put(bg_queue, ("error", msg, _seq))
+            _add_to_buffer(bg_session_id, _seq, "error", msg)
+            raise
+
         except asyncio.CancelledError:
             # 用户主动停止生成（/chat/cancel → task.cancel()）。
             # 上游 LLM 流随 async-gen 关闭而中断，停止烧 token。
@@ -1195,8 +1373,12 @@ async def chat_with_agent_stream(
             _seq += 1
             _safe_put(bg_queue, ("error", str(e), _seq))
             _add_to_buffer(bg_session_id, _seq, "error", str(e))
+            raise
+
+    background_started = False
 
     async def event_generator():
+        nonlocal background_started
         # 先把 session_id 发给前端
         init_data = json.dumps({"type": "init", "session_id": session_id})
         yield f"data: {init_data}\n\n"
@@ -1219,6 +1401,11 @@ async def chat_with_agent_stream(
                 answer = f"我没有查到企业名称，但你当前所在的企业租户 ID 是：{_e_tid}。"
             else:
                 answer = "我没有查到你当前账号绑定的企业信息。"
+            await interaction_guard.checkpoint(
+                safety_handle.interaction_id,
+                output_delta=len(answer),
+                text=answer,
+            )
             await persist_chat_message(session_id=session_id, role="user", content=request.query, tenant_id=_e_tid)
             await persist_chat_message(session_id=session_id, role="assistant", content=answer, tenant_id=_e_tid, agent_name="agent")
             yield f"data: {json.dumps({'type': 'chunk', 'content': answer})}\n\n"
@@ -1244,10 +1431,16 @@ async def chat_with_agent_stream(
                 bg_top_k=request.top_k,
                 bg_enable_rerank=request.enable_rerank,
                 bg_enable_graph_expansion=request.enable_graph_expansion,
+                safety_interaction_id=safety_handle.interaction_id,
             )
         )
+        background_started = True
         _background_tasks.add(_bg_task)
         _bg_task.add_done_callback(_background_tasks.discard)
+        await interaction_guard.attach_task(safety_handle.interaction_id, _bg_task)
+        _bg_task.add_done_callback(
+            lambda _t, _sid=safety_handle.interaction_id: _finish_interaction_from_task(_t, _sid)
+        )
         # 注册 会话→任务 映射，供 /chat/cancel 主动停止；完成后自动注销
         _session_tasks[session_id] = _bg_task
         _bg_task.add_done_callback(lambda _t, _sid=session_id: _session_tasks.pop(_sid, None))
@@ -1324,7 +1517,20 @@ async def chat_with_agent_stream(
             print(f"[CHAT] 客户端断开 SSE，后台任务继续，缓冲保留 | session={session_id[:8]}")
             return
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    async def guarded_event_generator():
+        status_value = "failed"
+        try:
+            async for item in event_generator():
+                yield item
+            status_value = "completed"
+        except asyncio.CancelledError:
+            status_value = "cancelled"
+            raise
+        finally:
+            if not background_started:
+                await interaction_guard.finish(safety_handle.interaction_id, status_value)
+
+    return StreamingResponse(guarded_event_generator(), media_type="text/event-stream")
 
 
 @router.post("/orchestrator_chat_async")
@@ -1356,6 +1562,13 @@ async def chat_with_orchestrator_async(
     logger.info("[编排器异步] 接收请求: user=%s, query=%s", current_user.email, request.query[:80])
     
     tenant_id = tenant_context['tenant_id']
+    await validate_interaction_input(
+        f"orchestrator-async-admission:{uuid.uuid4().hex}",
+        str(current_user.id),
+        str(tenant_id),
+        request.query,
+        metadata={"external_tool": True, "execution": "background"},
+    )
     session_id = await ensure_chat_session(request.session_id, current_user, request.query, tenant_id)
     task_id = f"lgwf_{uuid.uuid4().hex[:16]}"
     

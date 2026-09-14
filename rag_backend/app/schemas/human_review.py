@@ -29,10 +29,9 @@ class ReviewPriorityEnum(str, Enum):
 
 class ReviewTypeEnum(str, Enum):
     """审核类型枚举"""
-    TAX = "tax"
-    FINANCE = "finance"
-    LEGAL = "legal"
-    COMPLIANCE = "compliance"
+    DEVICE_ACTION = "device_action"
+    SCENARIO = "scenario"
+    SAFETY = "safety"
 
 
 class CommentTypeEnum(str, Enum):
@@ -49,7 +48,7 @@ class ReviewRequestCreate(BaseModel):
     task_id: Optional[str] = Field(None, description="关联的任务ID")
     title: Optional[str] = Field(None, max_length=200, description="审核标题")
     description: Optional[str] = Field(None, description="审核描述")
-    review_type: ReviewTypeEnum = Field(ReviewTypeEnum.TAX, description="审核类型")
+    review_type: ReviewTypeEnum = Field(ReviewTypeEnum.DEVICE_ACTION, description="智能家居审核类型")
     priority: ReviewPriorityEnum = Field(ReviewPriorityEnum.NORMAL, description="优先级")
     trigger_reason: Optional[str] = Field(None, description="触发原因")
     trigger_details: Optional[Dict[str, Any]] = Field(None, description="触发详情")

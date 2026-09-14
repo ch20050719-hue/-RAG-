@@ -25,13 +25,17 @@ class IntentCategory(str, Enum):
     
     定义用户查询的可能意图类型
     """
-    RAG_RETRIEVAL = "rag_retrieval"  # RAG 检索
-    SINGLE_SPECIALIST = "single_specialist"  # 单专家查询
-    MULTI_SPECIALIST = "multi_specialist"  # 多专家协作
-    DIRECT_ANSWER = "direct_answer"  # 直接回答
-    HUMAN_REVIEW = "human_review"  # 需要人工审核
-    EXPERT_CONSULTATION = "expert_consultation"  # 专家会诊（新增）
-    UNKNOWN = "unknown"  # 未知意图
+    RAG_RETRIEVAL = "rag_retrieval"
+    SINGLE_SPECIALIST = "single_specialist"
+    MULTI_SPECIALIST = "multi_specialist"
+    DIRECT_ANSWER = "direct_answer"
+    DEVICE_CONTROL = "device_control"
+    SCENARIO_EXECUTION = "scenario_execution"
+    ENVIRONMENT_QUERY = "environment_query"
+    SAFETY_CHECK = "safety_check"
+    HUMAN_REVIEW = "human_review"
+    EXPERT_CONSULTATION = "expert_consultation"
+    UNKNOWN = "unknown"
 
 
 class SpecialistType(str, Enum):
@@ -40,12 +44,13 @@ class SpecialistType(str, Enum):
     
     定义系统中可用的专家类型
     """
-    FINANCE = "finance"  # 财务专家
-    TAX = "tax"  # 税务专家
-    LEGAL = "legal"  # 法律专家
-    REPORT = "report"  # 报告生成专家
-    REFLECTION = "reflection"  # 反思专家
-    COORDINATOR = "coordinator"  # 协调者
+    HOME_BUTLER = "home_butler"
+    ENVIRONMENT = "environment"
+    DEVICE_CONTROL = "device_control"
+    COMFORT = "comfort"
+    SAFETY = "safety"
+    REFLECTION = "reflection"
+    COORDINATOR = "coordinator"
 
 
 class QualityLevel(str, Enum):

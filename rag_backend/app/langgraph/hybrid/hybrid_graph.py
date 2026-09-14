@@ -300,10 +300,7 @@ class HybridGraphBuilder:
             
             # 检查意图是否需要多专家
             from app.state.unified_state import IntentCategory
-            expert_intents = [
-                IntentCategory.EXPERT_CONSULTATION,
-                IntentCategory.COMPREHENSIVE_ANALYSIS
-            ]
+            expert_intents = [IntentCategory.EXPERT_CONSULTATION, IntentCategory.MULTI_SPECIALIST]
             
             if intent in expert_intents:
                 return "expert_consultation"
@@ -361,7 +358,7 @@ class HybridGraphBuilder:
             # TODO: 调用 LLM 进行意图识别
             # 这里简化处理
             from app.state.unified_state import IntentCategory
-            state["intent"] = IntentCategory.QUESTION
+            state["intent"] = IntentCategory.DIRECT_ANSWER
             
             return state
         

@@ -378,9 +378,7 @@ function getStatusDescription(status: string): string {
 function getDomainLabel(meta_info: any): string {
   if (!meta_info || !meta_info.domain) return ''
   const labels: Record<string, string> = {
-    finance: '财务类',
-    tax: '税务类',
-    legal: '法务类',
+    smart_home: '智能家居类',
     general: '通用类'
   }
   return labels[meta_info.domain] || ''
@@ -389,9 +387,7 @@ function getDomainLabel(meta_info: any): string {
 function getDomainBadgeClass(meta_info: any): string {
   if (!meta_info || !meta_info.domain) return ''
   const classes: Record<string, string> = {
-    finance: 'bg-amber-50 border-amber-200 text-amber-700',
-    tax: 'bg-blue-50 border-blue-200 text-blue-700',
-    legal: 'bg-purple-50 border-purple-200 text-purple-700',
+    smart_home: 'bg-cyan-50 border-cyan-200 text-cyan-700',
     general: 'bg-slate-50 border-slate-200 text-slate-600'
   }
   return classes[meta_info.domain] || 'bg-slate-50 border-slate-200 text-slate-600'
@@ -729,7 +725,7 @@ function formatDate(dateString: string): string {
               <p class="text-sm text-slate-500">支持 PDF、Word、TXT、Markdown 等格式</p>
               <div class="mt-3 inline-block px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
                 <p class="text-xs text-blue-700">
-                  <span class="font-medium">提示：</span>文件名含「财务」「税务」「合同」等关键词，自动采用对应切块策略，提升检索精度
+                  <span class="font-medium">提示：</span>设备手册、传感器指南、场景定义和安全规则会自动采用对应切块策略，提升检索精度
                 </p>
               </div>
             </div>

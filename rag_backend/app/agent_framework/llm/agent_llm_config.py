@@ -21,9 +21,10 @@ class AgentType(str, Enum):
     REVIEWED = "reviewed"
     CHAT = "chat"
     GREETING = "greeting"
-    FINANCE = "finance"
-    TAX = "tax"
-    LEGAL = "legal"
+    HOME_BUTLER = "home_butler"
+    ENVIRONMENT = "environment"
+    DEVICE_CONTROL = "device_control"
+    COMFORT = "comfort"
 
 
 class AgentLLMConfig(BaseModel):

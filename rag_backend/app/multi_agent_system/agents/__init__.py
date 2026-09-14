@@ -17,17 +17,7 @@ from .intent_router_agent import (
     RoutingStrategy, 
     IntentAnalysisResult
 )
-from .finance_specialist import FinanceSpecialist
-from .tax_specialist import TaxSpecialist
-from .legal_specialist import LegalSpecialist
-from .report_generator import (
-    ReportGenerator, 
-    ReportFormat, 
-    ReportType, 
-    GeneratedReport, 
-    ReportMetadata,
-    AuditReport
-)
+from .home_specialist import HomeSpecialistAgent, create_home_specialist
 from .orchestrator_agent import (
     OrchestratorAgent,
     get_orchestrator_agent
@@ -41,15 +31,8 @@ __all__ = [
     "ComplexityLevel",
     "RoutingStrategy",
     "IntentAnalysisResult",
-    "FinanceSpecialist", 
-    "TaxSpecialist",
-    "LegalSpecialist",
-    "ReportGenerator",
-    "ReportFormat",
-    "ReportType",
-    "GeneratedReport",
-    "ReportMetadata",
-    "AuditReport",
+    "HomeSpecialistAgent",
+    "create_home_specialist",
     "OrchestratorAgent",
     "get_orchestrator_agent"
 ]

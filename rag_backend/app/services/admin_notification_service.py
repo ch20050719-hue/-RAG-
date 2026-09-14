@@ -24,9 +24,9 @@ class NotificationType(str, Enum):
     EMAIL = "email"  # 邮件通知
     SMS = "sms"  # 短信通知
     WEBHOOK = "webhook"  # Webhook通知
-    TAX_REMINDER = "tax_reminder"  # 税务提醒
-    POLICY_UPDATE = "policy_update"  # 政策更新
-    ANOMALY_ALERT = "anomaly_alert"  # 异常预警
+    HOME_SCENARIO = "home_scenario"  # 智能家居场景
+    DEVICE_SAFETY = "device_safety"  # 设备安全告警
+    ANOMALY_ALERT = "anomaly_alert"  # 通用异常预警
     SYSTEM_ALERT = "system_alert"  # 系统告警
 
 
@@ -49,40 +49,30 @@ class RiskLevel(str, Enum):
 class RiskCategory(str, Enum):
     """风险类别"""
     SENSITIVE_DATA_ACCESS = "sensitive_data_access"  # 敏感数据访问
-    FINANCIAL_OPERATION = "financial_operation"  # 财务操作
-    BULK_OPERATION = "bulk_operation"  # 批量操作
+    DEVICE_CONTROL = "device_control"  # 设备控制
+    BULK_OPERATION = "bulk_operation"  # 批量设备操作
     SYSTEM_CONFIG = "system_config"  # 系统配置
-    EXPENSE_APPROVAL = "expense_approval"  # 费用审批
-    TAX_OPERATION = "tax_operation"  # 税务操作
-    LEGAL_RISK = "legal_risk"  # 法律风险
+    SAFETY_OVERRIDE = "safety_override"  # 安全规则绕过
+    REMOTE_ACCESS = "remote_access"  # 远程访问
     SECURITY_ALERT = "security_alert"  # 安全警报
 
 
 class HighRiskBehavior(str, Enum):
     """高风险行为定义"""
-    BULK_DELETE = "bulk_delete"  # 批量删除
-    SENSITIVE_DATA_EXPORT = "sensitive_data_export"  # 敏感数据导出
+    UNSAFE_DEVICE_CONTROL = "unsafe_device_control"  # 高风险设备控制
+    SAFETY_OVERRIDE = "safety_override"  # 绕过安全规则
+    BULK_DEVICE_ACTION = "bulk_device_action"  # 批量设备操作
     SYSTEM_CONFIG_CHANGE = "system_config_change"  # 系统配置修改
-    LARGE_EXPENSE_APPROVAL = "large_expense_approval"  # 大额费用审批
-    TAX_DECLARATION = "tax_declaration"  # 税务申报
-    CONTRACT_GENERATION = "contract_generation"  # 合同生成
-    AUDIT_REQUEST = "audit_request"  # 审计请求
-    USER_PERMISSION_CHANGE = "user_permission_change"  # 用户权限变更
-    BULK_DATA_MODIFICATION = "bulk_data_modification"  # 批量数据修改
-    EXTERNAL_DATA_SHARING = "external_data_sharing"  # 外部数据共享
+    REMOTE_ACCESS = "remote_access"  # 远程访问
+    LOW_CONFIDENCE_INTENT = "low_confidence_intent"  # 意图置信度不足
 
 
 RISK_KEYWORDS = {
-    HighRiskBehavior.BULK_DELETE: ["批量删除", "删除全部", "清空", "删除所有"],
-    HighRiskBehavior.SENSITIVE_DATA_EXPORT: ["导出敏感数据", "导出全部数据", "下载敏感信息"],
+    HighRiskBehavior.UNSAFE_DEVICE_CONTROL: ["关闭安防", "关闭烟雾报警", "解锁门", "打开燃气", "禁用报警"],
+    HighRiskBehavior.SAFETY_OVERRIDE: ["绕过安全", "忽略安全校验", "强制执行", "跳过确认"],
+    HighRiskBehavior.BULK_DEVICE_ACTION: ["全部设备", "所有设备", "批量设备", "全屋关闭", "全屋打开"],
     HighRiskBehavior.SYSTEM_CONFIG_CHANGE: ["修改系统配置", "系统设置", "配置变更"],
-    HighRiskBehavior.LARGE_EXPENSE_APPROVAL: ["大额审批", "高额费用", "巨额支出"],
-    HighRiskBehavior.TAX_DECLARATION: ["税务申报", "纳税申报", "报税"],
-    HighRiskBehavior.CONTRACT_GENERATION: ["生成合同", "创建合同", "合同模板"],
-    HighRiskBehavior.AUDIT_REQUEST: ["审计请求", "合规检查", "合规审计"],
-    HighRiskBehavior.USER_PERMISSION_CHANGE: ["修改权限", "变更角色", "用户权限"],
-    HighRiskBehavior.BULK_DATA_MODIFICATION: ["批量修改", "批量更新", "批量编辑"],
-    HighRiskBehavior.EXTERNAL_DATA_SHARING: ["外部共享", "数据外发", "导出到外部"],
+    HighRiskBehavior.REMOTE_ACCESS: ["远程控制", "远程访问", "公网控制"],
 }
 
 RISK_THRESHOLDS = {
@@ -145,11 +135,11 @@ class AdminNotificationService:
         if context:
             confidence = context.get("confidence", 0.5)
             if confidence < 0.5:
-                detected_behaviors.append(HighRiskBehavior.AUDIT_REQUEST)
+                detected_behaviors.append(HighRiskBehavior.LOW_CONFIDENCE_INTENT)
             
             entity_count = len(context.get("entities", []))
             if entity_count > 10:
-                detected_behaviors.append(HighRiskBehavior.BULK_OPERATION)
+                detected_behaviors.append(HighRiskBehavior.BULK_DEVICE_ACTION)
         
         risk_score = len(detected_behaviors) / 10.0
         
@@ -404,7 +394,12 @@ class AdminNotificationService:
                 "is_archived": False
             }
             
-            if notification_type == NotificationType.IN_APP or notification_type == NotificationType.TAX_REMINDER or notification_type == NotificationType.POLICY_UPDATE or notification_type == NotificationType.ANOMALY_ALERT:
+            if notification_type in (
+                NotificationType.IN_APP,
+                NotificationType.HOME_SCENARIO,
+                NotificationType.DEVICE_SAFETY,
+                NotificationType.ANOMALY_ALERT,
+            ):
                 await self._send_in_app_notification(user_id, notification_payload)
             
             if notification_type == NotificationType.EMAIL and email:
@@ -418,8 +413,8 @@ class AdminNotificationService:
             
             if notification_type not in (
                 NotificationType.IN_APP,
-                NotificationType.TAX_REMINDER,
-                NotificationType.POLICY_UPDATE,
+                NotificationType.HOME_SCENARIO,
+                NotificationType.DEVICE_SAFETY,
                 NotificationType.ANOMALY_ALERT,
             ):
                 await self._save_notification_record(
@@ -473,7 +468,7 @@ class AdminNotificationService:
                 {self._format_metadata_html(metadata)}
                 <hr>
                 <p style="color: #666; font-size: 12px;">
-                    此邮件由智能税务系统自动发送，请勿回复。<br>
+                    此邮件由智能家居助手自动发送，请勿回复。<br>
                     发送时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                 </p>
             </body>
@@ -549,10 +544,10 @@ class AdminNotificationService:
         return html
 
     def _notification_source(self, notification_type: NotificationType) -> str:
-        if notification_type == NotificationType.TAX_REMINDER:
+        if notification_type == NotificationType.HOME_SCENARIO:
             return "task"
-        if notification_type == NotificationType.POLICY_UPDATE:
-            return "policy"
+        if notification_type == NotificationType.DEVICE_SAFETY:
+            return "device_safety"
         if notification_type in (NotificationType.ANOMALY_ALERT, NotificationType.SYSTEM_ALERT):
             return "system"
         return "system"

@@ -1718,9 +1718,11 @@ function renderMarkdown(content: string): string {
 // 专家节点 → 友好显示名（多智能体分 agent 标注）
 function agentDisplayName(node: string | null): string {
   const map: Record<string, string> = {
-    finance_specialist: '财务专家',
-    tax_specialist: '税务专家',
-    legal_specialist: '法律专家',
+    home_specialist: '智能家居专家',
+    home_butler: '家居总管家',
+    environment: '环境感知专家',
+    device_control: '设备控制专家',
+    comfort: '舒适度专家',
   }
   return node ? (map[node] || node) : ''
 }
@@ -1865,7 +1867,7 @@ function renderMessageBody(content: string, index: number): string {
           </div>
           <div class="flex flex-wrap justify-center gap-2 mt-3">
             <button
-              v-for="example in ['分析企业税务风险', '财务健康诊断', '合同合规审查', '税收优惠政策影响分析']"
+              v-for="example in ['打开书桌台灯', '查看当前设备状态', '读取书房温湿度', '执行睡眠模式']"
               :key="example"
               @click="userInput = example"
               class="px-4 py-2 bg-white border-2 border-blue-200 rounded-full text-sm text-gray-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-all shadow-sm hover:shadow-md"
@@ -2405,7 +2407,7 @@ function renderMessageBody(content: string, index: number): string {
             <Lightbulb :size="12" class="text-amber-600 flex-shrink-0 mt-0.5" />
             <div class="space-y-0.5">
               <p class="text-xs font-medium text-amber-800">使用建议</p>
-              <p class="text-xs text-amber-700">尝试提出具体问题，如"分析某企业的税务风险"，系统会自动匹配最合适的专家Agent协作处理。</p>
+              <p class="text-xs text-amber-700">尝试提出具体问题，如“打开书桌台灯”，系统会先校验设备状态和安全规则，再执行控制。</p>
             </div>
           </div>
         </div>

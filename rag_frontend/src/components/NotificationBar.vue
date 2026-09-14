@@ -49,7 +49,7 @@ const {
 
 const isSelectionMode = ref(false)
 const selectedNotifications = ref<Set<string>>(new Set())
-const activeCategory = ref<'all' | 'chat' | 'policy' | 'system' | 'task'>('all')
+const activeCategory = ref<'all' | 'chat' | 'device' | 'system' | 'task'>('all')
 
 onMounted(() => {
   if (isAuthenticated()) {
@@ -82,7 +82,7 @@ const filteredNotifications = computed(() => {
 const categories = [
   { id: 'all', label: '全部通知', icon: Bell },
   { id: 'chat', label: '群聊消息', icon: MessageSquare },
-  { id: 'policy', label: '政策更新', icon: FileText },
+  { id: 'device', label: '设备安全', icon: FileText },
   { id: 'task', label: '任务提醒', icon: Clock },
   { id: 'system', label: '系统通知', icon: Info }
 ]
@@ -107,7 +107,7 @@ function getNotificationIcon(iconName: string) {
 function getCategoryBadge(category: string): string {
   const badges: Record<string, string> = {
     chat: 'bg-green-100 text-green-700',
-    policy: 'bg-blue-100 text-blue-700',
+    device: 'bg-blue-100 text-blue-700',
     task: 'bg-purple-100 text-purple-700',
     system: 'bg-gray-100 text-gray-700'
   }
@@ -117,7 +117,7 @@ function getCategoryBadge(category: string): string {
 function getCategoryLabel(category: string): string {
   const labels: Record<string, string> = {
     chat: '群聊',
-    policy: '政策',
+    device: '设备',
     task: '任务',
     system: '系统'
   }
@@ -140,7 +140,7 @@ async function handleNotificationClick(notification: UnifiedNotification) {
   } else if (notification.category === 'chat') {
     router.push({ name: 'group-chat' })
     close()
-  } else if (notification.category === 'policy') {
+  } else if (notification.category === 'device') {
     goToNotificationCenter()
   }
 }

@@ -34,7 +34,7 @@ class SMSService:
             self.provider = getattr(settings, 'SMS_PROVIDER', None)
             self.api_key = getattr(settings, 'SMS_API_KEY', None)
             self.api_secret = getattr(settings, 'SMS_API_SECRET', None)
-            self.signature = getattr(settings, 'SMS_SIGNATURE', '智能税务')
+            self.signature = getattr(settings, 'SMS_SIGNATURE', '智能家居')
             
             self.enabled = bool(self.provider and self.api_key)
             

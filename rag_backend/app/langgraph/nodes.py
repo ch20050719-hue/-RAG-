@@ -92,7 +92,7 @@ class AgentNodeFactory:
         初始化节点工厂
         
         Args:
-            agents_registry: Agent 注册表 {"finance": FinanceSpecialist, ...}
+            agents_registry: Agent 注册表 {"home_butler": HomeSpecialistAgent, ...}
         """
         self.agents_registry = agents_registry
         self._agent_instances: Dict[str, Any] = {}

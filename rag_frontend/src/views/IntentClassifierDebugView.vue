@@ -70,15 +70,15 @@ const stageColors = {
 
 const sampleMessages = [
 
-  { text: '报销机票1000元', category: '财务', icon: '💰' },
+  { text: '打开书桌台灯', category: '设备控制', icon: '💡' },
 
   { text: '查一下深圳明天天气', category: '查询', icon: '🌤' },
 
-  { text: '张三说李四要报销', category: '财务', icon: '💰' },
+  { text: '查看当前设备状态', category: '设备查询', icon: '📟' },
 
-  { text: '帮我查一下上个月的报销记录', category: '财务', icon: '📊' },
+  { text: '读取书房温湿度', category: '环境感知', icon: '🌡️' },
 
-  { text: '导出财务报表', category: '高风险', icon: '⚠️' },
+  { text: '执行睡眠模式', category: '场景执行', icon: '🌙' },
 
   { text: '今天吃什么', category: '闲聊', icon: '💬' },
 
@@ -856,7 +856,7 @@ async function copyJson(index: number) {
 
                     <div class="font-medium text-orange-700">费用相关检查</div>
 
-                    <div class="text-sm text-orange-600 mt-0.5">此消息被识别为与费用/报销相关，可能需要特殊处理流程</div>
+                    <div class="text-sm text-orange-600 mt-0.5">此消息包含设备或场景动作，可能需要安全校验</div>
 
                   </div>
 
@@ -940,7 +940,7 @@ async function copyJson(index: number) {
 
               <li>• 使用预定义关键词匹配</li>
 
-              <li>• 支持税务、法律、财务、审计、费用等类别</li>
+              <li>• 支持设备控制、设备查询、环境感知、场景执行和安全检查</li>
 
               <li>• 延迟低，适用于快速筛选</li>
 
@@ -982,15 +982,15 @@ async function copyJson(index: number) {
 
           <div class="flex flex-wrap gap-2">
 
-            <span class="px-2 py-0.5 bg-white/20 rounded text-xs">税务: 税务/税收/纳税/报税</span>
+            <span class="px-2 py-0.5 bg-white/20 rounded text-xs">设备: 台灯/风扇/设备/状态</span>
 
-            <span class="px-2 py-0.5 bg-white/20 rounded text-xs">法律: 法律/合同/法规/条款</span>
+            <span class="px-2 py-0.5 bg-white/20 rounded text-xs">环境: 温度/湿度/光照/人体</span>
 
-            <span class="px-2 py-0.5 bg-white/20 rounded text-xs">财务: 财务/会计/报表/资产</span>
+            <span class="px-2 py-0.5 bg-white/20 rounded text-xs">场景: 睡眠/离家/节能/场景</span>
 
-            <span class="px-2 py-0.5 bg-white/20 rounded text-xs">审计: 审计/检查/核查/盘点</span>
+            <span class="px-2 py-0.5 bg-white/20 rounded text-xs">安全: 危险/绕过/批量/远程</span>
 
-            <span class="px-2 py-0.5 bg-white/20 rounded text-xs">费用: 报销/费用/支出/差旅</span>
+            <span class="px-2 py-0.5 bg-white/20 rounded text-xs">通信: MQTT/在线/离线/回执</span>
 
           </div>
 
@@ -1016,11 +1016,11 @@ async function copyJson(index: number) {
 
             <span class="px-2 py-0.5 bg-orange-500/50 rounded text-xs">全部</span>
 
-            <span class="px-2 py-0.5 bg-orange-500/50 rounded text-xs">税务申报</span>
+            <span class="px-2 py-0.5 bg-orange-500/50 rounded text-xs">设备控制</span>
 
-            <span class="px-2 py-0.5 bg-orange-500/50 rounded text-xs">合同生成</span>
+            <span class="px-2 py-0.5 bg-orange-500/50 rounded text-xs">场景执行</span>
 
-            <span class="px-2 py-0.5 bg-orange-500/50 rounded text-xs">审计请求</span>
+            <span class="px-2 py-0.5 bg-orange-500/50 rounded text-xs">远程控制</span>
 
             <span class="px-2 py-0.5 bg-orange-500/50 rounded text-xs">外部共享</span>
 

@@ -2,13 +2,39 @@
 
 import os
 from typing import Optional
+from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
+
+_env_path = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    ".env"
+)
+if os.path.exists(_env_path):
+    load_dotenv(_env_path)
 
 
 class Settings(BaseSettings):
     # 1. 基础配置
     PROJECT_NAME: str = "RAG Knowledge Base"
     API_V1_STR: str = "/api/v1"
+
+    # 生产安全规则适配
+    SECURITY_RULES_DIR: str = "data/security/rules"
+    SECURITY_RULES_VERSION: str = "1.0.0"
+    SECURITY_RULES_FAIL_CLOSED: bool = True
+    SECURITY_DETECTOR_MODE: str = "local"
+    SECURITY_DETECTOR_TIMEOUT_MS: int = 300
+    SECURITY_REWRITE_ENABLED: bool = True
+    SECURITY_MAX_REWRITE_ATTEMPTS: int = 1
+    SECURITY_REDIS_RATE_LIMIT_ENABLED: bool = False
+
+    # 浏览器信任边界：生产必须显式配置逗号分隔的来源，不允许通配符。
+    CORS_ALLOWED_ORIGINS: str = "http://localhost:5500,http://127.0.0.1:5500"
+    CORS_ALLOW_CREDENTIALS: bool = False
+    RATE_LIMIT_FAIL_CLOSED: bool = True
+    RATE_LIMIT_TRUST_PROXY_HEADERS: bool = False
+    OUTBOUND_ALLOWED_HOSTS: str = "localhost,127.0.0.1,::1"
+    OUTBOUND_PRIVATE_HOSTS: str = "localhost,127.0.0.1,::1"
 
     # 2. 数据库配置 (变量名必须和 .env 文件里的一模一样)
     POSTGRES_USER: str
@@ -64,7 +90,7 @@ class Settings(BaseSettings):
     # 为空时使用 LLM_PROVIDER 的值
     LLM_PROVIDER_DEFAULT: str = ""
     
-    # 专家智能体 LLM 配置（金融、税务、法律等专家）
+    # 专家智能体 LLM 配置（智能家居领域专家）
     # 为空时所有智能体都使用 LLM_PROVIDER 或 LLM_PROVIDER_DEFAULT 的值
     # 可选：deepseek, qwen, zhipu, gpt, openai, claude, minimax 等
     LLM_PROVIDER_SPECIALIST: str = ""
@@ -215,13 +241,6 @@ class Settings(BaseSettings):
     # Tavily 搜索 API 配置
     TAVILY_API_KEY: str = ""
 
-    # 政策采集合规配置
-    # 允许在线政策采集；采集只由手动接口触发，并保留 robots.txt 与访问频率限制。
-    POLICY_ONLINE_CRAWL_ENABLED: bool = True
-    POLICY_SAMPLE_FALLBACK_ENABLED: bool = True
-    POLICY_REQUIRE_ROBOTS_TXT: bool = True
-    POLICY_COLLECTOR_USER_AGENT: str = "PolicyCollector/1.0 (Enterprise Tax System; Contact: support@example.com)"
-    
     # Redis 配置
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
@@ -297,11 +316,12 @@ class Settings(BaseSettings):
     NEO4J_PASSWORD: str = ""  # 必填，从 .env 读取（与 POSTGRES_PASSWORD 一致：默认空，强制 .env 提供）
     NEO4J_DATABASE: str = "neo4j"
     
-    # 专家智能体类型列表
+    # 智能家居专家智能体类型列表
     SPECIALIST_AGENT_TYPES: set = {
-        "finance", "tax", "legal", "financial", "taxation", "legislation",
-        "finance_specialist", "tax_specialist", "legal_specialist",
-        "FinanceSpecialist", "TaxSpecialist", "LegalSpecialist"
+        "home_butler", "environment", "device_control", "comfort",
+        "home_butler_agent", "environment_agent", "device_control_agent",
+        "comfort_agent", "Home_Butler_Agent", "Environment_Agent",
+        "Device_Control_Agent", "Comfort_Agent"
     }
     
     def get_llm_provider_for_agent(self, agent_type: str) -> str:
@@ -309,7 +329,7 @@ class Settings(BaseSettings):
         根据智能体类型获取合适的 LLM 提供商
         
         Args:
-            agent_type: 智能体类型（如 "finance", "tax", "chat" 等）
+            agent_type: 智能体类型（如 "home_butler", "device_control", "chat" 等）
             
         Returns:
             LLM 提供商名称

@@ -11,27 +11,23 @@ from enum import Enum
 
 class SpecialistType(str, Enum):
     """专家智能体类型"""
-    FINANCE = "finance"
-    TAX = "tax"
-    LEGAL = "legal"
+    HOME_BUTLER = "home_butler"
+    ENVIRONMENT = "environment"
+    DEVICE_CONTROL = "device_control"
+    COMFORT = "comfort"
     REFLECTION = "reflection"
-    REPORT = "report"
 
 
 class IntentCategory(str, Enum):
     """意图类别（与IntentRouterAgent保持一致）"""
-    FINANCIAL_INQUIRY = "financial_inquiry"
-    TAX_PLANNING = "tax_planning"
-    CONTRACT_REVIEW = "contract_review"
-    COMPLIANCE_CHECK = "compliance_check"
-    INVESTMENT_ADVICE = "investment_advice"
-    BUDGET_PLANNING = "budget_planning"
-    COST_ANALYSIS = "cost_analysis"
-    RISK_ASSESSMENT = "risk_assessment"
-    REGULATORY_QUERY = "regulatory_query"
+    DEVICE_QUERY = "device_query"
+    DEVICE_CONTROL = "device_control"
+    HOME_SCENARIO = "home_scenario"
+    ENVIRONMENT_QUERY = "environment_query"
+    SAFETY_CHECK = "safety_check"
+    COMFORT_AUTOMATION = "comfort_automation"
     GENERAL = "general"
     KNOWLEDGE_RETRIEVAL = "knowledge_retrieval"
-    REPORT_GENERATION = "report_generation"
     COMPLEX_ANALYSIS = "complex_analysis"
 
 

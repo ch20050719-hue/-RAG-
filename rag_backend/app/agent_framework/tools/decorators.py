@@ -29,13 +29,13 @@ def auto_register_tool(
     使用方式:
     ```python
     @auto_register_tool(
-        name="calculate_tax",
-        description="计算企业所得税",
-        category="tax",
-        tags=["税务", "计算"]
+        name="safe_calculation",
+        description="执行受限的家居参数计算",
+        category="smart_home",
+        tags=["智能家居", "计算"]
     )
-    async def calculate_tax(income: float, rate: float = 0.25) -> float:
-        return income * rate
+    async def safe_calculation(value: float) -> float:
+        return value
     ```
 
     Args:

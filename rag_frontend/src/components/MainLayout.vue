@@ -21,7 +21,6 @@ import {
   User,
   Network,
   History,
-  Shield,
   BarChart3,
   FileBarChart,
   UsersRound,
@@ -39,17 +38,12 @@ import {
   Target,
   GitBranch,
   Edit3,
-  Gift,
   Activity,
   Clock,
   ListChecks,
-  FileText,
-  Scale,
-  DollarSign,
-  BellRing,
-  PiggyBank,
   BarChart,
   ScrollText,
+  Home,
 } from 'lucide-vue-next'
 import NotificationBar from './NotificationBar.vue'
 
@@ -103,7 +97,7 @@ let unifiedNotificationPollTimer: ReturnType<typeof setInterval> | null = null
 const notifiedInvitationIds = new Set<string>()
 const hasInitializedInvitationNotifications = ref(false)
 
-const expandedGroups = ref<Set<string>>(new Set(['collaboration', 'knowledge', 'finance']))
+const expandedGroups = ref<Set<string>>(new Set(['collaboration', 'knowledge']))
 
 onMounted(async () => {
   try {
@@ -190,6 +184,7 @@ const menuGroups = computed<MenuGroup[]>(() => {
         { path: '/', icon: MessageSquare, label: '智能对话', name: 'chat' },
         { path: '/multi-agent', icon: Brain, label: '多智能体协作', name: 'multi-agent-chat' },
         { path: '/group-chat', icon: UsersRound, label: '群组聊天', name: 'group-chat' },
+        { path: '/home-devices', icon: Home, label: '智能家居', name: 'home-devices' },
       ]
     },
     {
@@ -202,31 +197,6 @@ const menuGroups = computed<MenuGroup[]>(() => {
         { path: '/knowledge', icon: Database, label: '知识库管理', name: 'knowledge' },
         { path: '/knowledge-graph', icon: Network, label: '知识图谱', name: 'knowledge-graph' },
         { path: '/knowledge-graph-editor', icon: Edit3, label: '知识图谱编辑器', name: 'knowledge-graph-editor' },
-      ]
-    },
-    {
-      id: 'finance',
-      title: '财税业务',
-      icon: FileBarChart,
-      defaultExpanded: true,
-      items: [
-        { path: '/financial-data-entry', icon: PiggyBank, label: '财务数据录入', name: 'financial-data-entry' },
-        { path: '/tax-intelligence', icon: DollarSign, label: '税务智能分析', name: 'tax-intelligence' },
-        { path: '/financial-health', icon: Activity, label: '财务健康监控', name: 'financial-health' },
-        { path: '/contract-review', icon: Scale, label: '合同智能审核', name: 'contract-review' },
-        { path: '/tax-submission', icon: FileBarChart, label: '税务提交', name: 'tax-submission' },
-        { path: '/hitl-approval', icon: CheckCircle, label: 'HITL审批', name: 'hitl-approval', permission: 'admin' },
-      ]
-    },
-    {
-      id: 'policy',
-      title: '政策服务',
-      icon: Sparkles,
-      defaultExpanded: true,
-      items: [
-        { path: '/policy', icon: Sparkles, label: '政策管理', name: 'policy' },
-        { path: '/policy-notifications', icon: BellRing, label: '政策通知', name: 'policy-notifications' },
-        { path: '/enterprise-match', icon: Target, label: '企业匹配', name: 'enterprise-match' },
       ]
     },
     {
@@ -264,8 +234,6 @@ const menuGroups = computed<MenuGroup[]>(() => {
         { path: '/agent-center', icon: Bot, label: '智能体中心', name: 'agent-center', permission: 'admin' },
         { path: '/intent-debug', icon: Brain, label: '意图调试', name: 'intent-debug', permission: 'admin' },
         { path: '/security-audit', icon: AlertTriangle, label: '安全审计', name: 'security-audit', permission: 'admin' },
-        { path: '/enterprise', icon: Users, label: '企业管理', name: 'enterprise', permission: 'admin' },
-        { path: '/audit/upload', icon: Shield, label: '审计系统', name: 'audit', permission: 'admin' },
       ]
     },
   ]
@@ -359,9 +327,9 @@ function goToProfile() {
       >
         <div v-if="!isSidebarCollapsed" class="flex items-center gap-3">
           <div class="premium-logo w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm">
-            <Database :size="16" class="text-white" />
+            <Home :size="16" class="text-white" />
           </div>
-          <span v-if="!isSidebarCollapsed" class="font-bold text-slate-900 tracking-tight text-sm leading-tight">企业财税智能平台</span>
+          <span v-if="!isSidebarCollapsed" class="font-bold text-slate-900 tracking-tight text-sm leading-tight">智能家居助手</span>
         </div>
         <button
           @click="toggleSidebar"
@@ -540,14 +508,6 @@ function goToProfile() {
                 >
                   <User :size="14" />
                   个人中心
-                </button>
-                <button
-                  v-if="isAdmin"
-                  @click="router.push('/enterprise'); showUserMenu = false"
-                  class="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                >
-                  <Users :size="14" />
-                  企业管理
                 </button>
                 <button
                   @click="logout"

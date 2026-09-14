@@ -602,8 +602,8 @@ def _normalize_notification(notification: Dict, raw: Optional[Any] = None) -> Di
             "message": "chat",
             "member_joined": "chat",
             "member_left": "chat",
-            "tax_reminder": "task",
-            "policy_update": "policy",
+            "home_scenario": "task",
+            "device_safety": "system",
         }.get(str(notification_type), "system")
 
     return {

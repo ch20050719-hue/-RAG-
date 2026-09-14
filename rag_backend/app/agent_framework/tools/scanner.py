@@ -126,7 +126,7 @@ class ToolScanner:
         导入模块并提取工具
 
         Args:
-            module_path: 模块路径（如 app.tools.financial_tools）
+            module_path: 模块路径（如 app.home_automation.device_tools）
             file_path: 文件路径
 
         Returns:

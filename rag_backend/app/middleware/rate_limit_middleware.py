@@ -1,12 +1,10 @@
 """
 API 限流中间件
 
-企业级API限流实现，支持：
-1. 多级限流：全局/租户/用户/API Key
-2. 多种限流策略：滑动窗口/令牌桶/固定窗口
-3. 分布式存储支持：内存/Redis
-4. 优雅降级：限流服务不可用时允许请求通过
-5. 标准HTTP响应：429状态码 + Retry-After头
+本科项目单机 API 限流实现，支持：
+1. 租户/用户/API Key/IP 限流键
+2. 滑动窗口/令牌桶/固定窗口策略
+3. 进程内存储和标准 429 响应
 
 使用示例：
 ```python
@@ -16,6 +14,7 @@ app.add_middleware(RateLimitMiddleware)
 """
 
 import asyncio
+import hashlib
 import logging
 import time
 from typing import Dict, Tuple
@@ -103,8 +102,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         "/api/v1/agent-task/events",
         "/api/v1/notifications",
         "/api/v1/notifications/list",
-        "/api/v1/policy/notifications",
-        "/api/v1/policy-notifications/stream",
         "/api/v1/security/tenants",
         "/api/v1/security/permissions",
         "/api/v1/security/cypher-validate",
@@ -124,9 +121,16 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         RateLimitMiddleware._instance = self
         self.strategy = RateLimitStrategy(strategy)
         self.enabled = settings.RATE_LIMIT_ENABLED
+        if settings.RATE_LIMIT_STORAGE != "memory":
+            raise RuntimeError("当前版本仅支持 RATE_LIMIT_STORAGE=memory")
+        self.default_tier = RateLimitTier(
+            requests_per_minute=settings.RATE_LIMIT_REQUESTS_PER_MINUTE,
+            requests_per_hour=settings.RATE_LIMIT_REQUESTS_PER_HOUR,
+            burst_size=settings.RATE_LIMIT_BURST_SIZE,
+        )
         
-        # 滑动窗口存储: {key: deque of timestamps}
-        self._sliding_windows: Dict[str, deque] = defaultdict(lambda: deque(maxlen=10000))
+        # 滑动窗口保留一小时内的时间戳；允许请求数受小时阈值约束，内存有界。
+        self._sliding_windows: Dict[str, deque] = defaultdict(deque)
         
         # 令牌桶存储: {key: (tokens, last_refill_time)}
         self._token_buckets: Dict[str, Tuple[float, float]] = {}
@@ -195,10 +199,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if method.upper() in {"OPTIONS", "HEAD"}:
             return True
 
-        return any(
-            path.startswith(excluded) or path == excluded 
-            for excluded in self.EXCLUDED_PATHS
-        )
+        return any(path == excluded or path.startswith(f"{excluded}/") for excluded in self.EXCLUDED_PATHS)
     
     def _generate_key(self, request: Request) -> str:
         """
@@ -212,7 +213,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # 1. 优先使用 API Key
         api_key = request.headers.get("X-API-Key") or request.query_params.get("api_key")
         if api_key:
-            return f"apikey:{api_key[:16]}"  # 截断保护
+            return f"apikey:{hashlib.sha256(api_key.encode('utf-8')).hexdigest()[:24]}"
         
         # 2. 使用 User ID
         user_id = getattr(request.state, "user_id", None)
@@ -230,15 +231,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     
     def _get_client_ip(self, request: Request) -> str:
         """获取客户端IP"""
-        # 优先从 X-Forwarded-For 获取
-        forwarded = request.headers.get("X-Forwarded-For")
-        if forwarded:
-            return forwarded.split(",")[0].strip()
-        
-        # 其次从 X-Real-IP 获取
-        real_ip = request.headers.get("X-Real-IP")
-        if real_ip:
-            return real_ip
+        if settings.RATE_LIMIT_TRUST_PROXY_HEADERS:
+            forwarded = request.headers.get("X-Forwarded-For")
+            if forwarded:
+                return forwarded.split(",")[0].strip()
+            real_ip = request.headers.get("X-Real-IP")
+            if real_ip:
+                return real_ip
         
         # 最后使用 client host
         if request.client:
@@ -252,7 +251,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             if path.startswith(endpoint):
                 return tier
         
-        return self.DEFAULT_TIER
+        return self.default_tier
     
     async def check_rate_limit(
         self,
@@ -284,8 +283,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 else:
                     return await self._check_sliding_window(key, tier)
             except Exception as e:
-                # 限流服务异常时，优雅降级：允许请求通过
-                logger.error(f"❌ 限流检查异常: {e}, 允许请求通过")
+                logger.error("限流检查异常: %s", e)
+                if settings.RATE_LIMIT_FAIL_CLOSED:
+                    return False, 30
                 return True, 0
     
     async def _check_sliding_window(
@@ -300,32 +300,32 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         统计当前窗口内的请求数，提供更平滑的限流。
         """
         now = time.time()
-        window_size = 60  # 1分钟窗口
-        
-        # 清理过期请求
-        cutoff_time = now - window_size
-        while self._sliding_windows[key] and self._sliding_windows[key][0] < cutoff_time:
-            self._sliding_windows[key].popleft()
-        
-        current_count = len(self._sliding_windows[key])
+        minute_window = 60
+        hour_window = 3600
+        timestamps = self._sliding_windows[key]
+
+        hour_cutoff = now - hour_window
+        while timestamps and timestamps[0] <= hour_cutoff:
+            timestamps.popleft()
+
+        minute_cutoff = now - minute_window
+        minute_timestamps = [timestamp for timestamp in timestamps if timestamp > minute_cutoff]
+        current_count = len(minute_timestamps)
         
         # 检查分钟级限制
         if current_count >= tier.requests_per_minute:
             # 计算需要等待的时间
-            oldest_timestamp = self._sliding_windows[key][0]
-            retry_after = int(oldest_timestamp + window_size - now) + 1
+            oldest_timestamp = minute_timestamps[0]
+            retry_after = int(oldest_timestamp + minute_window - now) + 1
             return False, max(1, retry_after)
         
-        # 检查小时级限制（简化：使用分钟数 * 60）
-        hour_cutoff = now - 3600
-        hour_requests = sum(1 for ts in self._sliding_windows[key] if ts > hour_cutoff)
-        if hour_requests >= tier.requests_per_hour:
-            oldest_in_hour = min((ts for ts in self._sliding_windows[key] if ts > hour_cutoff), default=now)
-            retry_after = int(oldest_in_hour + 3600 - now) + 1
+        if len(timestamps) >= tier.requests_per_hour:
+            oldest_in_hour = timestamps[0]
+            retry_after = int(oldest_in_hour + hour_window - now) + 1
             return False, max(1, retry_after)
         
         # 允许请求
-        self._sliding_windows[key].append(now)
+        timestamps.append(now)
         return True, 0
     
     async def _check_token_bucket(
@@ -405,7 +405,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             content={
                 "error": "Too Many Requests",
                 "message": f"请求过于频繁，请 {retry_after} 秒后重试",
-                "detail": f"Rate limit exceeded for {key}",
+                "detail": "Rate limit exceeded",
                 "retry_after": retry_after,
             },
             headers={
@@ -413,7 +413,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 "X-RateLimit-Limit": str(tier.requests_per_minute),
                 "X-RateLimit-Remaining": "0",
                 "X-RateLimit-Reset": str(int(time.time()) + retry_after),
-                "X-RateLimit-Key": key,
             }
         )
     
@@ -443,7 +442,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         response.headers["X-RateLimit-Limit"] = str(tier.requests_per_minute)
         response.headers["X-RateLimit-Remaining"] = str(remaining)
         response.headers["X-RateLimit-Reset"] = str(int(now) + 60)
-        response.headers["X-RateLimit-Key"] = key
     
     def get_stats(self) -> Dict:
         """获取限流统计信息"""

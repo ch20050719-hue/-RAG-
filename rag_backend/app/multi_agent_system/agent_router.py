@@ -43,7 +43,7 @@ class RouteDecision:
     
     只包含"去哪里"，不包含"怎么去"
     """
-    target_agent_type: str                    # 目标 Agent 类型（如 "finance", "tax"）
+    target_agent_type: str                    # 目标 Agent 类型（如 "home_butler", "device_control"）
     target_agent_ids: List[str]               # 目标 Agent ID 列表（可能有多个候选）
     mode: RouteMode = RouteMode.RULE_BASED    # 路由模式
     confidence: float = 1.0                   # 路由置信度
@@ -121,31 +121,13 @@ class AgentRouter:
         """构建内置规则路由"""
         self._rules = [
             RoutingRule(
-                name="financial_data_missing",
-                description="黑板中有 financial_data 但为空 → 路由到数据导入建议",
-                condition="blackboard.financial_data is empty",
-                check_fn="_check_financial_data_missing",
-                target_agent="data_import_advisor",
+                name="home_device_action",
+                description="黑板标记智能家居设备动作 → 路由到家居专家",
+                condition="blackboard.home_action is present",
+                check_fn="_check_home_action",
+                target_agent="home_butler",
                 priority=100,
-                required_blackboard_fields=["financial_data"],
-            ),
-            RoutingRule(
-                name="tax_data_ready_for_analysis",
-                description="黑板中有 tax_data 且 task_status=need_tax_analysis → 路由到税务专家",
-                condition="blackboard.tax_data exists AND task_status=need_tax_analysis",
-                check_fn="_check_tax_data_ready",
-                target_agent="tax",
-                priority=90,
-                required_blackboard_fields=["tax_data", "task_status"],
-            ),
-            RoutingRule(
-                name="finance_data_ready_for_analysis",
-                description="黑板中有 finance_data 且 task_status=need_finance → 路由到财务专家",
-                condition="blackboard.finance_data exists AND task_status=need_finance",
-                check_fn="_check_finance_data_ready",
-                target_agent="finance",
-                priority=90,
-                required_blackboard_fields=["finance_data", "task_status"],
+                required_blackboard_fields=["home_action"],
             ),
             RoutingRule(
                 name="multi_agent_collaboration",
@@ -161,19 +143,13 @@ class AgentRouter:
     def _build_intent_mapping(self):
         """构建意图到 Agent 的映射"""
         self._intent_to_agent = {
-            IntentCategory.FINANCIAL_ANALYSIS.value: "finance",
-            IntentCategory.ACCOUNTING_QUERY.value: "finance",
-            IntentCategory.INVESTMENT_ADVISORY.value: "finance",
-            IntentCategory.COST_CONTROL.value: "finance",
-            IntentCategory.RISK_ANALYSIS.value: "finance",
-            IntentCategory.TAX_CALCULATION.value: "tax",
-            IntentCategory.TAX_PLANNING.value: "tax",
-            IntentCategory.TAX_COMPLIANCE.value: "tax",
-            IntentCategory.TAX_DECLARATION.value: "tax",
-            IntentCategory.CONTRACT_REVIEW.value: "legal",
-            IntentCategory.LEGAL_CONSULTATION.value: "legal",
-            IntentCategory.COMPLIANCE_CHECK.value: "compliance",
-            IntentCategory.IP_PROTECTION.value: "legal",
+            IntentCategory.HOME_CONTROL.value: "home_butler",
+            IntentCategory.DEVICE_SWITCH.value: "device_control",
+            IntentCategory.DEVICE_STATUS.value: "device_control",
+            IntentCategory.SENSOR_READING.value: "environment",
+            IntentCategory.COMFORT_ASSESSMENT.value: "environment",
+            IntentCategory.SLEEP_MODE.value: "comfort",
+            IntentCategory.ENERGY_SAVE.value: "comfort",
         }
     
     def _refresh_agent_map(self):
@@ -458,35 +434,24 @@ class AgentRouter:
             return [cap.agent_id]
         return []
     
-    def _check_financial_data_missing(self, blackboard: Dict[str, Any]) -> bool:
-        """检查财务数据是否缺失"""
-        financial_data = blackboard.get("financial_data")
-        return financial_data is None or (
-            isinstance(financial_data, (list, dict)) and len(financial_data) == 0
-        )
-    
-    def _check_tax_data_ready(self, blackboard: Dict[str, Any]) -> bool:
-        """检查税务数据是否就绪"""
-        tax_data = blackboard.get("tax_data")
-        task_status = blackboard.get("task_status")
-        return (
-            tax_data is not None
-            and isinstance(tax_data, (list, dict))
-            and len(tax_data) > 0
-            and task_status == "need_tax_analysis"
-        )
+    def _check_device_data_missing(self, blackboard: Dict[str, Any]) -> bool:
+        """检查设备数据是否缺失。"""
+        devices = blackboard.get("devices")
+        return devices is None or (isinstance(devices, (list, dict)) and not devices)
 
-    def _check_finance_data_ready(self, blackboard: Dict[str, Any]) -> bool:
-        """检查财务数据是否就绪"""
-        finance_data = blackboard.get("finance_data")
-        task_status = blackboard.get("task_status")
-        return (
-            finance_data is not None
-            and isinstance(finance_data, (list, dict))
-            and len(finance_data) > 0
-            and task_status == "need_finance"
-        )
+    def _check_environment_ready(self, blackboard: Dict[str, Any]) -> bool:
+        """检查环境读数是否就绪。"""
+        readings = blackboard.get("environment_readings")
+        return isinstance(readings, (list, dict)) and bool(readings)
+
+    def _check_device_ready(self, blackboard: Dict[str, Any]) -> bool:
+        """检查设备状态是否可用于控制。"""
+        return bool(blackboard.get("device_status"))
 
     def _check_requires_collaboration(self, blackboard: Dict[str, Any]) -> bool:
         """检查是否需要多专家协作"""
         return blackboard.get("requires_collaboration", False) is True
+
+    def _check_home_action(self, blackboard: Dict[str, Any]) -> bool:
+        """检查黑板是否包含待处理的智能家居动作。"""
+        return bool(blackboard.get("home_action"))

@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from starlette.requests import Request
 from contextlib import asynccontextmanager
 import logging
+import os
+from pathlib import Path
 from sqlalchemy import text
 from app.core.config import settings
 from app.db.session import engine
@@ -14,8 +16,8 @@ from app.core.resource_manager import make_resource_manager, RedisConnectionPool
 # ➕ 2. 必须导入 models 里的文件！
 # 只有导入了 document，SQLAlchemy 才知道 "哦，原来有一个叫 Document 的子类要建表"
 # 如果不导入这行，Base.metadata 里面是空的，就不会建表。
-from app.models import tax_report, user_financial_data, tenant_settings, policy, financial_health, contract_review, agent_task, custom_tool, system_settings, multi_agent_session, multi_agent_report
-from app.api.v1.endpoints import document as document_router, search, chat, auth, session, knowledge, agent_trace, tool_trace, prompt_optimization, memory, knowledge_graph, audit, invite_code, enterprise, logs, chat_logs, tax_report, human_review, multi_agent, group_chat, user_financial_data, tenant_settings, policy, rate_limit, streaming, snapshot, suggestion, tax_intelligence, financial_health, policy_tracking, contract_review, task_manager, agent_llm_config, agent_discovery, financial_tools_test, workflow_events, policy_notifications, policy_agent, workflow, security, custom_tools, feedback, multimodal_config
+from app.models import tenant_settings, agent_task, custom_tool, system_settings, multi_agent_session, multi_agent_report
+from app.api.v1.endpoints import document as document_router, search, chat, auth, session, knowledge, agent_trace, tool_trace, prompt_optimization, memory, knowledge_graph, logs, chat_logs, human_review, multi_agent, group_chat, tenant_settings, rate_limit, streaming, snapshot, suggestion, task_manager, agent_llm_config, agent_discovery, workflow_events, security, custom_tools, feedback, multimodal_config, home_devices
 from app.api.v1.endpoints import agent_task as agent_task_endpoint
 from app.api.v1.endpoints.circuit_breaker_api import router as circuit_breaker_router
 from app.observability.router import router as observability_router
@@ -29,6 +31,9 @@ from app.middleware.tenant_middleware import TenantContextMiddleware
 from app.middleware.logging_middleware import LoggingMiddleware
 # 🔒 导入限流中间件
 from app.middleware.rate_limit_middleware import RateLimitMiddleware
+from app.security.interaction_safety import interaction_guard
+from app.security.rule_repository import load_rules
+from app.services.tenant_security_service import tenant_security
 
 import asyncio
 from app.services.group_chat_service import group_chat_ws_manager
@@ -59,6 +64,26 @@ async def lifespan(app: FastAPI):
     
     logger.info(f"🚀 {settings.PROJECT_NAME} 正在启动...")
 
+    # 规则必须在接受请求前加载；失败时保持 fail-closed，避免空规则集放行高危请求。
+    rules_root = Path(settings.SECURITY_RULES_DIR)
+    if not rules_root.is_absolute():
+        rules_root = Path(__file__).resolve().parent.parent / rules_root
+    try:
+        rule_snapshot = load_rules(rules_root, version=settings.SECURITY_RULES_VERSION)
+        interaction_guard.configure_rules(
+            rule_snapshot.rules,
+            version=rule_snapshot.version,
+            sha256=rule_snapshot.sha256,
+        )
+        app.state.security_rules = rule_snapshot
+        logger.info("✅ 安全规则加载完成: version=%s files=%d rules=%d regex=%d sha256=%s",
+                    rule_snapshot.version, rule_snapshot.file_count, rule_snapshot.rule_count,
+                    rule_snapshot.regex_rule_count, rule_snapshot.sha256)
+    except Exception:
+        logger.exception("❌ 安全规则加载失败: %s", rules_root)
+        if settings.SECURITY_RULES_FAIL_CLOSED:
+            raise
+
     logger.info("正在尝试连接数据库...")
     try:
         async with engine.begin() as conn:
@@ -81,8 +106,6 @@ async def lifespan(app: FastAPI):
         await background_tasks.start("cleanup_expired_presence", cleanup_expired_presence_task())
         logger.info("✅ 在线状态清理任务已启动")
 
-        logger.info("✅ 政策在线采集服务已就绪（仅手动触发，不随项目启动自动采集）")
-        
         from app.services.task_scheduler import task_scheduler
         await task_scheduler.start()
         logger.info("✅ 定时任务调度器已启动")
@@ -166,7 +189,6 @@ async def lifespan(app: FastAPI):
         # 🆕 初始化技能系统
         try:
             from app.skills.skill_registry import SkillRegistry
-            from pathlib import Path
             skills_dir = Path(__file__).resolve().parent.parent / "skills"
             count = await SkillRegistry.initialize(scan_paths=[skills_dir])
             app.state.skill_registry = SkillRegistry
@@ -178,9 +200,28 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning(f"⚠️ 技能系统初始化失败: {e}")
 
+        # 设备适配器默认使用模拟实现；显式选择 MQTT 时，连接失败应阻止
+        # 应用以“看似在线”的状态启动，避免控制请求被静默丢失。
+        try:
+            from app.home_automation.device_tools import initialize_device_service
+
+            app.state.home_device_service = initialize_device_service()
+            logger.info("✅ 智能家居设备服务已初始化: adapter=%s", os.getenv("HOME_DEVICE_ADAPTER", "simulated"))
+        except Exception:
+            logger.exception("❌ 智能家居设备服务初始化失败")
+            if os.getenv("HOME_DEVICE_ADAPTER", "simulated").strip().lower() == "mqtt":
+                raise
+
         yield
 
         logger.info(f"🛑 {settings.PROJECT_NAME} 正在关闭...")
+        try:
+            from app.home_automation.device_tools import close_device_service
+
+            close_device_service()
+            logger.info("✅ 智能家居设备服务已关闭")
+        except Exception:
+            logger.exception("⚠️ 智能家居设备服务关闭失败")
         arq_worker = getattr(app.state, "arq_worker", None)
         if arq_worker is not None:
             arq_worker.stop()
@@ -198,6 +239,22 @@ async def lifespan(app: FastAPI):
 
 # ... 下面的代码保持不变 ...
 app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
+
+
+async def _persist_interaction_security_event(payload: dict) -> None:
+    """只把阻断/终止事件写入租户审计表，正常请求保留在本地结构化日志。"""
+    if payload.get("event") not in {"blocked", "terminated"}:
+        return
+    await tenant_security.log_security_event(
+        event_type=f"interaction_safety_{payload['event']}",
+        details=payload,
+        severity="critical" if payload.get("risk_level") == "critical" else "high",
+        user_id=payload.get("principal_id"),
+        tenant_id=payload.get("tenant_id"),
+    )
+
+
+interaction_guard.audit_sink = _persist_interaction_security_event
 
 # 🔧 测试端点 - 用于诊断请求是否到达
 from fastapi import UploadFile, File
@@ -220,40 +277,6 @@ async def ping():
     import time
     return {"pong": True, "timestamp": time.time()}
 
-@app.get("/debug/tax-upload-diagnostic")
-async def tax_upload_diagnostic(request: Request):
-    """税务上传诊断端点 - 验证请求路径和认证"""
-    import time
-    from app.core.security import decode_access_token
-    
-    result = {
-        "timestamp": time.time(),
-        "path": str(request.url.path),
-        "method": request.method,
-        "headers": dict(request.headers),
-        "query_params": dict(request.query_params),
-        "client_ip": request.client.host if request.client else None,
-        "auth_header_exists": "authorization" in [h.lower() for h in request.headers.keys()],
-        "token_payload": None,
-        "token_error": None,
-    }
-    
-    auth_header = request.headers.get("authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        try:
-            token = auth_header.split(" ")[1]
-            payload = decode_access_token(token)
-            result["token_payload"] = {
-                "user_id": payload.get("sub"),
-                "tenant_id": payload.get("tenant_id"),
-                "exp": payload.get("exp"),
-            }
-        except Exception as e:
-            result["token_error"] = str(e)
-    
-    return result
-
-
 # 添加租户上下文中间件
 # 注意：中间件按注册顺序反向执行，所以 TenantContextMiddleware 在 CORSMiddleware 之前
 app.add_middleware(TenantContextMiddleware)
@@ -265,13 +288,15 @@ app.add_middleware(LoggingMiddleware)
 app.add_middleware(RateLimitMiddleware)
 
 # 👇 配置 CORS 中间件（必须在最后添加，使其最先执行）
-# 允许所有来源访问 (开发阶段图方便，生产环境可以指定域名)
+_cors_origins = [origin.strip() for origin in settings.CORS_ALLOWED_ORIGINS.split(",") if origin.strip()]
+if not _cors_origins or "*" in _cors_origins:
+    raise RuntimeError("CORS_ALLOWED_ORIGINS must contain explicit origins; wildcard is forbidden")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_cors_origins,
+    allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-API-Key", "Last-Event-ID"],
 )
 
 
@@ -283,10 +308,9 @@ app.include_router(suggestion.router, prefix="/api/v1", tags=["Suggestion"])
 
 app.include_router(document_router.router, prefix="/api/v1/documents", tags=["Documents"])
 app.include_router(search.router, prefix="/api/v1/search", tags=["Search"])
-app.include_router(policy.router, prefix="/api/v1/policy", tags=["Policy Management"]) # 🆕 政策管理
-
 #挂载聊天接口
 app.include_router(chat.router, prefix="/api/v1/chat", tags=["Chat"])
+app.include_router(home_devices.router, prefix="/api/v1/home", tags=["Home Automation"])
 
 # app.router.include_router(auth.router, prefix="/auth", tags=["Auth"]) # 👈 新增这行
 
@@ -299,23 +323,13 @@ app.include_router(custom_tools.router, prefix="/api/v1/custom-tools", tags=["Cu
 app.include_router(tool_trace.router, prefix="/api/v1/tool_trace", tags=["Tool Trace"]) # 🆕 工具追踪
 app.include_router(tool_trace.router, prefix="/api/v1/tool-trace", tags=["Tool Trace"]) # 兼容前端 hyphen 路径
 app.include_router(prompt_optimization.router, prefix="/api/v1/prompt", tags=["Prompt Optimization"]) # 🆕 Prompt 优化
-app.include_router(financial_tools_test.router, prefix="/api/v1/financial-tools-test", tags=["财务工具测试"]) # 🆕 财务工具测试
 app.include_router(memory.router, prefix="/api/v1/memory", tags=["Memory System"]) # 🆕 记忆系统
 app.include_router(knowledge_graph.router, prefix="/api/v1/knowledge_graph", tags=["Knowledge Graph"]) # 🆕 知识图谱
-app.include_router(audit.router, prefix="/api/v1/audit", tags=["Multi-Agent Audit"]) # 🆕 多智能体审查
-app.include_router(invite_code.router, prefix="/api/v1/invite-codes", tags=["Invite Codes"]) # 🆕 邀请码管理
-app.include_router(enterprise.router, prefix="/api/v1/enterprise", tags=["Enterprise Management"]) # 🆕 企业用户管理
 app.include_router(logs.router, prefix="/api/v1/logs", tags=["Logging System"]) # 🆕 日志系统
 app.include_router(chat_logs.router, prefix="/api/v1/chat-logs", tags=["Chat Logs"]) # 🆕 对话日志
-app.include_router(tax_report.router, prefix="/api/v1/tax-reports", tags=["Tax Reports"]) # 🆕 税务报告管理
-app.include_router(tax_intelligence.router, prefix="/api/v1", tags=["Tax Intelligence"]) # 🆕 税务智能分析
-app.include_router(financial_health.router, prefix="/api/v1", tags=["Financial Health"]) # 🆕 财务健康监控
-app.include_router(policy_tracking.router, prefix="/api/v1", tags=["Policy Tracking"]) # 🆕 政策法规追踪
-app.include_router(contract_review.router, prefix="/api/v1", tags=["Contract Review"]) # 🆕 合同审核
 app.include_router(human_review.router, prefix="/api/v1/human-review", tags=["Human Review"]) # 🆕 人工审核
 app.include_router(multi_agent.router, prefix="/api/v1/multi-agent", tags=["Multi-Agent System"]) # 🆕 多智能体系统
 app.include_router(security.router, prefix="/api/v1", tags=["Security Monitor"]) # 🆕 安全监控
-app.include_router(user_financial_data.router, prefix="/api/v1", tags=["Financial Data Management"]) # 🆕 财务数据管理
 
 # 用户反馈与失败案例
 app.include_router(feedback.router, prefix="/api/v1", tags=["User Feedback"]) # 🆕 反馈系统 (P1)
@@ -368,14 +382,9 @@ app.include_router(task_manager.router, prefix="/api/v1/task-manager", tags=["Ta
 app.include_router(workflow_events.router, prefix="/api/v1", tags=["Workflow Events"]) # 🆕 工作流事件实时推送
 
 # 工作流监控 API
-app.include_router(workflow.router, prefix="/api/v1", tags=["Workflow Monitor"]) # 🆕 工作流监控
 
 # 熔断器管理 API
 app.include_router(circuit_breaker_router, prefix="/api/v1", tags=["Circuit Breaker Management"]) # 🆕 熔断器管理
-
-# 政策通知 SSE 推送
-app.include_router(policy_notifications.router, prefix="/api/v1", tags=["Policy Notifications"]) # 🆕 政策通知实时推送
-app.include_router(policy_agent.router, prefix="/api/v1", tags=["Policy Notification Agent"]) # 🆕 政策通知智能体
 
 # Agent 任务状态 API（用于前端水合）
 app.include_router(agent_task_endpoint.router, prefix="/api/v1", tags=["Agent Task Status"]) # 🆕 任务状态持久化与恢复

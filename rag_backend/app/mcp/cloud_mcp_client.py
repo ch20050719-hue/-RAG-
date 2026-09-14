@@ -9,6 +9,8 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 import httpx
+from app.core.config import settings
+from app.security.outbound_url import validate_configured_service_url
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +28,15 @@ class CloudMCPClient:
         api_key: str = None,
         timeout: int = 120
     ):
-        self.server_url = (server_url or os.getenv("MCP_SERVER_URL", "")).rstrip("/")
+        raw_server_url = server_url or os.getenv("MCP_SERVER_URL", "")
+        self.server_url = (
+            validate_configured_service_url(
+                raw_server_url,
+                allowed_hosts=settings.OUTBOUND_ALLOWED_HOSTS.split(","),
+                private_hosts=settings.OUTBOUND_PRIVATE_HOSTS.split(","),
+            ).geturl().rstrip("/")
+            if raw_server_url else ""
+        )
         self.api_key = api_key or os.getenv("MCP_API_KEY", "")
         self.timeout = timeout
         self._headers = {
@@ -48,7 +58,7 @@ class CloudMCPClient:
             return False
         
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
+            async with httpx.AsyncClient(timeout=10, follow_redirects=False) as client:
                 response = await client.get(f"{self.server_url}/health")
                 if response.status_code == 200:
                     self._connected = True
@@ -70,6 +80,11 @@ class CloudMCPClient:
     async def call_tool(self, tool_name: str, **kwargs) -> 'MCPToolResult':
         """调用云端 MCP 工具"""
         from app.mcp.mcp_factory import MCPToolResult
+        from app.mcp.mcp_factory import _authorize_tool_call
+
+        authorization_error = _authorize_tool_call(tool_name, kwargs)
+        if authorization_error:
+            return MCPToolResult(success=False, data=None, error=authorization_error)
         
         if not self._connected:
             connected = await self.connect()
@@ -81,7 +96,7 @@ class CloudMCPClient:
                 )
         
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=False) as client:
                 response = await client.post(
                     f"{self.server_url}/mcp/call",
                     headers=self._headers,
@@ -130,7 +145,7 @@ class CloudMCPClient:
         
         if not self._tools:
             try:
-                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=False) as client:
                     response = await client.get(
                         f"{self.server_url}/tools",
                         headers=self._headers

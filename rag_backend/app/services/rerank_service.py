@@ -45,10 +45,10 @@ class RerankService:
     
     # 批量重排序
     results = await rerank_service.rerank(
-        query="什么是增值税专用发票？",
+        query="如何安全控制智能家居设备？",
         documents=[
-            "增值税专用发票是...",
-            "普通发票与专用发票...",
+            "智能家居设备控制需要校验设备白名单和在线状态...",
+            "设备手册说明了灯光与风扇的控制方式...",
             "企业所得税计算方法..."
         ],
         top_k=5

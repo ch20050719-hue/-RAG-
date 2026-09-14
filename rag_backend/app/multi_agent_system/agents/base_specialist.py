@@ -11,7 +11,7 @@ import logging
 from app.agent_framework.core.base_agent import BaseAgent
 from app.agent_framework.llm.base_adapter import BaseLLMAdapter
 from app.agent_framework.tools.tool_manager import ToolManager
-from ..state import AuditState, Finding, RiskLevel
+from ..state import HomeState, Finding, RiskLevel
 from ..config.knowledge_loader import load_knowledge_base, load_risk_rules
 
 if TYPE_CHECKING:
@@ -47,13 +47,13 @@ class BaseSpecialistAgent(BaseAgent):
         初始化专业 Agent
 
         Args:
-            specialty: 专业领域 (finance/tax/legal)
+            specialty: 智能家居专业领域 (home_butler/environment/device_control/comfort)
             llm_adapter: 大模型适配器
             tool_manager: 工具管理器
             system_prompt: 系统提示词
             max_iterations: 最大迭代次数
             timeout: 超时时间
-            skill_registry: 技能注册表 (可选, 注入后 Agent 自动感知领域技能)
+            skill_registry: 技能注册表 (可选, 注入后 Agent 自动感知家居技能)
         """
         super().__init__(
             llm_adapter=llm_adapter,
@@ -65,7 +65,7 @@ class BaseSpecialistAgent(BaseAgent):
         )
 
         self.specialty = specialty
-        self.current_state: Optional[AuditState] = None
+        self.current_state: Optional[HomeState] = None
 
         # 专业知识库
         self.knowledge_base = self._load_knowledge_base()
@@ -86,7 +86,7 @@ class BaseSpecialistAgent(BaseAgent):
     @abstractmethod
     async def audit(
         self,
-        state: AuditState,
+        state: HomeState,
         documents: List[Dict[str, Any]]
     ) -> List[Finding]:
         """
@@ -191,11 +191,10 @@ class BaseSpecialistAgent(BaseAgent):
         # 基于类别调整
         if category:
             category_weights = {
-                "资产负债": 1.2,
-                "现金流": 1.1,
-                "税务合规": 1.3,
-                "合同条款": 1.0,
-                "知识产权": 0.9
+                "设备控制安全": 1.3,
+                "批量操作": 1.2,
+                "系统配置": 1.1,
+                "环境安全": 1.0,
             }
             weight = category_weights.get(category, 1.0)
             base_score *= weight
@@ -262,7 +261,7 @@ class BaseSpecialistAgent(BaseAgent):
             description: 问题描述
             evidence: 证据列表
             recommendations: 建议列表
-            legal_basis: 法律依据
+            legal_basis: 规则依据（保留字段名以兼容既有结果接口）
             confidence: 置信度
             
         Returns:
@@ -351,7 +350,7 @@ class BaseSpecialistAgent(BaseAgent):
                 f"(风险等级: {knowledge['risk_level']})"
             )
         
-        prompt = f"""你是一位专业的{self.specialty}审查专家。请仔细审查以下文档，识别潜在的风险和问题。
+        prompt = f"""你是一位智能家居{self.specialty}安全审查专家。请仔细审查以下设备知识或场景配置，识别潜在风险和问题。
 
 【待审查文档】
 {chr(10).join(doc_info)}
@@ -364,7 +363,7 @@ class BaseSpecialistAgent(BaseAgent):
 2. 识别与{self.specialty}相关的风险和问题
 3. 提供具体的证据支持
 4. 给出改进建议
-5. 如适用，引用相关法律法规
+5. 说明所依据的设备安全规则
 
 {specific_instructions}
 
@@ -373,7 +372,7 @@ class BaseSpecialistAgent(BaseAgent):
 - 风险等级评估
 - 支持证据
 - 改进建议
-- 法律依据（如适用）
+- 规则依据（如适用）
 """
         
         return prompt
@@ -393,12 +392,10 @@ class BaseSpecialistAgent(BaseAgent):
             return []
 
         domain_map = {
-            "finance": "finance",
-            "tax": "tax",
-            "legal": "legal",
-            "financial": "finance",
-            "taxation": "tax",
-            "legislation": "legal",
+            "home_butler": "smart_home",
+            "environment": "smart_home",
+            "device_control": "smart_home",
+            "comfort": "smart_home",
         }
         mapped_domain = domain_map.get(self.specialty.lower())
         if not mapped_domain:
@@ -677,7 +674,7 @@ class BaseSpecialistAgent(BaseAgent):
                         result_str = (
                             f"[工具错误] {tool_name} 调用失败，缺少必需参数：{exc_str}。"
                             f"已传入参数：{list(arguments.keys())}。"
-                            f"请先调用 query_user_financial_data 获取财务数据，"
+                            f"请先调用 get_device_status 获取设备状态，"
                             f"再用返回数据构建完整参数后重新调用此工具。"
                             f"不要在没有真实数据的情况下调用计算或合规检查工具。"
                         )

@@ -16,11 +16,7 @@ class ReviewRequest(Base):
     """
     审核请求模型
     
-    用于记录需要人工审核的请求，包括：
-    - 税务报告异常检测
-    - 置信度低于阈值
-    - 发现高风险问题
-    - 用户主动发起的审核请求
+    用于记录智能家居设备控制、场景执行和安全规则触发的人工审核请求。
     """
     __tablename__ = "review_requests"
     
@@ -30,7 +26,7 @@ class ReviewRequest(Base):
     user_id = Column(UUID(as_uuid=True), nullable=False, index=True, comment="发起人ID")
     
     # 审核类型和优先级
-    review_type = Column(String(50), nullable=False, default="tax", comment="审核类型: tax/finance/legal/compliance")
+    review_type = Column(String(50), nullable=False, default="device_action", comment="审核类型: device_action/scenario/safety")
     priority = Column(String(20), nullable=False, default="normal", comment="优先级: low/normal/high/urgent")
     
     # 触发原因

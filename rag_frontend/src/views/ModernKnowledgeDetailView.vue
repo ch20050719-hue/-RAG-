@@ -135,9 +135,7 @@ function getStatusDescription(status: string): string {
 function getDomainLabel(meta_info: any): string {
   if (!meta_info || !meta_info.domain) return ''
   const labels: Record<string, string> = {
-    finance: '财务类 FinancialChunker',
-    tax: '税务类 TaxChunker',
-    legal: '法务类 LegalChunker',
+    smart_home: '智能家居类 SmartHomeChunker',
     general: '通用类 GeneralChunker'
   }
   return labels[meta_info.domain] || meta_info.domain
@@ -146,9 +144,7 @@ function getDomainLabel(meta_info: any): string {
 function getDomainColor(meta_info: any): string {
   if (!meta_info || !meta_info.domain) return ''
   const colors: Record<string, string> = {
-    finance: 'bg-amber-50 border-amber-200 text-amber-700',
-    tax: 'bg-blue-50 border-blue-200 text-blue-700',
-    legal: 'bg-purple-50 border-purple-200 text-purple-700',
+    smart_home: 'bg-cyan-50 border-cyan-200 text-cyan-700',
     general: 'bg-gray-50 border-gray-200 text-gray-600'
   }
   return colors[meta_info.domain] || 'bg-gray-50 border-gray-200 text-gray-600'
@@ -389,7 +385,7 @@ function formatDate(dateString: string): string {
               </div>
               <div class="mt-2 inline-block px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg">
                 <p class="text-xs text-blue-700">
-                  <span class="font-medium">提示：</span>文件名含「财务」「税务」「合同」等关键词，系统自动采用对应的优化切块策略，提升检索精度。
+                  <span class="font-medium">提示：</span>设备手册、传感器指南、场景定义和安全规则会自动采用对应的优化切块策略，提升检索精度。
                 </p>
                 <p class="text-xs text-blue-500 mt-1">状态流转：等待中 → 处理中 → 已完成 → 可检索</p>
               </div>
@@ -543,7 +539,7 @@ function formatDate(dateString: string): string {
               {{ getDomainLabel(selectedDoc.meta_info) }}
             </div>
             <p class="text-xs text-gray-500 mt-2">
-              文件名含「财务」「税务」「合同」等关键词自动触发对应策略。未匹配时由 LLM 自动分类。
+              设备手册、传感器指南、场景定义和安全规则会自动触发对应策略，未匹配时由 LLM 自动分类。
             </p>
           </div>
 

@@ -224,19 +224,14 @@ class ContextOptimizer:
             if fiscal_year:
                 parts.append(f"fy={fiscal_year}")
 
-            # 提取常见财务指标
-            financial_keys = [
-                ("total_revenue", "营收"),
-                ("total_profit", "利润"),
-                ("total_expenses", "总支出"),
-                ("total_cost", "总成本"),
-                ("avg_profit_margin", "利润率"),
-                ("net_income", "净利润"),
-                ("gross_profit", "毛利润"),
-                ("operating_profit", "营业利润"),
+            # 提取常见家居工具字段
+            home_keys = [
+                ("device_id", "设备"), ("device_type", "类型"), ("state", "状态"),
+                ("online", "在线"), ("room", "房间"), ("scenario", "场景"),
+                ("temperature", "温度"), ("humidity", "湿度"), ("light_level", "光照"),
             ]
 
-            for eng_key, cn_key in financial_keys:
+            for eng_key, cn_key in home_keys:
                 val = summary.get(eng_key) or raw_data.get(eng_key)
                 if val is not None:
                     if isinstance(val, float):

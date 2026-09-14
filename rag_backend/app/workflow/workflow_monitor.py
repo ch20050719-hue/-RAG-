@@ -79,9 +79,9 @@ class WorkflowMonitor:
     # 开始工作流
     with monitor.start_workflow(config) as workflow_id:
         # 执行节点
-        with monitor.start_node(workflow_id, "validate_tax", node_type=NodeType.NORMAL) as node_execution_id:
+        with monitor.start_node(workflow_id, "device_safety_check", node_type=NodeType.NORMAL) as node_execution_id:
             # 执行业务逻辑
-            result = validate_tax(data)
+            result = check_device_safety(data)
             # 记录节点输出
             monitor.complete_node(node_execution_id, output_data=result)
     ```

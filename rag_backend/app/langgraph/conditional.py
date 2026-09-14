@@ -92,10 +92,10 @@ def route_by_specialists(state: AgentState) -> str:
     if len(specialists) == 1:
         specialist = specialists[0]
         route_map = {
-            SpecialistType.FINANCE: "finance_specialist",
-            SpecialistType.TAX: "tax_specialist",
-            SpecialistType.LEGAL: "legal_specialist",
-            SpecialistType.REPORT: "report_specialist"
+            SpecialistType.HOME_BUTLER: "home_specialist",
+            SpecialistType.ENVIRONMENT: "home_specialist",
+            SpecialistType.DEVICE_CONTROL: "home_specialist",
+            SpecialistType.COMFORT: "home_specialist",
         }
         target = route_map.get(specialist, "direct_answer")
         logger.info(f"[路由] 单专家路由: {target}")
@@ -185,10 +185,10 @@ def create_parallel_routing(
         specialists = state.get("target_specialists", [])
         
         route_map = {
-            SpecialistType.FINANCE: "finance_specialist",
-            SpecialistType.TAX: "tax_specialist",
-            SpecialistType.LEGAL: "legal_specialist",
-            SpecialistType.REPORT: "report_specialist"
+            SpecialistType.HOME_BUTLER: "home_specialist",
+            SpecialistType.ENVIRONMENT: "home_specialist",
+            SpecialistType.DEVICE_CONTROL: "home_specialist",
+            SpecialistType.COMFORT: "home_specialist",
         }
         
         selected = []

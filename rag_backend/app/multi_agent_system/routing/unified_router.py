@@ -60,8 +60,6 @@ def route_by_blackboard_state(
         路由决策，如果没有匹配的规则则返回 None
     """
     task_status = blackboard.get("task_status", "")
-    financial_data = blackboard.get("financial_data")
-    tax_data = blackboard.get("tax_data")
     requires_collaboration = blackboard.get("requires_collaboration", False)
     
     if requires_collaboration and "multi_specialist" in available_nodes:
@@ -73,46 +71,12 @@ def route_by_blackboard_state(
             execution_mode="parallel",
         )
     
-    if task_status == "need_finance" and "finance_specialist" in available_nodes:
+    if task_status in {"need_home_control", "need_device_control", "need_environment"} and "home_specialist" in available_nodes:
         return RoutingDecision(
-            target_nodes=["finance_specialist"],
+            target_nodes=["home_specialist"],
             source=RoutingSource.BLACKBOARD_RULE,
             confidence=1.0,
-            reasoning=f"黑板状态 task_status={task_status} -> finance_specialist",
-        )
-    
-    if task_status == "need_tax_analysis" and "tax_specialist" in available_nodes:
-        return RoutingDecision(
-            target_nodes=["tax_specialist"],
-            source=RoutingSource.BLACKBOARD_RULE,
-            confidence=1.0,
-            reasoning=f"黑板状态 task_status={task_status} -> tax_specialist",
-        )
-    
-    if (
-        financial_data is not None
-        and isinstance(financial_data, dict)
-        and financial_data.get("status") == "ready"
-        and "finance_specialist" in available_nodes
-    ):
-        return RoutingDecision(
-            target_nodes=["finance_specialist"],
-            source=RoutingSource.BLACKBOARD_RULE,
-            confidence=1.0,
-            reasoning="财务数据已就绪 -> finance_specialist",
-        )
-    
-    if (
-        tax_data is not None
-        and isinstance(tax_data, dict)
-        and tax_data.get("status") == "ready"
-        and "tax_specialist" in available_nodes
-    ):
-        return RoutingDecision(
-            target_nodes=["tax_specialist"],
-            source=RoutingSource.BLACKBOARD_RULE,
-            confidence=1.0,
-            reasoning="税务数据已就绪 -> tax_specialist",
+            reasoning=f"黑板状态 task_status={task_status} -> home_specialist",
         )
     
     return None
@@ -174,9 +138,10 @@ def route_by_intent_result(
     
     if requires_specialists:
         node_map = {
-            "finance": "finance_specialist",
-            "tax": "tax_specialist",
-            "legal": "legal_specialist",
+            "home_butler": "home_specialist",
+            "device_control": "home_specialist",
+            "environment": "home_specialist",
+            "comfort": "home_specialist",
         }
         
         target_nodes = []
@@ -204,23 +169,17 @@ def route_by_intent_result(
             )
     
     intent_to_node = {
-        "financial_analysis": "finance_specialist",
-        "accounting_query": "finance_specialist",
-        "investment_advisory": "finance_specialist",
-        "cost_control": "finance_specialist",
-        "risk_analysis": "finance_specialist",
-        "tax_calculation": "tax_specialist",
-        "tax_planning": "tax_specialist",
-        "tax_compliance": "tax_specialist",
-        "tax_declaration": "tax_specialist",
-        "contract_review": "legal_specialist",
-        "legal_consultation": "legal_specialist",
-        "compliance_check": "compliance_specialist",
-        "ip_protection": "legal_specialist",
         "knowledge_query": "rag_retrieval",
         "document_search": "rag_retrieval",
         "greeting": "direct_answer",
         "chit_chat": "direct_answer",
+        "home_control": "home_specialist",
+        "device_switch": "home_specialist",
+        "device_status": "home_specialist",
+        "sensor_reading": "home_specialist",
+        "comfort_assessment": "home_specialist",
+        "sleep_mode": "home_specialist",
+        "energy_save": "home_specialist",
     }
     
     node = intent_to_node.get(intent_value)
@@ -292,9 +251,10 @@ def route_by_agent_capability(
         return None
     
     node_map = {
-        "finance": "finance_specialist",
-        "tax": "tax_specialist",
-        "legal": "legal_specialist",
+        "home_butler": "home_specialist",
+        "environment": "home_specialist",
+        "device_control": "home_specialist",
+        "comfort": "home_specialist",
     }
     
     node = node_map.get(best_type, f"{best_type}_specialist")

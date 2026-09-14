@@ -30,7 +30,7 @@ class TenantLLMConfigSchema(BaseModel):
 
 class CreateAgentLLMConfigRequest(BaseModel):
     """创建/更新智能体LLM配置的请求"""
-    agent_type: str = Field(..., description="智能体类型 (react, plan, reflect, output, report, reviewed, chat, greeting, finance, tax, legal)")
+    agent_type: str = Field(..., description="智能体类型 (react, plan, reflect, output, reviewed, chat, greeting, home_butler, environment, device_control, comfort)")
     provider: str = Field(..., description="LLM提供商 (gpt, zhipu, minimax, openai, claude, deepseek, qwen等)")
     model: Optional[str] = Field(None, description="模型名称")
     api_key: Optional[str] = Field(None, description="API Key（可选，不填则使用全局配置）")

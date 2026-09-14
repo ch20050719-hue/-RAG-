@@ -20,7 +20,7 @@ class AuditTask(Base):
     tenant_id = Column(String(50), nullable=False, index=True)
     
     # 审查类型
-    audit_type = Column(String(50))  # finance/tax/legal/comprehensive
+    audit_type = Column(String(50))  # smart_home_safety/comprehensive
     
     # 状态
     status = Column(String(20), default="pending", index=True)  # pending/processing/completed/failed

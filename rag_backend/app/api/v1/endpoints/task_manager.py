@@ -187,11 +187,6 @@ class TaskStatisticsResponse(BaseModel):
     upcoming_tasks: List[TaskResponse]
 
 
-class TaxReminderRequest(BaseModel):
-    tax_type: str
-    due_date: datetime
-
-
 @router.get("/list", response_model=TaskListResponse)
 async def list_tasks(
     task_type: Optional[str] = Query(None, description="任务类型"),
@@ -646,55 +641,6 @@ async def get_statistics(
     except Exception as e:
         logger.error(f"❌ 获取统计信息失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"获取统计信息失败: {str(e)}")
-
-
-@router.post("/setup/tax-reminder", response_model=TaskResponse)
-async def setup_tax_reminder(
-    request: TaxReminderRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    快速设置税务提醒任务
-    """
-    try:
-        tax_type_names = {
-            "vat": "增值税",
-            "income": "企业所得税",
-            "personal": "个人所得税",
-            "other": "其他税种"
-        }
-
-        task_name = f"税务申报提醒 - {tax_type_names.get(request.tax_type, request.tax_type)}"
-
-        task_id = f"tax_reminder_{uuid.uuid4().hex[:12]}"
-
-        task = ScheduledTask(
-            task_id=task_id,
-            user_id=current_user.id,
-            tenant_id=str(current_user.tenant_id),
-            task_type="tax_reminder",
-            name=task_name,
-            description=f"在申报截止日前提醒您完成{tax_type_names.get(request.tax_type, '税务')}申报",
-            frequency="once",
-            next_run_time=request.due_date,
-            task_params={"tax_type": request.tax_type, "due_date": request.due_date.isoformat()},
-            enabled=True,
-            status="pending",
-            created_at=datetime.now(timezone.utc)
-        )
-
-        db.add(task)
-        await db.commit()
-        await db.refresh(task)
-
-        await task_scheduler.add_task(task)
-
-        return task_to_response(task)
-    except Exception as e:
-        await db.rollback()
-        logger.error(f"❌ 创建税务提醒失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"创建税务提醒失败: {str(e)}")
 
 
 class LogDeleteRequest(BaseModel):

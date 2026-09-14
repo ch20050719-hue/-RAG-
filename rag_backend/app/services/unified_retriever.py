@@ -82,18 +82,18 @@ class UnifiedRetriever:
         # ── Step 2: 构建过滤条件 ──
         metadata_filter = query_analyzer.build_metadata_filter(query_meta)
 
-        # 时效过滤仅限 tax 领域（finance/legal 没有 effective_date 字段）
+        # 智能家居知识支持设备和版本元数据过滤。
         domain = query_meta.get("domain")
-        if domain == "tax":
+        if domain == "smart_home":
             temporal_filter = query_analyzer.build_temporal_filter(query_meta)
             if temporal_filter:
                 metadata_filter = {**(metadata_filter or {}), **temporal_filter}
 
-        # 财务指标 JSONB 数组过滤（评估模式下可跳过）
+        # 保留评估模式参数，但不再生成旧业务指标过滤器。
         jsonb_array_filter = None
         if not _skip_metric_filter:
-            metric = query_meta.get("filters", {}).get("metric")
-            jsonb_array_filter = {"metrics": metric} if metric else None
+            device_type = query_meta.get("filters", {}).get("device_type")
+            jsonb_array_filter = {"device_types": device_type} if device_type else None
 
         # ── Step 3: 混合检索 (Hybrid Search + RRF) ──
         candidates = await hybrid_search_engine.search(
@@ -124,7 +124,7 @@ class UnifiedRetriever:
         enriched = await self._enrich_results(deduped)
 
         # ── Step 6: Auto-Merging (仅 general) ──
-        if domain in (None, "general"):
+        if domain in (None, "smart_home"):
             enriched = await hybrid_search_engine.auto_merge(enriched)
 
         # ── Step 7: 多态 Prompt 组装 ──
@@ -301,7 +301,7 @@ class UnifiedRetriever:
                 if parent_summary:
                     chunk["parent_summary"] = parent_summary
                 domain = chunk.get("domain")
-                if domain == "tax":
+                if domain == "smart_home":
                     pn = await self._resolve_prev_next(str(chunk_id))
                     if pn.get("previous"):
                         chunk["prev_content"] = pn["previous"]

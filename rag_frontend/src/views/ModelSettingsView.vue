@@ -208,9 +208,10 @@ const localProviders = computed(() => providers.value.filter(p => p.group === 'l
 
 const roles: { key: ChatRole; label: string; desc: string; primary?: boolean }[] = [
   { key: 'chat', label: '默认对话模型', desc: '通用问答与检索增强对话的主模型（保存后立即生效）', primary: true },
-  { key: 'finance', label: '金融专家模型', desc: '财务分析类智能体' },
-  { key: 'tax', label: '税务专家模型', desc: '税务问答与计算类智能体' },
-  { key: 'legal', label: '法律专家模型', desc: '合同 / 法规类智能体' },
+  { key: 'home_butler', label: '家居总管家模型', desc: '自然语言家居编排与总控' },
+  { key: 'environment', label: '环境感知模型', desc: '温湿度、光照与人体状态' },
+  { key: 'device_control', label: '设备控制模型', desc: '设备状态查询与安全控制' },
+  { key: 'comfort', label: '舒适度模型', desc: '睡眠、离家与节能场景' },
 ]
 
 interface RoleForm {
@@ -763,7 +764,7 @@ async function reset(role: string) {
           <h4>对话模型的角色</h4>
           <ul>
             <li><b>默认对话模型（主模型）</b>：检索增强问答的主力模型，保存后对当前企业 <b>立即生效</b>。</li>
-            <li><b>金融 / 税务 / 法律 专家模型</b>：对应领域智能体专用，可与主模型用不同的模型/供应商。</li>
+            <li><b>家居专家模型</b>：总管家、环境感知、设备控制和舒适度角色可独立配置。</li>
           </ul>
         </section>
 
@@ -813,8 +814,8 @@ async function reset(role: string) {
         <section>
           <h4>生效范围</h4>
           <p>
-            「默认对话模型」在 <b>检索增强（agentic）对话主链路</b> 必定生效；金融/税务/法律专家配置在走
-            <b>专家路由</b> 的环节生效。配置变更对当前企业的新对话立即起作用，无需重启。
+            「默认对话模型」在 <b>检索增强（agentic）对话主链路</b> 必定生效；家居专家配置在走
+            <b>设备、环境或场景路由</b> 的环节生效。配置变更对当前企业的新对话立即起作用，无需重启。
           </p>
         </section>
       </div>

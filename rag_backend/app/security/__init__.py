@@ -33,6 +33,24 @@ from app.security.permission import (
     get_permission_checker,
 )
 
+from app.security.interaction_safety import (
+    InteractionSafetyGuard,
+    InteractionHandle,
+    RiskLevel,
+    SafetyAbort,
+    SafetyConfig,
+    SafetyDecision,
+    interaction_guard,
+)
+from app.security.tool_authorization import ToolAuthorizationError, authorize_tool_call
+from app.security.session_access import can_access_session
+from app.security.outbound_url import (
+    OutboundURLPolicyError,
+    validate_outbound_url,
+    validate_configured_service_url,
+    validate_resolved_outbound_url,
+)
+
 __all__ = [
     "CypherValidator",
     "ValidationResult",
@@ -51,4 +69,18 @@ __all__ = [
     "PermissionChecker",
     "PermissionDenied",
     "get_permission_checker",
+    "InteractionSafetyGuard",
+    "InteractionHandle",
+    "RiskLevel",
+    "SafetyAbort",
+    "SafetyConfig",
+    "SafetyDecision",
+    "interaction_guard",
+    "ToolAuthorizationError",
+    "authorize_tool_call",
+    "can_access_session",
+    "OutboundURLPolicyError",
+    "validate_outbound_url",
+    "validate_configured_service_url",
+    "validate_resolved_outbound_url",
 ]
