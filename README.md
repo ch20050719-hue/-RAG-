@@ -1,6 +1,6 @@
 # 大模型 + RAG 智能家居知识库
 
-一个面向企业知识问答与智能家居控制的全栈应用。项目以 FastAPI 提供后端 API，以 Vue 3 + Vite 提供管理与对话界面，并使用 LangChain/LangGraph 编排 RAG 检索、工具调用和多智能体流程。
+一个面向个人知识问答与智能家居控制的全栈应用。项目以 FastAPI 提供后端 API，以 Vue 3 + Vite 提供管理与对话界面，并使用 LangChain/LangGraph 编排 RAG 检索、工具调用和多智能体流程。
 
 ## 项目简介
 
