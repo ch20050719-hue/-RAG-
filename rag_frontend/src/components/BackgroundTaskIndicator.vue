@@ -17,7 +17,7 @@ const isCompleted = computed(() =>
   taskStore.activeTask.currentStage === 'response'
 )
 
-const isMultiAgentPage = computed(() => route.name === 'multi-agent-chat')
+const isChatPage = computed(() => route.name === 'chat')
 
 const stageLabels: Record<string, string> = {
   receptionist: '接收输入',
@@ -71,8 +71,8 @@ const taskProgress = computed(() => {
   return progress
 })
 
-function goToMultiAgent() {
-  router.push('/multi-agent')
+function goToChat() {
+  router.push('/')
 }
 
 function dismissTask() {
@@ -83,7 +83,7 @@ function dismissTask() {
 <template>
   <Transition name="slide-up">
     <div 
-      v-if="hasTask && !isMultiAgentPage"
+      v-if="hasTask && !isChatPage"
       class="fixed bottom-4 right-4 z-50 max-w-sm bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden"
     >
       <div 
@@ -107,7 +107,7 @@ function dismissTask() {
         <div class="flex items-center justify-between mb-3">
           <div class="flex items-center gap-2">
             <Brain :size="16" class="text-blue-600" />
-            <span class="text-sm font-medium text-gray-700">多智能体协作</span>
+            <span class="text-sm font-medium text-gray-700">智能对话处理中</span>
           </div>
           <span class="text-xs text-gray-500">{{ taskProgress }}%</span>
         </div>
@@ -127,7 +127,7 @@ function dismissTask() {
         </div>
         
         <button 
-          @click="goToMultiAgent"
+          @click="goToChat"
           class="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition-colors text-sm font-medium"
         >
           <span>{{ isCompleted ? '查看详情' : '查看进度' }}</span>

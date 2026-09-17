@@ -130,6 +130,10 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4"
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
+    # 自定义 OpenAI 兼容网关可能使用内部证书；本地开发可显式设为 false。
+    OPENAI_VERIFY_SSL: bool = True
+    # 默认不继承系统代理，避免失效代理阻断模型和 Embedding 请求。
+    OPENAI_TRUST_ENV: bool = False
     
     # Claude 配置（可选）
     CLAUDE_API_KEY: str = ""

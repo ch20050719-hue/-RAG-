@@ -10,10 +10,15 @@ from app.home_automation.default_devices import (
     DEFAULT_SENSOR_REGISTRATIONS,
 )
 from app.home_automation.device_models import (
+    AlertState,
     DeviceCommand,
     DeviceType,
     DeviceStateValue,
+    DoorLockAction,
+    DoorState,
+    HomeModeName,
     HomeScenarioName,
+    ModeExecutionStatus,
 )
 from app.home_automation.device_service import DeviceService
 from app.home_automation.safety_rules import evaluate_control_risk, validate_command_shape
@@ -49,11 +54,114 @@ def test_unknown_device_control_is_blocked(service: DeviceService):
     assert "not registered" in result.blocked_reason.lower()
 
 
-def test_environment_snapshot_contains_four_sensors(service: DeviceService):
+def test_environment_snapshot_contains_three_core_sensors(service: DeviceService):
     snapshot = service.get_environment("study")
 
     kinds = {reading.kind.value for reading in snapshot.readings}
-    assert {"temperature", "humidity", "illuminance", "motion"} <= kinds
+    assert kinds == {"temperature", "humidity", "co2"}
+
+
+def test_environment_snapshot_exposes_co2_quality_and_level(service: DeviceService):
+    snapshot = service.get_environment("study")
+
+    co2 = next(reading for reading in snapshot.readings if reading.sensor_id == "room_co2")
+
+    assert co2.value == 600
+    assert co2.unit == "ppm"
+    assert co2.quality.value == "valid"
+    assert co2.level.value == "normal"
+
+
+def test_three_dangerous_co2_samples_turn_on_the_fan():
+    adapter = SimulatedDeviceAdapter(
+        registrations=list(DEFAULT_DEVICE_REGISTRATIONS),
+        sensor_registrations=list(DEFAULT_SENSOR_REGISTRATIONS),
+    )
+    service = DeviceService(adapter=adapter)
+
+    alerts = []
+    for value in (1600, 1650, 1680):
+        adapter.update_sensor_value("room_co2", value)
+        alerts = service.evaluate_environment("study")
+
+    assert any(alert.state is AlertState.ACTIVE for alert in alerts)
+    assert service.get_device("desk_fan").state is DeviceStateValue.ON
+
+
+def test_normal_mode_is_an_explicit_successful_state_transition(service: DeviceService):
+    result = service.set_mode(HomeModeName.NORMAL)
+
+    assert result.accepted is True
+    assert result.overall_status is ModeExecutionStatus.SUCCESS
+    assert service.get_mode() is HomeModeName.NORMAL
+
+
+def test_sleep_mode_closes_light_and_engages_deadbolt(service: DeviceService):
+    service.set_device_state("desk_light", DeviceStateValue.ON)
+
+    result = service.set_mode(HomeModeName.SLEEP)
+
+    assert result.accepted is True
+    assert result.overall_status is ModeExecutionStatus.SUCCESS
+    assert [action.name for action in result.actions] == ["turn_off_light", "check_door_and_lock"]
+    assert result.actions[0].accepted is True
+    assert result.actions[1].accepted is True
+    assert service.get_device("desk_light").state is DeviceStateValue.OFF
+    assert service.get_mode() is HomeModeName.SLEEP
+    assert service.get_door_lock().deadbolt_state.value == "engaged"
+
+
+def test_away_mode_closes_light_and_fan_before_lock_step(service: DeviceService):
+    service.set_device_state("desk_light", DeviceStateValue.ON)
+    service.set_device_state("desk_fan", DeviceStateValue.ON)
+
+    result = service.set_mode(HomeModeName.AWAY)
+
+    assert result.accepted is True
+    assert result.overall_status is ModeExecutionStatus.SUCCESS
+    assert [action.name for action in result.actions] == [
+        "turn_off_light",
+        "turn_off_fan",
+        "check_door_and_lock",
+    ]
+    assert service.get_device("desk_light").state is DeviceStateValue.OFF
+    assert service.get_device("desk_fan").state is DeviceStateValue.OFF
+    assert service.get_door_lock().latch_state.value == "locked"
+
+
+def test_door_lock_rejects_lock_when_door_is_open(service: DeviceService):
+    service.set_door_state(DoorState.OPEN)
+
+    result = service.command_door_lock(DoorLockAction.LOCK)
+
+    assert result.accepted is False
+    assert "open" in result.message.lower()
+    assert service.get_door_lock().latch_state.value == "unlocked"
+
+
+def test_door_lock_requires_authorization_for_remote_unlock(service: DeviceService):
+    denied = service.command_door_lock(DoorLockAction.UNLOCK)
+    accepted = service.command_door_lock(DoorLockAction.UNLOCK, authorized=True)
+
+    assert denied.accepted is False
+    assert "authorization" in denied.message.lower()
+    assert accepted.accepted is True
+
+
+def test_releasing_deadbolt_requires_authorization_and_second_confirmation(service: DeviceService):
+    service.command_door_lock(DoorLockAction.ENGAGE_DEADBOLT)
+
+    denied = service.command_door_lock(DoorLockAction.RELEASE_DEADBOLT, authorized=True)
+    accepted = service.command_door_lock(
+        DoorLockAction.RELEASE_DEADBOLT,
+        authorized=True,
+        confirmed=True,
+    )
+
+    assert denied.accepted is False
+    assert "confirmation" in denied.message.lower()
+    assert accepted.accepted is True
+    assert service.get_door_lock().deadbolt_state.value == "released"
 
 
 def test_sleep_scenario_turns_off_light_and_fan(service: DeviceService):

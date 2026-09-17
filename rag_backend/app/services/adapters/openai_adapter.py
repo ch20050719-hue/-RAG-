@@ -7,6 +7,7 @@ OpenAI Embedding 适配器
 """
 
 from typing import List
+import httpx
 try:
     from openai import OpenAI
     OPENAI_AVAILABLE = True
@@ -14,6 +15,7 @@ except ImportError:
     OPENAI_AVAILABLE = False
     OpenAI = None
 
+from app.core.config import settings
 from .base_adapter import BaseEmbeddingAdapter
 
 
@@ -50,8 +52,25 @@ class OpenAIEmbeddingAdapter(BaseEmbeddingAdapter):
             raise ValueError("OpenAI API Key 不能为空")
         
         super().__init__(api_key, model_name, base_url, **kwargs)
-        
-        self.client = OpenAI(api_key=api_key, base_url=base_url)
+
+        verify_ssl_config = getattr(settings, "OPENAI_VERIFY_SSL", True)
+        if isinstance(verify_ssl_config, str):
+            verify_ssl = verify_ssl_config.lower() not in ("false", "0", "no", "off")
+        else:
+            verify_ssl = bool(verify_ssl_config)
+
+        trust_env_config = getattr(settings, "OPENAI_TRUST_ENV", False)
+        if isinstance(trust_env_config, str):
+            trust_env = trust_env_config.lower() in ("true", "1", "yes", "on")
+        else:
+            trust_env = bool(trust_env_config)
+
+        self._http_client = httpx.Client(verify=verify_ssl, trust_env=trust_env)
+        self.client = OpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            http_client=self._http_client,
+        )
         self.max_length = self.MAX_LENGTH
         
         # 只在首次初始化时打印详细信息

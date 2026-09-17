@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ElNotification } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { useSessionStore } from '@/stores/session'
-import { useGroupChatStore } from '@/stores/group-chat'
 import { useEnterpriseTheme } from '@/composables/useEnterpriseTheme'
 import { useUnifiedNotifications } from '@/composables/useUnifiedNotifications'
 import BackgroundTaskIndicator from './BackgroundTaskIndicator.vue'
@@ -12,7 +10,6 @@ import {
   MessageSquare,
   Database,
   Search,
-  Users,
   Settings,
   LogOut,
   ChevronLeft,
@@ -22,13 +19,9 @@ import {
   Network,
   History,
   BarChart3,
-  FileBarChart,
-  UsersRound,
-  TrendingUp,
   Bot,
   CheckCircle,
   Brain,
-  AlertTriangle,
   Bell,
   ChevronDown,
   Eye,
@@ -40,9 +33,6 @@ import {
   Edit3,
   Activity,
   Clock,
-  ListChecks,
-  BarChart,
-  ScrollText,
   Home,
 } from 'lucide-vue-next'
 import NotificationBar from './NotificationBar.vue'
@@ -70,10 +60,8 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const sessionStore = useSessionStore()
-const groupChatStore = useGroupChatStore()
 const {
   notifications: unifiedNotifications,
-  unreadCount: notificationUnreadCount,
   loadNotifications: loadUnifiedNotifications,
   refresh: refreshUnifiedNotifications
 } = useUnifiedNotifications()
@@ -94,18 +82,14 @@ const isSidebarCollapsed = ref(localStorage.getItem('sidebar_collapsed') === 'tr
 const showUserMenu = ref(false)
 const showNotificationPanel = ref(false)
 let unifiedNotificationPollTimer: ReturnType<typeof setInterval> | null = null
-const notifiedInvitationIds = new Set<string>()
-const hasInitializedInvitationNotifications = ref(false)
 
 const expandedGroups = ref<Set<string>>(new Set(['collaboration', 'knowledge']))
 
 onMounted(async () => {
   try {
     await Promise.all([
-      groupChatStore.fetchNotifications(),
       loadUnifiedNotifications('all', true)
     ])
-    groupChatStore.startNotificationPoll()
     unifiedNotificationPollTimer = setInterval(() => {
       refreshUnifiedNotifications()
     }, 30000)
@@ -116,7 +100,6 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  groupChatStore.stopNotificationPoll()
   if (unifiedNotificationPollTimer) {
     clearInterval(unifiedNotificationPollTimer)
     unifiedNotificationPollTimer = null
@@ -136,42 +119,12 @@ watch(isSidebarCollapsed, (collapsed) => {
   }
 })
 
-watch(
-  unifiedNotifications,
-  (notifications) => {
-    const invitations = notifications.filter(notification =>
-      notification.category === 'chat' &&
-      notification.metadata?.type === 'invitation' &&
-      !notification.isRead
-    )
-
-    if (!hasInitializedInvitationNotifications.value) {
-      invitations.forEach(notification => notifiedInvitationIds.add(notification.id))
-      hasInitializedInvitationNotifications.value = true
-      return
-    }
-
-    for (const invitation of invitations) {
-      if (notifiedInvitationIds.has(invitation.id)) continue
-      notifiedInvitationIds.add(invitation.id)
-      ElNotification({
-        title: '群聊邀请',
-        message: invitation.message || '你收到了一条新的群聊邀请',
-        type: 'info',
-        duration: 8000,
-        position: 'bottom-right',
-        onClick: () => {
-          router.push('/notifications')
-        }
-      })
-    }
-  },
-  { deep: true }
-)
-
 const isAdmin = computed(() => authStore.isAdmin || localStorage.getItem('rag_user_role') === 'admin')
 const userRole = computed<MenuRole>(() => isAdmin.value ? 'admin' : 'user')
 const userEmail = computed(() => authStore.userEmail || localStorage.getItem('rag_user_email') || '')
+const homeNotificationUnreadCount = computed(() =>
+  unifiedNotifications.value.filter(notification => notification.category !== 'chat' && !notification.isRead).length
+)
 
 const menuGroups = computed<MenuGroup[]>(() => {
   const groups: MenuGroup[] = [
@@ -182,8 +135,6 @@ const menuGroups = computed<MenuGroup[]>(() => {
       defaultExpanded: true,
       items: [
         { path: '/', icon: MessageSquare, label: '智能对话', name: 'chat' },
-        { path: '/multi-agent', icon: Brain, label: '多智能体协作', name: 'multi-agent-chat' },
-        { path: '/group-chat', icon: UsersRound, label: '群组聊天', name: 'group-chat' },
         { path: '/home-devices', icon: Home, label: '智能家居', name: 'home-devices' },
       ]
     },
@@ -201,17 +152,12 @@ const menuGroups = computed<MenuGroup[]>(() => {
     },
     {
       id: 'data',
-      title: '数据与监控',
+      title: '家居运行',
       icon: BarChart3,
       defaultExpanded: true,
       items: [
-        { path: '/analytics', icon: TrendingUp, label: '运营分析', name: 'analytics' },
-        { path: '/chat-logs', icon: ScrollText, label: '日志详情', name: 'chat-logs' },
         { path: '/notifications', icon: Bell, label: '通知中心', name: 'notifications' },
-        { path: '/task-management', icon: Clock, label: '定时任务', name: 'task-management' },
-        { path: '/multimodal-usage', icon: BarChart, label: '多模态用量', name: 'multimodal-usage' },
-        { path: '/feedback-management', icon: ListChecks, label: '反馈管理', name: 'feedback-management', permission: 'admin' },
-        { path: '/failure-analysis', icon: AlertTriangle, label: '失败分析', name: 'failure-analysis', permission: 'admin' },
+        { path: '/task-management', icon: Clock, label: '设备任务', name: 'task-management' },
       ]
     },
     {
@@ -229,11 +175,9 @@ const menuGroups = computed<MenuGroup[]>(() => {
       icon: Wrench,
       defaultExpanded: false,
       items: [
-        { path: '/settings/models', icon: Bot, label: 'API模型配置', name: 'model-settings', permission: 'admin' },
-        { path: '/custom-tools', icon: Wrench, label: '智能体工具', name: 'custom-tools', permission: 'admin' },
-        { path: '/agent-center', icon: Bot, label: '智能体中心', name: 'agent-center', permission: 'admin' },
+        { path: '/custom-tools', icon: Wrench, label: '设备工具', name: 'custom-tools', permission: 'admin' },
+        { path: '/agent-center', icon: Bot, label: '家居助手中心', name: 'agent-center', permission: 'admin' },
         { path: '/intent-debug', icon: Brain, label: '意图调试', name: 'intent-debug', permission: 'admin' },
-        { path: '/security-audit', icon: AlertTriangle, label: '安全审计', name: 'security-audit', permission: 'admin' },
       ]
     },
   ]
@@ -464,11 +408,11 @@ function goToProfile() {
           <Bell :size="17" class="text-slate-400" />
           <span v-if="!isSidebarCollapsed" class="text-sm text-slate-600">通知中心</span>
           <span
-            v-if="notificationUnreadCount > 0"
+            v-if="homeNotificationUnreadCount > 0"
             class="absolute right-3 top-1/2 -translate-y-1/2 min-w-[16px] h-[16px] bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center px-1"
             :style="isSidebarCollapsed ? 'position: absolute; top: 5px; right: 14px;' : ''"
           >
-            {{ notificationUnreadCount > 99 ? '99+' : notificationUnreadCount }}
+            {{ homeNotificationUnreadCount > 99 ? '99+' : homeNotificationUnreadCount }}
           </span>
         </button>
 

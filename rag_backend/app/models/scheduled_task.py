@@ -14,6 +14,7 @@ class TaskType(str, enum.Enum):
     """任务类型"""
     HOME_SCENARIO = "home_scenario"  # 智能家居场景
     DEVICE_STATUS_CHECK = "device_status_check"  # 设备状态检查
+    DEVICE_CONTROL = "device_control"  # 单设备控制
     CUSTOM = "custom"  # 自定义任务
 
 
@@ -34,6 +35,7 @@ class TaskStatus(str, enum.Enum):
     COMPLETED = "completed"  # 已完成
     FAILED = "failed"  # 失败
     CANCELLED = "cancelled"  # 已取消
+    EXPIRED = "expired"  # 已过截止时间
 
 
 class ScheduledTask(Base):

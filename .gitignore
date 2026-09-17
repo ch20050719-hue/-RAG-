@@ -223,5 +223,8 @@ rag_backend/uploads/
 .venv/
 .pip-cache/
 
+# 本地演示启动器生成的 PID 状态文件
+.demo/
+
 # 外部安全数据集的独立 Git 仓库不随主项目发布
 rag_backend/data/security/sources/

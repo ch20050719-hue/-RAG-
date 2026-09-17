@@ -47,3 +47,45 @@ def test_home_specialist_runs_a_light_control_request():
 
     assert "desk_light" in result
     assert service.get_device("desk_light").state.value == "on"
+
+
+def test_home_specialist_routes_mode_and_lock_queries_to_fixed_tools():
+    service = _home_service()
+    tools = ToolManager()
+    for home_tool in get_home_tools():
+        tools.register_langchain_tool(home_tool)
+
+    agent = HomeSpecialistAgent(
+        specialty="home_butler",
+        llm_adapter=DummyHomeLLM(),
+        tool_manager=tools,
+        device_service=service,
+    )
+
+    import asyncio
+
+    mode_result = asyncio.run(agent.run("切换睡眠模式"))
+    lock_result = asyncio.run(agent.run("查看门锁状态"))
+
+    assert '"mode": "sleep"' in mode_result
+    assert '"device_id": "door_lock"' in lock_result
+
+
+def test_home_specialist_does_not_bypass_deadbolt_authorization():
+    service = _home_service()
+    tools = ToolManager()
+    for home_tool in get_home_tools():
+        tools.register_langchain_tool(home_tool)
+
+    agent = HomeSpecialistAgent(
+        specialty="device_control",
+        llm_adapter=DummyHomeLLM(),
+        tool_manager=tools,
+        device_service=service,
+    )
+
+    import asyncio
+
+    result = asyncio.run(agent.run("解除反锁"))
+
+    assert "authorization" in result.lower()

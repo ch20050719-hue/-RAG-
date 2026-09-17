@@ -8,9 +8,6 @@ import {
   Check,
   CheckCheck,
   Trash2,
-  MessageSquare,
-  UserPlus,
-  UserMinus,
   Info,
   AlertTriangle,
   CheckCircle,
@@ -35,21 +32,16 @@ const emit = defineEmits<{
 const router = useRouter()
 const {
   notifications,
-  stats,
   isLoading,
-  unreadCount,
   loadNotifications,
   markAsRead,
   markAllAsRead,
   deleteNotification,
-  acceptInvitation,
-  declineInvitation,
-  refresh
 } = useUnifiedNotifications()
 
 const isSelectionMode = ref(false)
 const selectedNotifications = ref<Set<string>>(new Set())
-const activeCategory = ref<'all' | 'chat' | 'device' | 'system' | 'task'>('all')
+const activeCategory = ref<'all' | 'device' | 'system' | 'task'>('all')
 
 onMounted(() => {
   if (isAuthenticated()) {
@@ -72,16 +64,18 @@ function goToNotificationCenter() {
   router.push({ name: 'notifications' })
 }
 
+const visibleNotifications = computed(() => notifications.value.filter(notification => notification.category !== 'chat'))
+const visibleUnreadCount = computed(() => visibleNotifications.value.filter(notification => !notification.isRead).length)
+
 const filteredNotifications = computed(() => {
   if (activeCategory.value === 'all') {
-    return notifications.value
+    return visibleNotifications.value
   }
-  return notifications.value.filter(n => n.category === activeCategory.value)
+  return visibleNotifications.value.filter(n => n.category === activeCategory.value)
 })
 
 const categories = [
   { id: 'all', label: '全部通知', icon: Bell },
-  { id: 'chat', label: '群聊消息', icon: MessageSquare },
   { id: 'device', label: '设备安全', icon: FileText },
   { id: 'task', label: '任务提醒', icon: Clock },
   { id: 'system', label: '系统通知', icon: Info }
@@ -90,10 +84,6 @@ const categories = [
 function getNotificationIcon(iconName: string) {
   const iconMap: Record<string, any> = {
     Bell,
-    MessageSquare,
-    UserPlus,
-    UserMinus,
-    UserCheck: UserPlus,
     Info,
     AlertTriangle,
     CheckCircle,
@@ -106,7 +96,6 @@ function getNotificationIcon(iconName: string) {
 
 function getCategoryBadge(category: string): string {
   const badges: Record<string, string> = {
-    chat: 'bg-green-100 text-green-700',
     device: 'bg-blue-100 text-blue-700',
     task: 'bg-purple-100 text-purple-700',
     system: 'bg-gray-100 text-gray-700'
@@ -116,7 +105,6 @@ function getCategoryBadge(category: string): string {
 
 function getCategoryLabel(category: string): string {
   const labels: Record<string, string> = {
-    chat: '群聊',
     device: '设备',
     task: '任务',
     system: '系统'
@@ -136,9 +124,6 @@ async function handleNotificationClick(notification: UnifiedNotification) {
 
   if (notification.actionUrl) {
     router.push(notification.actionUrl)
-    close()
-  } else if (notification.category === 'chat') {
-    router.push({ name: 'group-chat' })
     close()
   } else if (notification.category === 'device') {
     goToNotificationCenter()
@@ -217,27 +202,6 @@ function formatTime(dateStr: string): string {
   return date.toLocaleDateString('zh-CN')
 }
 
-function isInvitationNotification(notification: UnifiedNotification): boolean {
-  return notification.category === 'chat' && notification.metadata?.type === 'invitation'
-}
-
-async function handleAcceptInvitation(notification: UnifiedNotification, event: Event) {
-  event.stopPropagation()
-  const invitationId = notification.metadata?.invitation_id || notification.metadata?.id
-  if (invitationId) {
-    await acceptInvitation(invitationId)
-    refresh()
-  }
-}
-
-async function handleDeclineInvitation(notification: UnifiedNotification, event: Event) {
-  event.stopPropagation()
-  const invitationId = notification.metadata?.invitation_id || notification.metadata?.id
-  if (invitationId) {
-    await declineInvitation(invitationId)
-    refresh()
-  }
-}
 </script>
 
 <template>
@@ -256,7 +220,7 @@ async function handleDeclineInvitation(notification: UnifiedNotification, event:
             <div>
               <h3 class="font-bold text-gray-900 text-base">通知中心</h3>
               <p class="text-xs text-gray-500">
-                <span v-if="unreadCount > 0" class="text-blue-600 font-medium">{{ unreadCount }} 条未读</span>
+                <span v-if="visibleUnreadCount > 0" class="text-blue-600 font-medium">{{ visibleUnreadCount }} 条未读</span>
                 <span v-else>暂无未读通知</span>
               </p>
             </div>
@@ -293,10 +257,10 @@ async function handleDeclineInvitation(notification: UnifiedNotification, event:
             <component :is="cat.icon" :size="14" />
             <span>{{ cat.label }}</span>
             <span
-              v-if="cat.id === 'all' && unreadCount > 0"
+              v-if="cat.id === 'all' && visibleUnreadCount > 0"
               class="w-4 h-4 bg-blue-500 text-white text-[10px] rounded-full flex items-center justify-center"
             >
-              {{ unreadCount > 9 ? '9+' : unreadCount }}
+              {{ visibleUnreadCount > 9 ? '9+' : visibleUnreadCount }}
             </span>
           </button>
         </div>
@@ -314,7 +278,7 @@ async function handleDeclineInvitation(notification: UnifiedNotification, event:
             </template>
             <template v-else>
               <button
-                v-if="unreadCount > 0"
+                v-if="visibleUnreadCount > 0"
                 @click.stop="handleMarkAllRead"
                 class="px-3 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors flex items-center gap-1.5"
               >
@@ -437,24 +401,7 @@ async function handleDeclineInvitation(notification: UnifiedNotification, event:
                   </span>
                   <span class="text-xs text-gray-400">{{ formatTime(notification.createdAt) }}</span>
                 </div>
-                <div v-if="isInvitationNotification(notification)" class="flex items-center gap-1.5">
-                  <button
-                    @click="handleDeclineInvitation(notification, $event)"
-                    class="px-2.5 py-1 text-xs font-medium bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg transition-colors"
-                  >
-                    拒绝
-                  </button>
-                  <button
-                    @click="handleAcceptInvitation(notification, $event)"
-                    class="px-2.5 py-1 text-xs font-medium bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors"
-                  >
-                    接受
-                  </button>
-                </div>
-                <div
-                  v-else-if="notification.actionUrl || notification.category === 'chat'"
-                  class="flex items-center gap-0.5 text-xs text-blue-600"
-                >
+                <div v-if="notification.actionUrl" class="flex items-center gap-0.5 text-xs text-blue-600">
                   <span>查看详情</span>
                   <ChevronRight :size="12" />
                 </div>

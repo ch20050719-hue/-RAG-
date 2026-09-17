@@ -9,7 +9,13 @@ from typing import Any
 from langchain_core.tools import tool
 
 from .default_devices import DEFAULT_DEVICE_REGISTRATIONS, DEFAULT_SENSOR_REGISTRATIONS
-from .device_models import DeviceStateValue, DeviceType, HomeScenarioName
+from .device_models import (
+    DeviceStateValue,
+    DeviceType,
+    DoorLockAction,
+    HomeModeName,
+    HomeScenarioName,
+)
 from .device_service import DeviceService
 from .simulated_device import SimulatedDeviceAdapter
 
@@ -141,7 +147,7 @@ def list_home_devices() -> str:
 
 @tool("read_home_environment")
 def read_home_environment(room: str = "study") -> str:
-    """读取指定房间的环境传感器数据（温度、湿度、光照、人体）。默认房间 study。"""
+    """读取指定房间的环境传感器数据（温度、湿度、CO₂）。默认房间 study。"""
 
     import json
 
@@ -159,11 +165,237 @@ def read_home_environment(room: str = "study") -> str:
                 "online": reading.online,
                 "recorded_at": reading.recorded_at.isoformat(),
                 "source": reading.source,
+                "quality": reading.quality.value,
+                "level": reading.level.value,
             }
             for reading in snapshot.readings
         ],
     }
     return json.dumps(payload, ensure_ascii=False)
+
+
+@tool("get_environment_history")
+def get_environment_history(room: str = "study", minutes: int = 10) -> str:
+    """读取指定房间最近一段时间的环境历史快照，默认返回最近 10 分钟。"""
+
+    import json
+
+    service = get_device_service()
+    try:
+        snapshots = service.get_environment_history(room, minutes=minutes)
+    except ValueError as exc:
+        return json.dumps({"accepted": False, "message": str(exc)}, ensure_ascii=False)
+    return json.dumps(
+        {
+            "room": room,
+            "minutes": minutes,
+            "samples": [
+                {
+                    "generated_at": snapshot.generated_at.isoformat(),
+                    "readings": [
+                        {
+                            "sensor_id": reading.sensor_id,
+                            "kind": reading.kind.value,
+                            "value": reading.value,
+                            "unit": reading.unit,
+                            "online": reading.online,
+                            "recorded_at": reading.recorded_at.isoformat(),
+                            "source": reading.source,
+                            "quality": reading.quality.value,
+                            "level": reading.level.value,
+                        }
+                        for reading in snapshot.readings
+                    ],
+                }
+                for snapshot in snapshots
+            ],
+        },
+        ensure_ascii=False,
+    )
+
+
+@tool("get_home_alerts")
+def get_home_alerts(room: str = "study", active_only: bool = False) -> str:
+    """读取指定房间的环境报警与传感器故障记录。"""
+
+    import json
+
+    service = get_device_service()
+    alerts = service.get_environment_alerts(room, active_only=active_only)
+    return json.dumps(
+        [alert.model_dump(mode="json") for alert in alerts],
+        ensure_ascii=False,
+    )
+
+
+@tool("get_home_mode")
+def get_home_mode(room: str = "study") -> str:
+    """读取指定房间当前运行模式。"""
+
+    import json
+
+    service = get_device_service()
+    return json.dumps(
+        {"room": room, "mode": service.get_mode().value},
+        ensure_ascii=False,
+    )
+
+
+@tool("set_home_mode")
+def set_home_mode(mode: str, room: str = "study", request_prefix: str = "") -> str:
+    """切换正常、睡眠或离家模式，并返回每一步真实执行结果。"""
+
+    import json
+
+    try:
+        target = HomeModeName(mode)
+    except ValueError:
+        return json.dumps(
+            {
+                "room": room,
+                "mode": mode,
+                "accepted": False,
+                "overall_status": "failed",
+                "actions": [],
+                "message": f"Unsupported mode: {mode}",
+            },
+            ensure_ascii=False,
+        )
+    result = get_device_service().set_mode(target, request_prefix=request_prefix or None)
+    return json.dumps(
+        {
+            "room": room,
+            "mode": result.mode.value,
+            "previous_mode": result.previous_mode.value,
+            "accepted": result.accepted,
+            "overall_status": result.overall_status.value,
+            "message": result.message,
+            "actions": [
+                {
+                    "name": action.name,
+                    "accepted": action.accepted,
+                    "message": action.message,
+                    "device_id": action.device_id,
+                    "command_result": (
+                        _result_payload(action.command_result)
+                        if action.command_result is not None
+                        else None
+                    ),
+                    "lock_result": (
+                        _door_lock_result_payload(action.lock_result)
+                        if action.lock_result is not None
+                        else None
+                    ),
+                }
+                for action in result.actions
+            ],
+        },
+        ensure_ascii=False,
+    )
+
+
+def _door_lock_result_payload(result) -> dict[str, Any]:
+    return {
+        "request_id": str(result.request_id),
+        "device_id": result.device_id,
+        "room": result.room,
+        "action": result.action.value,
+        "accepted": result.accepted,
+        "ack_status": result.ack_status.value,
+        "message": result.message,
+        "blocked_reason": result.blocked_reason,
+        "door_state": result.door_state.value,
+        "latch_state": result.latch_state.value,
+        "deadbolt_state": result.deadbolt_state.value,
+        "battery_level": result.battery_level,
+        "expires_at": result.expires_at.isoformat() if result.expires_at else None,
+        "acknowledged_at": result.acknowledged_at.isoformat(),
+    }
+
+
+def _door_lock_state_payload(state) -> dict[str, Any]:
+    return {
+        "device_id": state.device_id,
+        "room": state.room,
+        "door_state": state.door_state.value,
+        "latch_state": (state.latch_state or state.lock_state).value,
+        "lock_state": state.lock_state.value,
+        "deadbolt_state": state.deadbolt_state.value,
+        "online": state.online,
+        "battery_level": state.battery_level,
+        "battery_state": state.battery_state.value,
+        "jammed": state.jammed,
+        "tampered": state.tampered,
+        "last_command": state.last_command,
+        "ack_status": state.ack_status.value,
+        "updated_at": state.updated_at.isoformat(),
+    }
+
+
+@tool("get_door_lock_status")
+def get_door_lock_status(room: str = "study") -> str:
+    """读取指定房间实验门锁、门磁和电量状态。"""
+
+    import json
+
+    return json.dumps(_door_lock_state_payload(get_device_service().get_door_lock()), ensure_ascii=False)
+
+
+def _execute_door_lock_tool(
+    action: DoorLockAction,
+    *,
+    authorized: bool = False,
+    request_id: str = "",
+) -> str:
+    import json
+
+    result = get_device_service().command_door_lock(
+        action,
+        authorized=authorized,
+        request_id=request_id or None,
+    )
+    return json.dumps(_door_lock_result_payload(result), ensure_ascii=False)
+
+
+@tool("unlock_door")
+def unlock_home_door(authorized: bool = False, request_id: str = "") -> str:
+    """远程解锁门舌；必须显式提供用户授权。"""
+
+    return _execute_door_lock_tool(
+        DoorLockAction.UNLOCK,
+        authorized=authorized,
+        request_id=request_id,
+    )
+
+
+@tool("lock_door")
+def lock_home_door(request_id: str = "") -> str:
+    """远程锁门；房门打开时会被门磁安全规则拒绝。"""
+
+    return _execute_door_lock_tool(DoorLockAction.LOCK, request_id=request_id)
+
+
+@tool("engage_deadbolt")
+def engage_home_deadbolt(request_id: str = "") -> str:
+    """执行室内反锁；房门打开时拒绝反锁。"""
+
+    return _execute_door_lock_tool(DoorLockAction.ENGAGE_DEADBOLT, request_id=request_id)
+
+
+@tool("release_deadbolt")
+def release_home_deadbolt(
+    authorized: bool = False,
+    confirmed: bool = False,
+    request_id: str = "",
+) -> str:
+    """解除室内反锁；必须显式提供用户授权和二次确认。"""
+
+    return _execute_door_lock_tool(
+        DoorLockAction.RELEASE_DEADBOLT,
+        authorized=authorized,
+        confirmed=confirmed,
+        request_id=request_id,
+    )
 
 
 @tool("set_light_state")
@@ -243,6 +475,15 @@ def get_home_tools():
         get_device_status,
         list_home_devices,
         read_home_environment,
+        get_environment_history,
+        get_home_alerts,
+        get_home_mode,
+        set_home_mode,
+        get_door_lock_status,
+        unlock_home_door,
+        lock_home_door,
+        engage_home_deadbolt,
+        release_home_deadbolt,
         set_light_state,
         set_fan_state,
         run_home_scenario,

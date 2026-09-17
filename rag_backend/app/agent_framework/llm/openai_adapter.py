@@ -12,6 +12,7 @@ from typing import AsyncGenerator, Dict, Any, Optional, List
 
 import httpx
 
+from app.core.config import settings
 from .base_adapter import BaseLLMAdapter, LLMResponse
 from .model_policies import apply_model_family_policies
 from .errors import ERROR_PREFIX
@@ -52,12 +53,26 @@ class OpenAIAdapter(BaseLLMAdapter):
     def _get_client(self) -> httpx.AsyncClient:
         """获取或创建 HTTP 客户端"""
         if self.client is None:
+            verify_ssl_config = getattr(settings, "OPENAI_VERIFY_SSL", True)
+            if isinstance(verify_ssl_config, str):
+                verify_ssl = verify_ssl_config.lower() not in ("false", "0", "no", "off")
+            else:
+                verify_ssl = bool(verify_ssl_config)
+
+            trust_env_config = getattr(settings, "OPENAI_TRUST_ENV", False)
+            if isinstance(trust_env_config, str):
+                trust_env = trust_env_config.lower() in ("true", "1", "yes", "on")
+            else:
+                trust_env = bool(trust_env_config)
+
             self.client = httpx.AsyncClient(
                 timeout=httpx.Timeout(timeout=self.timeout),
                 headers={
                     "Authorization": f"Bearer {self.api_key}",
                     "Content-Type": "application/json",
-                }
+                },
+                verify=verify_ssl,
+                trust_env=trust_env,
             )
         return self.client
 
@@ -77,6 +92,17 @@ class OpenAIAdapter(BaseLLMAdapter):
         """生成回答（非流式）"""
         messages = [{"role": "user", "content": prompt}]
         return await self._chat(messages, temperature, max_tokens, **kwargs)
+
+    async def agenerate(
+        self,
+        prompts: List[str],
+        temperature: float = 0.1,
+        max_tokens: Optional[int] = None,
+        **kwargs
+    ) -> LLMResponse:
+        """生成回答（接受列表格式，与多智能体编排器兼容）。"""
+        prompt = prompts[0] if prompts else ""
+        return await self.generate(prompt, temperature, max_tokens, **kwargs)
 
     async def stream_generate(
         self,

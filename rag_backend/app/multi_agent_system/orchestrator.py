@@ -320,7 +320,22 @@ class AgentOrchestrator:
             yield event
 
     def get_available_tools(self) -> List[str]:
-        return ["search_enterprise_knowledge", "list_home_devices", "get_device_status", "read_home_environment", "set_light_state", "set_fan_state", "run_home_scenario", "publish_mqtt_command"]
+        return [
+            "list_home_devices",
+            "get_device_status",
+            "read_home_environment",
+            "get_environment_history",
+            "get_home_alerts",
+            "get_home_mode",
+            "set_home_mode",
+            "set_light_state",
+            "set_fan_state",
+            "get_door_lock_status",
+            "unlock_door",
+            "lock_door",
+            "engage_deadbolt",
+            "release_deadbolt",
+        ]
 
     async def execute_orchestrator_workflow(self, *args, **kwargs) -> Dict[str, Any]:
         query = kwargs.get("user_input") or kwargs.get("query") or (args[0] if args else "")

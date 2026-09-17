@@ -28,7 +28,6 @@ import {
 
   Filter,
 
-  MessageSquare,
 
   FileText,
 
@@ -72,8 +71,6 @@ const {
   markAllAsRead,
   archiveNotification,
   deleteNotification,
-  acceptInvitation,
-  declineInvitation,
   refresh
 } = useUnifiedNotifications()
 
@@ -134,8 +131,6 @@ const categories = [
 
   { id: 'all', label: '全部通知', icon: Bell, count: computed(() => stats.value.byCategory.all) },
 
-  { id: 'chat', label: '群聊消息', icon: MessageSquare, count: computed(() => stats.value.byCategory.chat) },
-
   { id: 'device', label: '设备安全', icon: FileText, count: computed(() => stats.value.byCategory.device) },
 
   { id: 'task', label: '任务提醒', icon: Clock, count: computed(() => stats.value.byCategory.task) },
@@ -148,7 +143,7 @@ const categories = [
 
 const filteredNotifications = computed(() => {
 
-  let result = notifications.value
+  let result = notifications.value.filter(notification => notification.category !== 'chat')
 
 
 
@@ -256,8 +251,6 @@ function getCategoryIcon(category: string) {
 
   const icons: Record<string, any> = {
 
-    chat: MessageSquare,
-
     device: FileText,
 
     task: Clock,
@@ -275,8 +268,6 @@ function getCategoryIcon(category: string) {
 function getCategoryColor(category: string): { bg: string; text: string } {
 
   const colors: Record<string, { bg: string; text: string }> = {
-
-    chat: { bg: 'bg-green-100', text: 'text-green-700' },
 
     device: { bg: 'bg-blue-100', text: 'text-blue-700' },
 
@@ -318,11 +309,8 @@ function getNotificationIcon(iconName: string) {
 
     Bell,
 
-    MessageSquare,
 
-    UserPlus: MessageSquare,
 
-    UserMinus: MessageSquare,
 
     UserCheck: Check,
 
@@ -369,10 +357,6 @@ async function handleNotificationClick(notification: UnifiedNotification) {
   if (notification.actionUrl) {
 
     router.push(notification.actionUrl)
-
-  } else if (notification.category === 'chat') {
-
-    router.push({ name: 'group-chat' })
 
   }
 
@@ -461,28 +445,6 @@ async function archiveSelected() {
   } catch {
   }
 }
-
-async function handleAcceptInvitation(notification: UnifiedNotification) {
-  const invitationId = notification.metadata?.invitation_id || notification.metadata?.id
-  if (invitationId) {
-    await acceptInvitation(invitationId)
-    refresh()
-  }
-}
-
-async function handleDeclineInvitation(notification: UnifiedNotification) {
-  const invitationId = notification.metadata?.invitation_id || notification.metadata?.id
-  if (invitationId) {
-    await declineInvitation(invitationId)
-    refresh()
-  }
-}
-
-function isInvitationNotification(notification: UnifiedNotification): boolean {
-  return notification.category === 'chat' && notification.metadata?.type === 'invitation'
-}
-
-
 
 async function handleMarkAllRead() {
 
@@ -1255,26 +1217,8 @@ async function testNotificationChannel(channel: 'email' | 'sms' | 'webhook') {
 
                         </button>
 
-                        <template v-if="isInvitationNotification(notification)">
-                          <button
-                            @click.stop="handleAcceptInvitation(notification)"
-                            class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors text-sm font-medium flex items-center gap-1"
-                            title="接受邀请"
-                          >
-                            <Check :size="14" />
-                            接受
-                          </button>
-                          <button
-                            @click.stop="handleDeclineInvitation(notification)"
-                            class="px-3 py-1.5 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-lg transition-colors text-sm font-medium flex items-center gap-1"
-                            title="拒绝邀请"
-                          >
-                            <X :size="14" />
-                            拒绝
-                          </button>
-                        </template>
                         <button
-                          v-if="filters.isArchived !== 'true' && !isInvitationNotification(notification)"
+                          v-if="filters.isArchived !== 'true'"
                           @click.stop="archiveNotification(notification.id)"
                           class="p-2 text-gray-400 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors"
                           title="归档"
@@ -1282,7 +1226,6 @@ async function testNotificationChannel(channel: 'email' | 'sms' | 'webhook') {
                           <Archive :size="16" />
                         </button>
                         <button
-                          v-if="!isInvitationNotification(notification)"
                           @click.stop="deleteNotification(notification.id)"
                           class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           title="删除"

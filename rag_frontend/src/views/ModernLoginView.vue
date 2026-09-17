@@ -150,7 +150,7 @@ async function handleLogin() {
             <span class="status-dot"></span>
             连接已加密
             <span class="status-sep">·</span>
-            <span class="text-slate-500">多租户隔离</span>
+            <span class="text-slate-500">家庭账户隔离</span>
           </div>
         </aside>
 

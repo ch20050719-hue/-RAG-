@@ -3,7 +3,8 @@
 import pytest
 
 from app.home_automation import mqtt_adapter
-from app.home_automation.default_devices import DEFAULT_DEVICE_REGISTRATIONS
+from app.home_automation.default_devices import DEFAULT_DEVICE_REGISTRATIONS, DEFAULT_SENSOR_REGISTRATIONS
+from app.home_automation.device_models import SensorQuality
 from app.home_automation.mqtt_adapter import MqttDeviceAdapter, MqttTransportError
 
 
@@ -31,3 +32,17 @@ def test_connect_rejects_broker_return_code(monkeypatch):
 
     with pytest.raises(MqttTransportError, match="return code 5"):
         adapter.connect()
+
+
+def test_ingest_co2_telemetry_refreshes_reading_quality(monkeypatch):
+    monkeypatch.setattr(mqtt_adapter, "PAHO_AVAILABLE", True)
+
+    adapter = MqttDeviceAdapter(
+        list(DEFAULT_DEVICE_REGISTRATIONS),
+        list(DEFAULT_SENSOR_REGISTRATIONS),
+    )
+    adapter.ingest_telemetry("study", "room_node", {"sensors": {"room_co2": 1600}})
+
+    reading = next(item for item in adapter.list_sensor_readings("study") if item.sensor_id == "room_co2")
+    assert reading.value == 1600
+    assert reading.quality is SensorQuality.VALID

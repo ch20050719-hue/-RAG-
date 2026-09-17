@@ -19,11 +19,18 @@ from app.home_automation.device_models import (
 from app.home_automation.device_service import DeviceService
 from app.home_automation.device_tools import (
     get_device_service,
+    get_environment_history,
+    get_home_mode,
     get_home_tools,
+    get_home_alerts,
+    get_door_lock_status,
+    lock_home_door,
+    unlock_home_door,
     list_home_devices,
     read_home_environment,
     run_home_scenario,
     set_device_service,
+    set_home_mode,
     set_light_state,
 )
 from app.home_automation.mqtt_adapter import (
@@ -48,6 +55,15 @@ def test_home_tools_are_registered():
         "get_device_status",
         "list_home_devices",
         "read_home_environment",
+        "get_environment_history",
+        "get_home_alerts",
+        "get_home_mode",
+        "set_home_mode",
+        "get_door_lock_status",
+        "lock_door",
+        "unlock_door",
+        "engage_deadbolt",
+        "release_deadbolt",
         "set_light_state",
         "set_fan_state",
         "run_home_scenario",
@@ -107,6 +123,72 @@ def test_read_environment_tool_includes_source():
         assert payload["room"] == "study"
         assert payload["readings"]
         assert payload["readings"][0]["source"] == "simulated"
+        assert {item["kind"] for item in payload["readings"]} == {"temperature", "humidity", "co2"}
+        assert all(item["quality"] == "valid" for item in payload["readings"])
+        assert all("level" in item for item in payload["readings"])
+    finally:
+        set_device_service(None)
+
+
+def test_environment_history_tool_returns_recent_samples():
+    set_device_service(_fresh_service())
+    try:
+        read_home_environment.invoke({"room": "study"})
+        raw = get_environment_history.invoke({"room": "study", "minutes": 10})
+        payload = json.loads(raw)
+        assert payload["room"] == "study"
+        assert len(payload["samples"]) == 1
+        assert payload["samples"][0]["readings"]
+    finally:
+        set_device_service(None)
+
+
+def test_home_alert_tool_exposes_confirmed_co2_alert():
+    service = _fresh_service()
+    adapter = service._adapter
+    set_device_service(service)
+    try:
+        for value in (1600, 1650, 1680):
+            adapter.update_sensor_value("room_co2", value)
+            service.evaluate_environment("study")
+        raw = get_home_alerts.invoke({"room": "study", "active_only": True})
+        payload = json.loads(raw)
+        assert payload
+        assert payload[-1]["state"] == "active"
+        assert payload[-1]["related_action"] == "fan_on"
+    finally:
+        set_device_service(None)
+
+
+def test_home_mode_tool_returns_partial_failure_without_lock_success():
+    set_device_service(_fresh_service())
+    try:
+        raw = set_home_mode.invoke({"mode": "sleep"})
+        payload = json.loads(raw)
+        assert payload["mode"] == "sleep"
+        assert payload["overall_status"] == "success"
+        assert payload["actions"][-1]["name"] == "check_door_and_lock"
+        assert payload["actions"][-1]["accepted"] is True
+
+        status = json.loads(get_home_mode.invoke({}))
+        assert status["mode"] == "sleep"
+    finally:
+        set_device_service(None)
+
+
+def test_door_lock_tools_require_explicit_authorization_for_unlock():
+    set_device_service(_fresh_service())
+    try:
+        status = json.loads(get_door_lock_status.invoke({}))
+        assert status["device_id"] == "door_lock"
+
+        denied = json.loads(unlock_home_door.invoke({"authorized": False}))
+        accepted = json.loads(unlock_home_door.invoke({"authorized": True}))
+        assert denied["accepted"] is False
+        assert accepted["accepted"] is True
+
+        locked = json.loads(lock_home_door.invoke({}))
+        assert locked["accepted"] is True
     finally:
         set_device_service(None)
 

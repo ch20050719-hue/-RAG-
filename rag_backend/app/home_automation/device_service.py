@@ -12,12 +12,29 @@ from .device_models import (
     DeviceState,
     DeviceStateValue,
     DeviceType,
+    DoorLockAction,
+    DoorLockCommandResult,
+    DoorLockState,
+    DoorState,
+    EnvironmentAlert,
     EnvironmentSnapshot,
+    HomeModeName,
     HomeScenarioName,
+    ModeExecutionResult,
+    ModeExecutionStatus,
+    ModeStepResult,
     ScenarioExecutionResult,
     SensorReading,
     SensorRegistration,
 )
+from .environment_history import EnvironmentHistoryService
+from .environment_monitor import (
+    DEFAULT_ENVIRONMENT_CONFIG,
+    EnvironmentAlertService,
+    EnvironmentMonitorConfig,
+    assess_reading,
+)
+from .door_lock import DoorLockService
 from .safety_rules import evaluate_control_risk, validate_expected_device_type
 from .simulated_device import (
     DeviceError,
@@ -32,13 +49,35 @@ _SLEEP_OFF_DEVICES: Final[tuple[str, ...]] = ("desk_light", "desk_fan")
 _AWAY_OFF_DEVICES: Final[tuple[str, ...]] = ("desk_light", "desk_fan")
 _MOVIE_OFF_DEVICES: Final[tuple[str, ...]] = ("desk_fan",)
 
+_SLEEP_MODE_PLAN: Final[tuple[tuple[str, str, DeviceType], ...]] = (
+    ("turn_off_light", "desk_light", DeviceType.LIGHT),
+)
+_AWAY_MODE_PLAN: Final[tuple[tuple[str, str, DeviceType], ...]] = (
+    ("turn_off_light", "desk_light", DeviceType.LIGHT),
+    ("turn_off_fan", "desk_fan", DeviceType.FAN),
+)
+
 
 class DeviceService:
     """统一封装设备适配器与安全规则。"""
 
-    def __init__(self, adapter: DeviceAdapter, default_room: str = "study") -> None:
+    def __init__(
+        self,
+        adapter: DeviceAdapter,
+        default_room: str = "study",
+        *,
+        history_service: EnvironmentHistoryService | None = None,
+        alert_service: EnvironmentAlertService | None = None,
+        environment_config: EnvironmentMonitorConfig | None = None,
+        door_lock_service: DoorLockService | None = None,
+    ) -> None:
         self._adapter = adapter
         self._default_room = default_room
+        self._environment_config = environment_config or DEFAULT_ENVIRONMENT_CONFIG
+        self._history = history_service or EnvironmentHistoryService()
+        self._alerts = alert_service or EnvironmentAlertService(self._environment_config)
+        self._mode = HomeModeName.NORMAL
+        self._door_lock = door_lock_service or DoorLockService(room=default_room)
 
     def list_devices(self) -> list[DeviceState]:
         """列出设备状态。"""
@@ -50,16 +89,178 @@ class DeviceService:
 
         return self._adapter.read_state(device_id)
 
+    def get_mode(self) -> HomeModeName:
+        """读取当前运行模式。"""
+
+        return self._mode
+
+    def set_mode(
+        self,
+        mode: HomeModeName,
+        request_prefix: str | None = None,
+    ) -> ModeExecutionResult:
+        """按固定顺序执行模式切换，并如实汇总每一步结果。"""
+
+        previous_mode = self._mode
+        if mode is HomeModeName.NORMAL:
+            self._mode = mode
+            return ModeExecutionResult(
+                mode=mode,
+                previous_mode=previous_mode,
+                accepted=True,
+                overall_status=ModeExecutionStatus.SUCCESS,
+                actions=(),
+                message="Mode normal activated",
+            )
+
+        prefix = request_prefix or str(uuid4())
+        actions: list[ModeStepResult] = []
+        for index, (name, device_id, device_type) in enumerate(_mode_device_plan(mode)):
+            result = self.set_device_state(
+                device_id=device_id,
+                state=DeviceStateValue.OFF,
+                request_id=f"{prefix}-{index}",
+                expected_device_type=device_type,
+            )
+            actions.append(
+                ModeStepResult(
+                    name=name,
+                    accepted=result.accepted,
+                    message=result.message,
+                    device_id=device_id,
+                    command_result=result,
+                )
+            )
+
+        lock_action = (
+            DoorLockAction.ENGAGE_DEADBOLT
+            if mode is HomeModeName.SLEEP
+            else DoorLockAction.LOCK
+        )
+        lock_result = self.command_door_lock(lock_action)
+        actions.append(
+            ModeStepResult(
+                name="check_door_and_lock",
+                accepted=lock_result.accepted,
+                message=lock_result.message,
+                device_id=lock_result.device_id,
+                lock_result=lock_result,
+            )
+        )
+        accepted_count = sum(action.accepted for action in actions)
+        if accepted_count == len(actions):
+            status = ModeExecutionStatus.SUCCESS
+            accepted = True
+            self._mode = mode
+            message = f"Mode {mode.value} activated"
+        elif accepted_count > 0:
+            status = ModeExecutionStatus.PARTIAL_FAILED
+            accepted = False
+            message = f"Mode {mode.value} partially failed; current mode remains {previous_mode.value}"
+        else:
+            status = ModeExecutionStatus.FAILED
+            accepted = False
+            message = f"Mode {mode.value} failed; current mode remains {previous_mode.value}"
+        return ModeExecutionResult(
+            mode=mode,
+            previous_mode=previous_mode,
+            accepted=accepted,
+            overall_status=status,
+            actions=tuple(actions),
+            message=message,
+        )
+
+    def get_door_lock(self) -> DoorLockState:
+        """读取实验门锁与门磁状态。"""
+
+        return self._door_lock.get_status()
+
+    def set_door_state(self, door_state: DoorState) -> DoorLockState:
+        """更新模拟门磁状态，供联调和测试使用。"""
+
+        return self._door_lock.set_door_state(door_state)
+
+    def command_door_lock(
+        self,
+        action: DoorLockAction,
+        *,
+        authorized: bool = False,
+        confirmed: bool = False,
+        request_id: str | None = None,
+        ttl_seconds: int = 15,
+    ) -> DoorLockCommandResult:
+        """通过固定门锁服务执行动作并等待模拟 ack。"""
+
+        return self._door_lock.execute(
+            action,
+            authorized=authorized,
+            confirmed=confirmed,
+            request_id=request_id,
+            ttl_seconds=ttl_seconds,
+        )
+
     def get_environment(self, room: str | None = None) -> EnvironmentSnapshot:
         """读取环境传感器快照。"""
 
         target_room = room or self._default_room
-        readings = self._adapter.list_sensor_readings(target_room)
-        return EnvironmentSnapshot(
+        readings = tuple(
+            _assessed_reading(item, self._environment_config)
+            for item in self._adapter.list_sensor_readings(target_room)
+        )
+        snapshot = EnvironmentSnapshot(
             room=target_room,
-            readings=tuple(readings),
+            readings=readings,
             generated_at=datetime.now(timezone.utc),
         )
+        self._history.append(snapshot)
+        return snapshot
+
+    def get_environment_history(
+        self,
+        room: str | None = None,
+        minutes: int = 10,
+    ) -> list[EnvironmentSnapshot]:
+        """读取最近时间窗口内的环境历史快照。"""
+
+        return self._history.list_snapshots(room or self._default_room, minutes=minutes)
+
+    def evaluate_environment(self, room: str | None = None) -> list[EnvironmentAlert]:
+        """评估当前房间环境，并在危险确认后联动固定风扇工具链。"""
+
+        snapshot = self.get_environment(room)
+        alerts = [
+            alert
+            for reading in snapshot.readings
+            if (alert := self._alerts.evaluate(reading, now=snapshot.generated_at)) is not None
+        ]
+        for alert in alerts:
+            if alert.state.value != "active" or alert.related_action != "fan_on":
+                continue
+            fan = next(
+                (
+                    device
+                    for device in self.list_devices()
+                    if device.room == snapshot.room and device.device_type is DeviceType.FAN
+                ),
+                None,
+            )
+            if fan is not None and fan.state is not DeviceStateValue.ON:
+                self.set_device_state(
+                    fan.device_id,
+                    DeviceStateValue.ON,
+                    expected_device_type=DeviceType.FAN,
+                )
+        return alerts
+
+    def get_environment_alerts(
+        self,
+        room: str | None = None,
+        active_only: bool = False,
+    ) -> list[EnvironmentAlert]:
+        """评估并返回环境报警事件。"""
+
+        self.evaluate_environment(room)
+        return self._alerts.list_alerts(room or self._default_room, active_only=active_only)
 
     def set_device_state(
         self,
@@ -180,9 +381,30 @@ def _scenario_plan(scenario: HomeScenarioName) -> list[tuple[str, DeviceStateVal
     return []
 
 
+def _mode_device_plan(mode: HomeModeName) -> tuple[tuple[str, str, DeviceType], ...]:
+    """返回模式切换中需要执行的灯/风扇基线动作。"""
+
+    if mode is HomeModeName.SLEEP:
+        return _SLEEP_MODE_PLAN
+    if mode is HomeModeName.AWAY:
+        return _AWAY_MODE_PLAN
+    return ()
+
+
 __all__ = [
     "DeviceService",
     "DeviceRegistration",
     "SensorRegistration",
     "SensorReading",
 ]
+
+
+def _assessed_reading(reading: SensorReading, config: EnvironmentMonitorConfig) -> SensorReading:
+    """将质量与分级结果写回不可变读数快照。"""
+
+    assessed = assess_reading(reading, config)
+    return SensorReading(
+        **reading.model_dump(exclude={"quality", "level"}),
+        quality=assessed.quality,
+        level=assessed.level,
+    )

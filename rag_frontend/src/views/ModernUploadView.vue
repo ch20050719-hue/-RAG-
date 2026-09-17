@@ -163,7 +163,7 @@ async function createNewKB() {
 }
 
 function getVisibilityLabel(visibility: VisibilityType): string {
-  return visibility === 'enterprise' ? '企业' : '私人'
+  return visibility === 'enterprise' ? '家庭共享' : '个人'
 }
 
 function getVisibilityColor(visibility: VisibilityType): string {
@@ -198,7 +198,7 @@ function getVisibilityColor(visibility: VisibilityType): string {
           >
             <option :value="null">选择知识库</option>
             <option v-for="kb in knowledgeStore.knowledgeBases" :key="kb.id" :value="kb.id">
-              {{ kb.name }} ({{ kb.visibility === 'enterprise' ? '企业' : '私人' }})
+              {{ kb.name }} ({{ kb.visibility === 'enterprise' ? '家庭共享' : '个人' }})
             </option>
           </select>
         </div>
@@ -275,9 +275,9 @@ function getVisibilityColor(visibility: VisibilityType): string {
                 >
                   <div class="flex items-center gap-2 mb-1">
                     <Building2 :size="18" :class="newKBVisibility === 'enterprise' ? 'text-emerald-600' : 'text-gray-500'" />
-                    <span class="font-medium text-sm" :class="newKBVisibility === 'enterprise' ? 'text-emerald-700' : 'text-gray-700'">企业</span>
+                    <span class="font-medium text-sm" :class="newKBVisibility === 'enterprise' ? 'text-emerald-700' : 'text-gray-700'">家庭共享</span>
                   </div>
-                  <p class="text-xs" :class="newKBVisibility === 'enterprise' ? 'text-emerald-600' : 'text-gray-500'">全公司可见</p>
+                  <p class="text-xs" :class="newKBVisibility === 'enterprise' ? 'text-emerald-600' : 'text-gray-500'">家庭成员可见</p>
                 </button>
               </div>
             </div>
@@ -396,7 +396,7 @@ function getVisibilityColor(visibility: VisibilityType): string {
         <div v-if="selectedFile && selectedKB && showUploadVisibilityOption" class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
           <div class="flex items-center gap-2 mb-3">
             <Building2 :size="18" class="text-emerald-600" />
-            <span class="text-sm font-medium text-emerald-900">上传到企业知识库</span>
+            <span class="text-sm font-medium text-emerald-900">上传到家庭知识库</span>
           </div>
           <div class="grid grid-cols-2 gap-3">
             <button

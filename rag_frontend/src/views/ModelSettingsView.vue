@@ -416,7 +416,7 @@ async function reset(role: string) {
         <h2>模型配置中心</h2>
       </div>
       <p class="subtitle">
-        按用途分类配置大模型，支持云端 API 与本地 Ollama。配置存储于当前企业，
+        按用途分类配置大模型，支持云端 API 与本地 Ollama。配置存储于当前家庭空间，
         <strong>未配置项自动回退到服务端 .env 的全局默认</strong>，不会修改你的配置文件。
       </p>
     </header>
@@ -562,7 +562,7 @@ async function reset(role: string) {
 
           <el-alert v-if="overview?.note" type="info" :closable="false" show-icon class="ov-note" :title="overview.note" />
 
-          <el-empty v-if="overview && !overview.tenants.length" description="暂无企业数据" />
+          <el-empty v-if="overview && !overview.tenants.length" description="暂无家庭空间数据" />
 
           <el-card
             v-for="t in overview?.tenants || []" :key="t.tenant_id"
@@ -572,7 +572,7 @@ async function reset(role: string) {
               <div class="ov-card-head">
                 <div>
                   <span class="ov-company">{{ t.company_name }}</span>
-                  <span class="ov-tenant">租户 {{ t.tenant_id }}</span>
+                  <span class="ov-tenant">家庭空间 {{ t.tenant_id }}</span>
                 </div>
                 <div class="ov-usage">
                   <el-tag size="small" type="primary" effect="plain">对话 {{ t.usage.total_conversations }} 次</el-tag>
@@ -617,7 +617,7 @@ async function reset(role: string) {
         <el-alert
           type="warning" :closable="false" show-icon class="hint"
           title="部署级配置 · 维度必须匹配"
-          :description="`向量模型为整个部署共用（非按租户）。新模型输出维度必须等于 ${embRequiredDim}，否则与已建索引不兼容，保存时会被拒绝。更换不同维度模型需先重建知识库索引。`"
+          :description="`向量模型为整个部署共用（非按家庭空间）。新模型输出维度必须等于 ${embRequiredDim}，否则与已建索引不兼容，保存时会被拒绝。更换不同维度模型需先重建家居知识库索引。`"
         />
 
         <el-card class="role-card" shadow="never" v-loading="embBusy.loading">
@@ -746,7 +746,7 @@ async function reset(role: string) {
         <section>
           <h4>这是什么</h4>
           <p>
-            按 <b>企业（租户）</b> 配置各类大模型。配置保存在数据库，<b>未配置的项会自动回退到服务端
+            按 <b>家庭空间</b> 配置各类大模型。配置保存在数据库，<b>未配置的项会自动回退到服务端
             <code>.env</code> 的全局默认</b>，本页面 <b>不会修改你的 <code>.env</code> 文件</b>。
           </p>
         </section>
@@ -763,7 +763,7 @@ async function reset(role: string) {
         <section>
           <h4>对话模型的角色</h4>
           <ul>
-            <li><b>默认对话模型（主模型）</b>：检索增强问答的主力模型，保存后对当前企业 <b>立即生效</b>。</li>
+            <li><b>默认对话模型（主模型）</b>：家居知识问答的主力模型，保存后对当前家庭空间 <b>立即生效</b>。</li>
             <li><b>家居专家模型</b>：总管家、环境感知、设备控制和舒适度角色可独立配置。</li>
           </ul>
         </section>
@@ -783,7 +783,7 @@ async function reset(role: string) {
             </li>
             <li>
               <b>API Key</b>：<b>留空 = 回退使用服务端 <code>.env</code> 的全局密钥</b>；
-              填写则为该企业单独使用此密钥。
+              填写则为该家庭空间单独使用此密钥。
             </li>
           </ul>
         </section>
@@ -806,7 +806,7 @@ async function reset(role: string) {
           <h4>三个操作按钮</h4>
           <ul>
             <li><b>测试连接</b>：用当前填写的配置发一次最小请求，验证地址/密钥是否可用，并显示延迟与返回样例。</li>
-            <li><b>保存</b>：写入当前企业配置并立即生效。</li>
+            <li><b>保存</b>：写入当前家庭空间配置并立即生效。</li>
             <li><b>重置为默认</b>：删除该角色的自定义配置，回退到服务端 <code>.env</code> 的全局默认模型。</li>
           </ul>
         </section>
@@ -815,7 +815,7 @@ async function reset(role: string) {
           <h4>生效范围</h4>
           <p>
             「默认对话模型」在 <b>检索增强（agentic）对话主链路</b> 必定生效；家居专家配置在走
-            <b>设备、环境或场景路由</b> 的环节生效。配置变更对当前企业的新对话立即起作用，无需重启。
+            <b>设备、环境或场景路由</b> 的环节生效。配置变更对当前家庭空间的新对话立即起作用，无需重启。
           </p>
         </section>
       </div>

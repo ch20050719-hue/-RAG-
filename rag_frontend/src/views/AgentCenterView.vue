@@ -1371,12 +1371,12 @@ onMounted(() => {
                 <div class="px-5 py-4 border-b border-slate-200 bg-slate-50">
                   <h2 class="text-lg font-semibold text-slate-900 flex items-center gap-2">
                     <Link2 :size="20" class="text-indigo-600" />
-                    LangSmith 项目信息
+                    LangSmith 追踪空间信息
                   </h2>
                 </div>
                 <div class="p-5 space-y-4">
                   <div class="flex items-center justify-between py-2 border-b border-slate-100">
-                    <span class="text-sm text-slate-600">项目名称</span>
+                    <span class="text-sm text-slate-600">追踪空间名称</span>
                     <span class="text-sm font-medium text-slate-900">{{ langSmithStatus?.project || '未配置' }}</span>
                   </div>
                   <div class="flex items-center justify-between py-2 border-b border-slate-100">
@@ -1432,7 +1432,7 @@ onMounted(() => {
                   >
                     <div class="flex items-center gap-3">
                       <Layers :size="18" class="text-purple-600" />
-                      <span class="text-sm font-medium text-slate-900">项目页面</span>
+                      <span class="text-sm font-medium text-slate-900">追踪空间页面</span>
                     </div>
                     <ExternalLink :size="14" class="text-slate-400" />
                   </a>
@@ -1540,11 +1540,11 @@ onMounted(() => {
                 />
               </div>
               <div>
-                <label class="block text-sm font-medium text-slate-700 mb-2">项目名称</label>
+                <label class="block text-sm font-medium text-slate-700 mb-2">追踪空间名称</label>
                 <input
                   v-model="langSmithConfigForm.project"
                   type="text"
-                  placeholder="默认项目名称"
+                  placeholder="默认家居助手追踪空间"
                   class="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                 />
               </div>

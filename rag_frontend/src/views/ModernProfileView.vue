@@ -38,7 +38,7 @@ const selectedTheme = ref<'light' | 'dark' | 'auto'>('light')
 const avatarFile = ref<File | null>(null)
 const avatarPreview = ref<string | null>(null)
 
-// 企业相关
+// 家庭空间相关（后端字段仍沿用 enterprise/company 命名）
 const currentEnterprise = ref<{name: string, tenant_id: string} | null>(null)
 const showInviteCodeModal = ref(false)
 const isJoiningEnterprise = ref(false)
@@ -321,7 +321,7 @@ async function joinEnterprise() {
 
     if (response.ok) {
       const data = await response.json()
-      showToast(`成功加入 ${data.company_name || '企业'}！`, 'success')
+      showToast(`成功加入 ${data.company_name || '家庭空间'}！`, 'success')
       currentEnterprise.value = {
         name: data.company_name || '',
         tenant_id: data.tenant_id || ''
@@ -331,11 +331,11 @@ async function joinEnterprise() {
       inviteCodeValidation.value = null
     } else {
       const errorData = await response.json().catch(() => ({}))
-      showToast(`加入企业失败: ${errorData.detail || '未知错误'}`, 'error')
+      showToast(`加入家庭空间失败: ${errorData.detail || '未知错误'}`, 'error')
     }
   } catch (error) {
-    console.error('加入企业失败:', error)
-    showToast('加入企业失败，请检查网络连接', 'error')
+    console.error('加入家庭空间失败:', error)
+    showToast('加入家庭空间失败，请检查网络连接', 'error')
   } finally {
     isJoiningEnterprise.value = false
   }
@@ -508,7 +508,7 @@ watch(newPassword, checkPasswordStrength)
           </button>
           <div>
             <h1 class="text-2xl font-bold text-gray-900">个人设置</h1>
-            <p class="text-sm text-gray-500">管理你的账户、企业和偏好设置</p>
+            <p class="text-sm text-gray-500">管理你的账户、家庭空间和偏好设置</p>
           </div>
         </div>
       </div>
@@ -530,7 +530,7 @@ watch(newPassword, checkPasswordStrength)
             <User v-if="tab === 'profile'" :size="18" />
             <Shield v-if="tab === 'security'" :size="18" />
             <Building2 v-if="tab === 'enterprise'" :size="18" />
-            <span>{{ tab === 'profile' ? '基本信息' : tab === 'security' ? '安全设置' : '企业归属' }}</span>
+            <span>{{ tab === 'profile' ? '基本信息' : tab === 'security' ? '安全设置' : '家庭空间' }}</span>
           </div>
         </button>
       </div>
@@ -906,7 +906,7 @@ watch(newPassword, checkPasswordStrength)
             <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
               <Building2 :size="20" class="text-white" />
             </div>
-            当前企业
+            当前家庭空间
           </h2>
           
           <div v-if="currentEnterprise" class="p-6 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl border border-emerald-100">
@@ -916,7 +916,7 @@ watch(newPassword, checkPasswordStrength)
               </div>
               <div class="flex-1">
                 <h3 class="text-xl font-bold text-gray-900">{{ currentEnterprise.name }}</h3>
-                <p class="text-sm text-gray-500 mt-1">企业 ID：{{ currentEnterprise.tenant_id }}</p>
+                <p class="text-sm text-gray-500 mt-1">空间 ID：{{ currentEnterprise.tenant_id }}</p>
               </div>
               <div class="px-4 py-2 bg-green-100 text-green-700 rounded-xl text-sm font-semibold">
                 已加入
@@ -928,13 +928,13 @@ watch(newPassword, checkPasswordStrength)
             <div class="w-16 h-16 mx-auto rounded-2xl bg-gray-200 flex items-center justify-center mb-4">
               <Building2 :size="32" class="text-gray-400" />
             </div>
-            <p class="text-gray-500 mb-4">您还没有加入任何企业</p>
+            <p class="text-gray-500 mb-4">您还没有加入任何家庭空间</p>
             <button
               @click="showInviteCodeModal = true"
               class="px-6 py-3 bg-gradient-to-r from-teal-500 to-cyan-500 text-white rounded-xl hover:from-teal-600 hover:to-cyan-600 transition-all shadow-lg hover:shadow-xl flex items-center gap-2 mx-auto"
             >
               <Sparkles :size="18" />
-              加入企业
+              加入家庭空间
             </button>
           </div>
         </div>
@@ -945,7 +945,7 @@ watch(newPassword, checkPasswordStrength)
             <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-400 to-cyan-500 flex items-center justify-center">
               <Building2 :size="20" class="text-white" />
             </div>
-            {{ currentEnterprise ? '切换企业' : '加入新企业' }}
+            {{ currentEnterprise ? '切换家庭空间' : '加入家庭空间' }}
           </h2>
           
           <div class="text-center py-8">
@@ -954,8 +954,8 @@ watch(newPassword, checkPasswordStrength)
             </div>
             <p class="text-gray-600 mb-6 max-w-md mx-auto">
               {{ currentEnterprise 
-                ? '如果您想加入另一个企业，可以使用新的邀请码进行切换' 
-                : '请使用企业邀请码加入企业' }}
+                ? '如果您想加入另一个家庭空间，可以使用新的邀请码进行切换'
+                : '请使用家庭邀请码加入家庭空间' }}
             </p>
             <button
               @click="showInviteCodeModal = true"
@@ -998,7 +998,7 @@ watch(newPassword, checkPasswordStrength)
           <div class="flex items-center justify-between mb-6">
             <h3 class="text-xl font-bold text-gray-900 flex items-center gap-2">
               <Building2 :size="24" class="text-teal-600" />
-              加入企业
+              加入家庭空间
             </h3>
             <button
               @click="showInviteCodeModal = false"
@@ -1030,7 +1030,7 @@ watch(newPassword, checkPasswordStrength)
                   {{ inviteCodeValidation.message }}
                 </p>
                 <p v-if="inviteCodeValidation.enterprise_name" class="text-sm text-green-700 mt-1">
-                  企业名称：{{ inviteCodeValidation.enterprise_name }}
+                  家庭空间名称：{{ inviteCodeValidation.enterprise_name }}
                 </p>
               </div>
             </div>

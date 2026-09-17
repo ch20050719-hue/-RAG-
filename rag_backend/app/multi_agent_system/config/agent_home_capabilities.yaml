@@ -9,6 +9,21 @@ agents:
     agent_type: "home_butler"
     enabled: true
     priority: 1
+    allowed_tools:
+      - get_home_mode
+      - set_home_mode
+      - read_home_environment
+      - get_environment_history
+      - get_home_alerts
+      - list_home_devices
+      - get_device_status
+      - set_light_state
+      - set_fan_state
+      - get_door_lock_status
+      - unlock_door
+      - lock_door
+      - engage_deadbolt
+      - release_deadbolt
 
     domains:
       - name: "home_orchestration"
@@ -60,6 +75,11 @@ agents:
     agent_type: "environment"
     enabled: true
     priority: 2
+    allowed_tools:
+      - read_home_environment
+      - get_environment_history
+      - get_home_alerts
+      - get_device_status
 
     domains:
       - name: "sensor_reading"
@@ -83,6 +103,8 @@ agents:
         - "光照"
         - "人体"
         - "传感器"
+        - "CO2"
+        - "二氧化碳"
       medium_weight:
         - "热不热"
         - "冷不冷"
@@ -99,6 +121,18 @@ agents:
     agent_type: "device_control"
     enabled: true
     priority: 2
+    allowed_tools:
+      - list_home_devices
+      - get_device_status
+      - set_light_state
+      - set_fan_state
+      - get_home_mode
+      - set_home_mode
+      - get_door_lock_status
+      - unlock_door
+      - lock_door
+      - engage_deadbolt
+      - release_deadbolt
 
     domains:
       - name: "device_switch"
@@ -127,6 +161,11 @@ agents:
         - "desk_fan"
         - "灯"
         - "风扇"
+        - "模式"
+        - "门锁"
+        - "门磁"
+        - "反锁"
+        - "开锁"
 
     patterns:
       - ".*(打开|关闭|开启|关掉).*(灯|风扇|设备).*"
@@ -139,6 +178,11 @@ agents:
     agent_type: "comfort"
     enabled: true
     priority: 3
+    allowed_tools:
+      - get_home_mode
+      - set_home_mode
+      - read_home_environment
+      - get_home_alerts
 
     domains:
       - name: "sleep_comfort"

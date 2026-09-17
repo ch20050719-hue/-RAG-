@@ -42,6 +42,7 @@ class TaskStatus(str, Enum):
     COMPLETED = "completed"  # 已完成
     FAILED = "failed"  # 失败
     CANCELLED = "cancelled"  # 已取消
+    EXPIRED = "expired"  # 已过截止时间
 
 
 @dataclass
@@ -52,7 +53,7 @@ class ScheduledTask:
     name: str
     description: str
     frequency: TaskFrequency
-    next_run_time: datetime
+    next_run_time: Optional[datetime]
     last_run_time: Optional[datetime] = None
     callback: Optional[Callable] = None
     params: Dict[str, Any] = None
@@ -66,6 +67,7 @@ class ScheduledTask:
 
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
+        schedule = dict((self.params or {}).get("_schedule", {}))
         return {
             "task_id": self.task_id,
             "task_type": self.task_type.value,
@@ -79,7 +81,8 @@ class ScheduledTask:
             "retry_count": self.retry_count,
             "db_id": self.db_id,
             "user_id": self.user_id,
-            "tenant_id": self.tenant_id
+            "tenant_id": self.tenant_id,
+            "schedule": schedule,
         }
 
 
@@ -105,6 +108,22 @@ async def device_status_check_task(params: Dict[str, Any]):
     return {"devices": [device.model_dump(mode="json") for device in devices]}
 
 
+async def device_control_task(params: Dict[str, Any]):
+    """按计划控制单个已注册设备，仍经过统一设备服务校验。"""
+    from app.home_automation.device_models import DeviceStateValue
+    from app.home_automation.device_tools import get_device_service
+
+    device_id = str(params.get("device_id", "")).strip()
+    if not device_id:
+        raise ValueError("定时设备控制缺少 device_id")
+    state = DeviceStateValue(str(params.get("state", "")))
+    result = get_device_service().set_device_state(device_id=device_id, state=state)
+    if not result.accepted:
+        raise ValueError(result.blocked_reason or result.message or "设备控制未被接受")
+    logger.info("智能家居设备定时控制完成: %s=%s", device_id, state.value)
+    return result.model_dump(mode="json")
+
+
 class TaskScheduler:
     """
     定时任务调度器
@@ -126,6 +145,106 @@ class TaskScheduler:
         self._queued_task_ids: Set[str] = set()
         self._execution_history: List[Dict[str, Any]] = []
         logger.info("✅ 定时任务调度器初始化完成")
+
+    @staticmethod
+    def _as_utc(value: Any) -> Optional[datetime]:
+        """将数据库或 JSON 中的时间统一为带时区的 UTC 时间。"""
+        if value is None:
+            return None
+        if isinstance(value, str):
+            value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+
+    @staticmethod
+    def _schedule_options(task: ScheduledTask) -> Dict[str, Any]:
+        return dict((task.params or {}).get("_schedule") or {})
+
+    def _update_schedule_options(self, task: ScheduledTask, **updates: Any) -> None:
+        """以不可变副本更新 JSONB 中的调度扩展配置。"""
+        params = dict(task.params or {})
+        params["_schedule"] = {**self._schedule_options(task), **updates}
+        task.params = params
+
+    async def _notify_user(
+        self,
+        task: ScheduledTask,
+        notification_type: str,
+        title: str,
+        message: str,
+        priority: str = "medium",
+    ) -> None:
+        options = self._schedule_options(task)
+        channels = options.get("notification_channels") or ["in_app"]
+        if "in_app" not in channels or not task.user_id:
+            return
+        try:
+            from app.services.group_chat_service import group_chat_ws_manager
+
+            await group_chat_ws_manager.send_personal_notification(
+                str(task.user_id),
+                {
+                    "notification_type": notification_type,
+                    "type": notification_type,
+                    "source": "task",
+                    "title": title,
+                    "message": message,
+                    "priority": priority,
+                    "task_id": task.task_id,
+                    "metadata": {"task_id": task.task_id, "frequency": task.frequency.value},
+                },
+            )
+        except Exception as exc:
+            logger.warning("任务通知发送失败 %s: %s", task.task_id, exc, exc_info=True)
+
+    def _occurrence_key(self, task: ScheduledTask) -> Optional[str]:
+        next_run = self._as_utc(task.next_run_time)
+        return next_run.isoformat() if next_run else None
+
+    async def _maybe_send_reminder(self, task: ScheduledTask, current_time: datetime) -> None:
+        """在执行前发送一次提醒，并按执行时间去重。"""
+        options = self._schedule_options(task)
+        if not options.get("reminder_enabled", False):
+            return
+        next_run = self._as_utc(task.next_run_time)
+        if not next_run or next_run <= current_time:
+            return
+        reminder_time = self._as_utc(options.get("reminder_time"))
+        if reminder_time is None and options.get("reminder_before_minutes") is not None:
+            reminder_time = next_run - timedelta(minutes=int(options["reminder_before_minutes"]))
+        if reminder_time is None or reminder_time > current_time:
+            return
+        occurrence_key = self._occurrence_key(task)
+        if options.get("reminder_sent_for") == occurrence_key:
+            return
+        await self._notify_user(
+            task,
+            "task_reminder",
+            f"任务即将执行：{task.name}",
+            f"任务“{task.name}”将于 {next_run.astimezone().strftime('%Y-%m-%d %H:%M')} 执行。",
+        )
+        self._update_schedule_options(task, reminder_sent_for=occurrence_key)
+        await self._sync_task_to_db(task)
+
+    async def _handle_deadline(self, task: ScheduledTask, current_time: datetime) -> bool:
+        """处理已到截止时间的任务，返回是否应停止本轮调度。"""
+        deadline = self._as_utc(self._schedule_options(task).get("deadline"))
+        if not deadline or current_time < deadline:
+            return False
+        task.status = TaskStatus.EXPIRED
+        task.enabled = False
+        self._update_schedule_options(task, expired_at=current_time.isoformat())
+        await self._sync_task_to_db(task)
+        await self._notify_user(
+            task,
+            "task_deadline",
+            f"任务已到截止时间：{task.name}",
+            f"任务“{task.name}”未在截止时间前执行，已自动停止。",
+            priority="high",
+        )
+        logger.info("任务已过截止时间并停止: %s (%s)", task.name, task.task_id)
+        return True
 
     async def start(self):
         """启动调度器"""
@@ -211,8 +330,13 @@ class TaskScheduler:
                     if not task.enabled:
                         continue
 
-                    if task.status in (TaskStatus.RUNNING, TaskStatus.FAILED, TaskStatus.CANCELLED) or task_id in self._queued_task_ids:
+                    if task.status in (TaskStatus.RUNNING, TaskStatus.FAILED, TaskStatus.CANCELLED, TaskStatus.EXPIRED) or task_id in self._queued_task_ids:
                         continue
+
+                    if await self._handle_deadline(task, current_time):
+                        continue
+
+                    await self._maybe_send_reminder(task, current_time)
 
                     if task.next_run_time:
                         next_run = task.next_run_time
@@ -415,19 +539,30 @@ class TaskScheduler:
 
     def _update_next_run_time(self, task: ScheduledTask):
         """更新下次执行时间"""
+        if task.next_run_time is None:
+            task.enabled = False
+            return
+
+        next_run_time = task.next_run_time
         if task.frequency == TaskFrequency.ONCE:
             task.next_run_time = None
             task.enabled = False
         elif task.frequency == TaskFrequency.DAILY:
-            task.next_run_time = task.next_run_time + timedelta(days=1)
+            task.next_run_time = next_run_time + timedelta(days=1)
         elif task.frequency == TaskFrequency.WEEKLY:
-            task.next_run_time = task.next_run_time + timedelta(weeks=1)
+            task.next_run_time = next_run_time + timedelta(weeks=1)
         elif task.frequency == TaskFrequency.MONTHLY:
-            task.next_run_time = self._add_months(task.next_run_time, 1)
+            task.next_run_time = self._add_months(next_run_time, 1)
         elif task.frequency == TaskFrequency.QUARTERLY:
-            task.next_run_time = self._add_months(task.next_run_time, 3)
+            task.next_run_time = self._add_months(next_run_time, 3)
         elif task.frequency == TaskFrequency.YEARLY:
-            task.next_run_time = self._add_months(task.next_run_time, 12)
+            task.next_run_time = self._add_months(next_run_time, 12)
+
+        repeat_until = self._as_utc(self._schedule_options(task).get("repeat_until"))
+        if repeat_until and task.next_run_time and self._as_utc(task.next_run_time) > repeat_until:
+            task.next_run_time = None
+            task.enabled = False
+            task.status = TaskStatus.COMPLETED
 
     def _add_months(self, date: datetime, months: int) -> datetime:
         """增加月份"""
@@ -483,6 +618,7 @@ class TaskScheduler:
         callbacks = {
             TaskType.HOME_SCENARIO: home_scenario_task,
             TaskType.DEVICE_STATUS_CHECK: device_status_check_task,
+            TaskType.DEVICE_CONTROL: device_control_task,
         }
         return callbacks.get(task_type)
 
@@ -564,6 +700,11 @@ class TaskScheduler:
                     db_task.next_run_time = task.next_run_time
                     db_task.status = task.status.value
                     db_task.enabled = task.enabled
+                    db_task.task_params = {
+                        key: value
+                        for key, value in (task.params or {}).items()
+                        if key not in {"user_id", "tenant_id"}
+                    }
                     db_task.updated_at = datetime.now(timezone.utc)
                     await db.commit()
                     logger.info(f"💾 已同步任务状态到数据库: {task.name}")

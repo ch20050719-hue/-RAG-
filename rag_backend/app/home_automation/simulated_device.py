@@ -1,5 +1,6 @@
 """无硬件环境下的设备适配器。"""
 
+import math
 from datetime import datetime, timezone
 from typing import Final
 
@@ -10,6 +11,7 @@ from .device_models import (
     DeviceRegistration,
     DeviceState,
     SensorKind,
+    SensorQuality,
     SensorReading,
     SensorRegistration,
 )
@@ -36,6 +38,7 @@ _SET_STATE_ACTION: Final[str] = "set_state"
 _DEFAULT_SENSOR_VALUES: Final[dict[SensorKind, float]] = {
     SensorKind.TEMPERATURE: 26.5,
     SensorKind.HUMIDITY: 48.0,
+    SensorKind.CO2: 600.0,
     SensorKind.ILLUMINANCE: 180.0,
     SensorKind.MOTION: 0.0,
 }
@@ -79,6 +82,7 @@ class SimulatedDeviceAdapter:
                     online=sensor.online,
                     recorded_at=datetime.now(timezone.utc),
                     source="simulated",
+                    quality=SensorQuality.VALID,
                 ),
             }
 
@@ -110,10 +114,14 @@ class SimulatedDeviceAdapter:
             current = self._sensors[sensor_id]
         except KeyError as exc:
             raise DeviceNotFoundError(f"Sensor is not registered: {sensor_id}") from exc
+        numeric_value = float(value)
+        if not math.isfinite(numeric_value):
+            raise ValueError("Sensor value must be a finite number")
         updated = SensorReading(
-            **current.model_dump(exclude={"value", "recorded_at"}),
-            value=value,
+            **current.model_dump(exclude={"value", "recorded_at", "quality"}),
+            value=numeric_value,
             recorded_at=datetime.now(timezone.utc),
+            quality=SensorQuality.VALID,
         )
         self._sensors = {**self._sensors, sensor_id: updated}
         return updated

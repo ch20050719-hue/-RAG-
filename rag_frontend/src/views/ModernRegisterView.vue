@@ -65,7 +65,7 @@ function getFriendlyRegisterError(err: any): string {
   if (field === 'email') return '邮箱格式不正确，请检查后重新输入'
   if (field === 'password') return '密码长度至少需要 6 位'
   if (field === 'full_name') return '姓名长度至少需要 2 个字符'
-  if (field === 'company_name') return '企业名称长度至少需要 2 个字符'
+  if (field === 'company_name') return '家庭空间名称长度至少需要 2 个字符'
   if (field === 'invite_code') return '邀请码格式不正确，请检查后重新输入'
   if (typeof detail === 'string') return detail
 
@@ -106,7 +106,7 @@ async function handleRegister() {
   }
 
   if (userType.value === 'admin' && !trimmedCompanyName) {
-    error.value = '请填写企业名称'
+    error.value = '请填写家庭空间名称'
     return
   }
 
@@ -204,7 +204,7 @@ async function handleRegister() {
 
             <p class="eyebrow enter d2">创建账号</p>
             <h1 class="gradient-heading enter mt-5 max-w-md text-5xl font-semibold leading-tight">
-              创建你的企业智能工作空间
+              创建你的智能家居工作空间
             </h1>
             <p class="enter d3 mt-6 max-w-md text-sm leading-7 text-slate-600">
               先完成登录所需的核心信息。手机号和姓名可以稍后在个人中心补充，注册完成后将回到登录页。
@@ -225,7 +225,7 @@ async function handleRegister() {
             <div class="grid grid-cols-2 gap-3 text-xs">
               <div class="metric-card">
                 <Shield :size="17" class="mb-2 text-emerald-600" />
-                <p>租户隔离</p>
+                <p>账户隔离</p>
                 <strong>独立空间</strong>
               </div>
               <div class="metric-card">
@@ -261,7 +261,7 @@ async function handleRegister() {
                   <UserCircle2 :size="18" />
                   <span class="font-semibold">普通用户</span>
                 </div>
-                <p class="mt-1 text-xs opacity-75">个人或企业成员</p>
+                <p class="mt-1 text-xs opacity-75">个人或家庭成员</p>
               </button>
 
               <button
@@ -272,9 +272,9 @@ async function handleRegister() {
               >
                 <div class="flex items-center gap-2">
                   <Building2 :size="18" />
-                  <span class="font-semibold">企业管理员</span>
+                  <span class="font-semibold">家庭管理员</span>
                 </div>
-                <p class="mt-1 text-xs opacity-75">创建企业账号</p>
+                <p class="mt-1 text-xs opacity-75">创建家庭空间</p>
               </button>
             </div>
 
@@ -317,13 +317,13 @@ async function handleRegister() {
                 </label>
 
                 <label v-if="userType === 'normal'" class="space-y-2 sm:col-span-2">
-                  <span class="auth-label"><Key :size="16" /> 企业邀请码 <em>选填</em></span>
-                  <input v-model="inviteCode" type="text" placeholder="如有企业邀请码请输入" class="auth-input" @keydown.enter="handleRegister" />
+                  <span class="auth-label"><Key :size="16" /> 家庭邀请码 <em>选填</em></span>
+                  <input v-model="inviteCode" type="text" placeholder="如有家庭邀请码请输入" class="auth-input" @keydown.enter="handleRegister" />
                 </label>
 
                 <label v-if="userType === 'admin'" class="space-y-2 sm:col-span-2">
-                  <span class="auth-label"><Building2 :size="16" /> 企业名称 <b>*</b></span>
-                  <input v-model="companyName" type="text" placeholder="请输入企业名称" class="auth-input" @keydown.enter="handleRegister" />
+                  <span class="auth-label"><Building2 :size="16" /> 家庭空间名称 <b>*</b></span>
+                  <input v-model="companyName" type="text" placeholder="请输入家庭空间名称" class="auth-input" @keydown.enter="handleRegister" />
                 </label>
               </div>
 

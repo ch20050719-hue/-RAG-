@@ -18,13 +18,12 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/',
     name: 'chat',
-    component: () => import('@/views/ModernChatView.vue'),
+    component: () => import('@/views/MultiAgentChatView.vue'),
     meta: { requiresAuth: true },
   },
   {
     path: '/multi-agent',
-    name: 'multi-agent-chat',
-    component: () => import('@/views/MultiAgentChatView.vue'),
+    redirect: '/',
     meta: { requiresAuth: true },
   },
   {

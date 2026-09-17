@@ -4,13 +4,19 @@ export interface ScheduledTask {
   id: string
   name: string
   description: string
-  task_type: 'home_scenario' | 'device_status_check' | 'custom'
-  frequency: 'once' | 'daily' | 'weekly' | 'monthly' | 'quarterly'
-  next_run_time: string
+  task_type: 'home_scenario' | 'device_status_check' | 'device_control' | 'custom'
+  frequency: 'once' | 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly'
+  next_run_time: string | null
   last_run_time?: string
   enabled: boolean
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'paused'
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'expired'
   params: Record<string, any>
+  reminder_enabled: boolean
+  reminder_time?: string
+  reminder_before_minutes?: number
+  deadline?: string
+  repeat_until?: string
+  notification_channels: string[]
   result?: {
     status: string
     message?: string
@@ -49,6 +55,12 @@ export interface CreateTaskParams {
   frequency: ScheduledTask['frequency']
   next_run_time: string
   params?: Record<string, any>
+  reminder_enabled?: boolean
+  reminder_time?: string
+  reminder_before_minutes?: number
+  deadline?: string
+  repeat_until?: string
+  notification_channels?: string[]
 }
 
 export interface TaskStatistics {

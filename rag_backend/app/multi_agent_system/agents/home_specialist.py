@@ -8,7 +8,12 @@ from typing import Any, AsyncGenerator, List, Optional, TYPE_CHECKING
 
 from app.agent_framework.llm.base_adapter import BaseLLMAdapter
 from app.agent_framework.tools.tool_manager import ToolManager
-from app.home_automation.device_models import DeviceStateValue, DeviceType, HomeScenarioName
+from app.home_automation.device_models import (
+    DeviceStateValue,
+    DeviceType,
+    HomeModeName,
+    HomeScenarioName,
+)
 from app.home_automation.device_service import DeviceService
 from app.home_automation.device_tools import get_device_service
 
@@ -83,7 +88,7 @@ class HomeSpecialistAgent(BaseSpecialistAgent):
     def run_sleep_mode(self) -> dict[str, Any]:
         """执行睡眠模式。"""
 
-        result = self.device_service.run_scenario(HomeScenarioName.SLEEP)
+        result = self.device_service.set_mode(HomeModeName.SLEEP)
         return result.model_dump(mode="json")
 
     async def run(self, user_input: str, history: List[dict] | None = None, **kwargs: Any) -> str:
@@ -104,11 +109,23 @@ class HomeSpecialistAgent(BaseSpecialistAgent):
                 device_id="desk_fan",
                 state=state,
             )
+        if _contains_any(query, ("正常模式", "日常模式")):
+            return await self._call_home_tool("set_home_mode", mode="normal")
         if _contains_any(query, ("睡眠模式", "睡觉")):
-            return await self._call_home_tool("run_home_scenario", scenario="sleep")
+            return await self._call_home_tool("set_home_mode", mode="sleep")
         if _contains_any(query, ("离家", "出门", "节能")):
-            return await self._call_home_tool("run_home_scenario", scenario="away")
-        if _contains_any(query, ("温度", "湿度", "光照", "人体", "环境")):
+            return await self._call_home_tool("set_home_mode", mode="away")
+        if _contains_any(query, ("解除反锁", "释放反锁")):
+            return await self._call_home_tool("release_deadbolt", authorized=False)
+        if _contains_any(query, ("远程开锁", "远程开门")):
+            return await self._call_home_tool("unlock_door", authorized=True)
+        if _contains_any(query, ("远程锁门", "锁住房门")):
+            return await self._call_home_tool("lock_door")
+        if _contains_any(query, ("反锁房门", "室内反锁")):
+            return await self._call_home_tool("engage_deadbolt")
+        if _contains_any(query, ("门锁状态", "门磁", "门锁")):
+            return await self._call_home_tool("get_door_lock_status", room="study")
+        if _contains_any(query, ("温度", "湿度", "光照", "人体", "CO2", "二氧化碳", "环境")):
             return await self._call_home_tool("read_home_environment", room="study")
         if _contains_any(query, ("设备状态", "设备列表", "有哪些设备")):
             return await self._call_home_tool("list_home_devices")
@@ -159,6 +176,36 @@ class HomeSpecialistAgent(BaseSpecialistAgent):
         if tool_name == "run_home_scenario":
             return json.dumps(
                 self.device_service.run_scenario(HomeScenarioName(kwargs["scenario"])).model_dump(mode="json"),
+                ensure_ascii=False,
+            )
+        if tool_name == "set_home_mode":
+            return json.dumps(
+                self.device_service.set_mode(
+                    HomeModeName(kwargs["mode"]),
+                    request_prefix=kwargs.get("request_prefix"),
+                ).model_dump(mode="json"),
+                ensure_ascii=False,
+            )
+        if tool_name == "get_home_mode":
+            return json.dumps(
+                {"room": kwargs.get("room", "study"), "mode": self.device_service.get_mode().value},
+                ensure_ascii=False,
+            )
+        if tool_name == "get_door_lock_status":
+            return json.dumps(self.device_service.get_door_lock().model_dump(mode="json"), ensure_ascii=False)
+        if tool_name in {"unlock_door", "lock_door", "engage_deadbolt", "release_deadbolt"}:
+            action_by_tool = {
+                "unlock_door": "unlock",
+                "lock_door": "lock",
+                "engage_deadbolt": "engage_deadbolt",
+                "release_deadbolt": "release_deadbolt",
+            }
+            return json.dumps(
+                self.device_service.command_door_lock(
+                    action_by_tool[tool_name],
+                    authorized=bool(kwargs.get("authorized", False)),
+                    request_id=kwargs.get("request_id"),
+                ).model_dump(mode="json"),
                 ensure_ascii=False,
             )
         if tool_name == "list_home_devices":
@@ -223,7 +270,7 @@ def _default_prompt(specialty: str) -> str:
     role = {
         "home_butler": "你是总管家，负责理解自然语言并协调环境与设备动作。",
         "environment": "你是环境感知专家，负责读取温湿度、光照与人体状态并给出舒适判断。",
-        "device_control": "你是设备控制专家，负责安全地打开/关闭灯和风扇，并回报设备状态。",
+        "device_control": "你是设备控制专家，负责安全地控制灯、风扇、模式和实验门锁，并回报设备状态。",
         "comfort": "你是舒适度专家，负责睡眠、离家等场景建议与执行。",
     }.get(specialty, "你是智能家居助手。")
     return f"{role}\n{shared}"

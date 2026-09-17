@@ -16,6 +16,7 @@ from .device_models import (
     DeviceRegistration,
     DeviceState,
     DeviceStateValue,
+    SensorQuality,
     SensorReading,
     SensorRegistration,
 )
@@ -132,6 +133,7 @@ class MqttDeviceAdapter:
                 online=sensor.online,
                 recorded_at=now,
                 source="mqtt",
+                quality=SensorQuality.VALID,
             )
 
     @property
@@ -264,11 +266,14 @@ class MqttDeviceAdapter:
                 current = self._sensors[sensor_id]
                 kind = current.kind
                 self._sensors[sensor_id] = SensorReading(
-                    **current.model_dump(exclude={"value", "recorded_at", "source"}),
+                    **current.model_dump(
+                        exclude={"value", "unit", "recorded_at", "source", "quality"}
+                    ),
                     value=float(value),
                     unit=SENSOR_UNITS.get(kind, current.unit),
                     recorded_at=datetime.now(timezone.utc),
                     source="mqtt",
+                    quality=SensorQuality.VALID,
                 )
 
     def ingest_availability(self, room: str, device_id: str | None, online: bool) -> None:

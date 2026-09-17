@@ -6,11 +6,11 @@
 import uuid
 import logging
 from datetime import datetime, timezone, timedelta
-from typing import Optional, List
+from typing import Any, Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, desc, func
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from app.db.session import get_db
 from app.models.user import User
@@ -23,6 +23,86 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _as_utc(value: Any) -> Optional[datetime]:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _iso(value: Optional[datetime]) -> Optional[str]:
+    return _as_utc(value).isoformat() if value else None
+
+
+def _validate_schedule(
+    *,
+    frequency: str,
+    next_run_time: Optional[datetime],
+    reminder_enabled: bool,
+    reminder_time: Optional[datetime],
+    reminder_before_minutes: Optional[int],
+    deadline: Optional[datetime],
+    repeat_until: Optional[datetime],
+    notification_channels: List[str],
+) -> None:
+    if not next_run_time:
+        raise HTTPException(status_code=422, detail="必须设置执行时间")
+    if not set(notification_channels).issubset({"in_app"}):
+        raise HTTPException(status_code=422, detail="当前仅支持站内通知")
+
+    next_run = _as_utc(next_run_time)
+    if reminder_enabled:
+        if frequency == TaskFrequency.ONCE.value:
+            if reminder_time is None and reminder_before_minutes is None:
+                raise HTTPException(status_code=422, detail="一次性任务请设置提醒时间或提前分钟数")
+        elif reminder_time is not None:
+            raise HTTPException(status_code=422, detail="重复任务请使用提前提醒分钟数")
+        elif reminder_before_minutes is None:
+            raise HTTPException(status_code=422, detail="重复任务请设置提前提醒分钟数")
+
+    if reminder_before_minutes is not None and not 1 <= reminder_before_minutes <= 10080:
+        raise HTTPException(status_code=422, detail="提前提醒时间需在1分钟到7天之间")
+    if reminder_time is not None and _as_utc(reminder_time) >= next_run:
+        raise HTTPException(status_code=422, detail="提醒时间必须早于执行时间")
+    if deadline is not None and _as_utc(deadline) < next_run:
+        raise HTTPException(status_code=422, detail="截止时间不能早于首次执行时间")
+    if repeat_until is not None:
+        if frequency == TaskFrequency.ONCE.value:
+            raise HTTPException(status_code=422, detail="一次性任务不需要设置重复结束时间")
+        if _as_utc(repeat_until) < next_run:
+            raise HTTPException(status_code=422, detail="重复结束时间不能早于首次执行时间")
+
+
+def _schedule_payload(
+    *,
+    reminder_enabled: bool,
+    reminder_time: Optional[datetime],
+    reminder_before_minutes: Optional[int],
+    deadline: Optional[datetime],
+    repeat_until: Optional[datetime],
+    notification_channels: List[str],
+) -> dict:
+    return {
+        "reminder_enabled": reminder_enabled,
+        "reminder_time": _iso(reminder_time),
+        "reminder_before_minutes": reminder_before_minutes,
+        "deadline": _iso(deadline),
+        "repeat_until": _iso(repeat_until),
+        "notification_channels": list(notification_channels),
+    }
+
+
+def _schedule_from_task(task: ScheduledTask) -> dict:
+    return dict((task.task_params or {}).get("_schedule") or {})
+
+
+def _params_without_schedule(params: Optional[dict]) -> dict:
+    return {key: value for key, value in (params or {}).items() if key != "_schedule"}
+
+
 class TaskCreateRequest(BaseModel):
     name: str
     description: Optional[str] = None
@@ -31,6 +111,12 @@ class TaskCreateRequest(BaseModel):
     next_run_time: datetime
     params: Optional[dict] = None
     enabled: bool = True
+    reminder_enabled: bool = False
+    reminder_time: Optional[datetime] = None
+    reminder_before_minutes: Optional[int] = Field(default=None, ge=1, le=10080)
+    deadline: Optional[datetime] = None
+    repeat_until: Optional[datetime] = None
+    notification_channels: List[str] = Field(default_factory=lambda: ["in_app"])
 
     @field_validator('task_type')
     @classmethod
@@ -56,6 +142,12 @@ class TaskUpdateRequest(BaseModel):
     next_run_time: Optional[datetime] = None
     params: Optional[dict] = None
     enabled: Optional[bool] = None
+    reminder_enabled: Optional[bool] = None
+    reminder_time: Optional[datetime] = None
+    reminder_before_minutes: Optional[int] = Field(default=None, ge=1, le=10080)
+    deadline: Optional[datetime] = None
+    repeat_until: Optional[datetime] = None
+    notification_channels: Optional[List[str]] = None
 
     @field_validator('frequency')
     @classmethod
@@ -86,6 +178,12 @@ class TaskResponse(BaseModel):
     result: Optional[dict] = None
     created_at: datetime
     updated_at: Optional[datetime]
+    reminder_enabled: bool = False
+    reminder_time: Optional[datetime] = None
+    reminder_before_minutes: Optional[int] = None
+    deadline: Optional[datetime] = None
+    repeat_until: Optional[datetime] = None
+    notification_channels: List[str] = Field(default_factory=lambda: ["in_app"])
 
     @field_validator('id', mode='before')
     @classmethod
@@ -100,6 +198,7 @@ class TaskResponse(BaseModel):
 
 def task_to_response(task: ScheduledTask) -> TaskResponse:
     """将数据库任务模型转换为API响应模型"""
+    schedule = _schedule_from_task(task)
     return TaskResponse(
         id=str(task.id),
         name=task.name,
@@ -110,10 +209,16 @@ def task_to_response(task: ScheduledTask) -> TaskResponse:
         last_run_time=task.last_run_time,
         enabled=task.enabled,
         status=task.status,
-        params=task.task_params,
+        params=_params_without_schedule(task.task_params),
         result=None,
         created_at=task.created_at,
-        updated_at=task.updated_at
+        updated_at=task.updated_at,
+        reminder_enabled=bool(schedule.get("reminder_enabled", task.notification_enabled or False)),
+        reminder_time=schedule.get("reminder_time"),
+        reminder_before_minutes=schedule.get("reminder_before_minutes"),
+        deadline=schedule.get("deadline"),
+        repeat_until=schedule.get("repeat_until"),
+        notification_channels=schedule.get("notification_channels") or task.notification_channels or ["in_app"],
     )
 
 
@@ -250,6 +355,27 @@ async def create_task(
     """
     try:
         task_id = f"task_{uuid.uuid4().hex[:12]}"
+        _validate_schedule(
+            frequency=request.frequency,
+            next_run_time=request.next_run_time,
+            reminder_enabled=request.reminder_enabled,
+            reminder_time=request.reminder_time,
+            reminder_before_minutes=request.reminder_before_minutes,
+            deadline=request.deadline,
+            repeat_until=request.repeat_until,
+            notification_channels=request.notification_channels,
+        )
+        task_params = {
+            **(request.params or {}),
+            "_schedule": _schedule_payload(
+                reminder_enabled=request.reminder_enabled,
+                reminder_time=request.reminder_time,
+                reminder_before_minutes=request.reminder_before_minutes,
+                deadline=request.deadline,
+                repeat_until=request.repeat_until,
+                notification_channels=request.notification_channels,
+            ),
+        }
 
         task = ScheduledTask(
             task_id=task_id,
@@ -260,9 +386,11 @@ async def create_task(
             description=request.description,
             frequency=request.frequency,
             next_run_time=request.next_run_time,
-            task_params=request.params,
+            task_params=task_params,
             enabled=request.enabled,
             status="pending",
+            notification_enabled=request.reminder_enabled,
+            notification_channels=request.notification_channels,
             created_at=datetime.now(timezone.utc)
         )
 
@@ -274,6 +402,9 @@ async def create_task(
             await task_scheduler.add_task(task)
 
         return task_to_response(task)
+    except HTTPException:
+        await db.rollback()
+        raise
     except Exception as e:
         await db.rollback()
         logger.error(f"❌ 创建任务失败: {e}", exc_info=True)
@@ -328,12 +459,53 @@ async def update_task(
 
         original_task_id = task.task_id
 
+        current_schedule = _schedule_from_task(task)
+        frequency = request.frequency or task.frequency
+        next_run_time = request.next_run_time or task.next_run_time
+        reminder_enabled = (
+            request.reminder_enabled
+            if request.reminder_enabled is not None
+            else bool(current_schedule.get("reminder_enabled", task.notification_enabled or False))
+        )
+        reminder_time = request.reminder_time if request.reminder_time is not None else current_schedule.get("reminder_time")
+        reminder_before_minutes = (
+            request.reminder_before_minutes
+            if request.reminder_before_minutes is not None
+            else current_schedule.get("reminder_before_minutes")
+        )
+        deadline = request.deadline if request.deadline is not None else current_schedule.get("deadline")
+        repeat_until = request.repeat_until if request.repeat_until is not None else current_schedule.get("repeat_until")
+        notification_channels = request.notification_channels or current_schedule.get("notification_channels") or task.notification_channels or ["in_app"]
+        _validate_schedule(
+            frequency=frequency,
+            next_run_time=next_run_time,
+            reminder_enabled=reminder_enabled,
+            reminder_time=reminder_time,
+            reminder_before_minutes=reminder_before_minutes,
+            deadline=deadline,
+            repeat_until=repeat_until,
+            notification_channels=notification_channels,
+        )
+
         update_data = request.model_dump(exclude_unset=True)
-        for field, value in update_data.items():
-            if field == "params":
-                task.task_params = value
-            elif hasattr(task, field):
-                setattr(task, field, value)
+        for field in ("name", "description", "frequency", "next_run_time", "enabled"):
+            if field in update_data:
+                setattr(task, field, update_data[field])
+
+        base_params = _params_without_schedule(request.params if request.params is not None else task.task_params)
+        task.task_params = {
+            **base_params,
+            "_schedule": _schedule_payload(
+                reminder_enabled=reminder_enabled,
+                reminder_time=reminder_time,
+                reminder_before_minutes=reminder_before_minutes,
+                deadline=deadline,
+                repeat_until=repeat_until,
+                notification_channels=notification_channels,
+            ),
+        }
+        task.notification_enabled = reminder_enabled
+        task.notification_channels = notification_channels
 
         task.updated_at = datetime.now(timezone.utc)
 
@@ -346,6 +518,7 @@ async def update_task(
 
         return task_to_response(task)
     except HTTPException:
+        await db.rollback()
         raise
     except Exception as e:
         await db.rollback()

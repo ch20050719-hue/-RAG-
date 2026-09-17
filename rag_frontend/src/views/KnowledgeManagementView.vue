@@ -900,8 +900,8 @@ function formatDate(dateString: string): string {
                   : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-300'"
               >
                 <Building2 :size="20" />
-                <span class="font-medium">企业知识库</span>
-                <span class="text-xs">企业内可见</span>
+                <span class="font-medium">家庭知识库</span>
+                <span class="text-xs">家庭成员可见</span>
               </button>
             </div>
 
@@ -949,7 +949,7 @@ function formatDate(dateString: string): string {
               <Building2 :size="24" class="text-white" />
             </div>
             <div>
-              <h3 class="text-xl font-bold text-slate-900">上传到企业知识库</h3>
+              <h3 class="text-xl font-bold text-slate-900">上传到家庭知识库</h3>
               <p class="text-sm text-slate-500">{{ selectedKB?.name }}</p>
             </div>
           </div>
@@ -973,7 +973,7 @@ function formatDate(dateString: string): string {
             <Globe :size="28" :class="selectedDocVisibility === 'public' ? 'text-emerald-600' : 'text-slate-400'" />
             <div class="text-center">
               <span class="font-semibold" :class="selectedDocVisibility === 'public' ? 'text-emerald-700' : 'text-slate-600'">公开上传</span>
-              <p class="text-xs mt-1" :class="selectedDocVisibility === 'public' ? 'text-emerald-600' : 'text-slate-400'">全公司可见</p>
+              <p class="text-xs mt-1" :class="selectedDocVisibility === 'public' ? 'text-emerald-600' : 'text-slate-400'">家庭成员可见</p>
             </div>
           </button>
           <button

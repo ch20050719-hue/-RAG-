@@ -1767,9 +1767,9 @@ function renderMessageBody(content: string, index: number): string {
 
             <div>
 
-              <h1 class="text-lg font-semibold text-gray-900">多智能体协作</h1>
+              <h1 class="text-lg font-semibold text-gray-900">智能对话</h1>
 
-              <p class="text-sm text-gray-500">多专家协作 · 智能路由 · 质量审核</p>
+              <p class="text-sm text-gray-500">智能家居助手 · 智能路由 · 安全控制</p>
 
             </div>
 
@@ -1859,10 +1859,10 @@ function renderMessageBody(content: string, index: number): string {
           </div>
           <div class="text-center space-y-2">
             <h2 class="text-xl font-bold text-gray-900 bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
-              多智能体协作助手
+              智能家居对话助手
             </h2>
             <p class="text-gray-500 text-sm max-w-lg">
-              由多个专业智能体协作处理您的问题，自动路由到合适的专家，并进行质量审核
+              由系统自动理解您的问题，路由到合适的能力并完成安全处理
             </p>
           </div>
           <div class="flex flex-wrap justify-center gap-2 mt-3">
@@ -1877,7 +1877,7 @@ function renderMessageBody(content: string, index: number): string {
           </div>
           <div class="mt-6 p-3 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl max-w-2xl">
             <p class="text-xs text-gray-600 text-center">
-              🚀 <strong>系统特点</strong>：智能路由 · 多专家协作 · 实时反思审核 · 高质量输出
+              🚀 <strong>系统特点</strong>：智能路由 · 安全控制 · 实时处理 · 清晰反馈
             </p>
           </div>
         </div>
@@ -2372,7 +2372,7 @@ function renderMessageBody(content: string, index: number): string {
         <div class="bg-gradient-to-br from-blue-50 to-cyan-50 p-3 rounded">
           <div class="flex items-center gap-2 mb-2">
             <Brain :size="14" class="text-blue-600" />
-            <span class="text-xs font-medium text-blue-700">多智能体协作说明</span>
+            <span class="text-xs font-medium text-blue-700">智能对话说明</span>
           </div>
           <div class="space-y-1.5 text-xs text-gray-600">
             <div class="flex items-start gap-1.5">
