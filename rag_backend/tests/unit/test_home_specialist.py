@@ -89,3 +89,27 @@ def test_home_specialist_does_not_bypass_deadbolt_authorization():
     result = asyncio.run(agent.run("解除反锁"))
 
     assert "authorization" in result.lower()
+
+
+def test_home_specialist_routes_servo_open_and_close_actions():
+    service = _home_service()
+    tools = ToolManager()
+    for home_tool in get_home_tools():
+        tools.register_langchain_tool(home_tool)
+
+    agent = HomeSpecialistAgent(
+        specialty="device_control",
+        llm_adapter=DummyHomeLLM(),
+        tool_manager=tools,
+        device_service=service,
+    )
+
+    import asyncio
+
+    open_result = asyncio.run(agent.run("自动打开房门"))
+    close_result = asyncio.run(agent.run("自动关闭房门"))
+
+    assert '"action": "open_door"' in open_result
+    assert '"door_state": "open"' in open_result
+    assert '"action": "close_door"' in close_result
+    assert '"door_state": "closed"' in close_result

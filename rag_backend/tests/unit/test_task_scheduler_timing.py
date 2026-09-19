@@ -8,6 +8,7 @@ from app.services.task_scheduler import (
     TaskScheduler,
     TaskStatus,
     TaskType,
+    device_control_task,
 )
 
 
@@ -63,3 +64,20 @@ def test_repeat_until_stops_future_occurrences():
     assert task.next_run_time is None
     assert task.enabled is False
     assert task.status == TaskStatus.COMPLETED
+
+
+def test_device_control_task_type_resolves_to_control_callback():
+    scheduler = TaskScheduler()
+
+    task = scheduler.create_task(
+        task_id="device_control_timing_test",
+        task_type=TaskType("device_control"),
+        name="定时关闭风扇",
+        description="",
+        frequency=TaskFrequency.ONCE,
+        next_run_time=datetime(2026, 9, 17, 12, 0, tzinfo=timezone.utc),
+        params={"device_id": "desk_fan", "state": "off"},
+    )
+
+    assert TaskType.DEVICE_CONTROL.value == "device_control"
+    assert task.callback is device_control_task

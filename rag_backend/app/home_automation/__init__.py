@@ -3,6 +3,7 @@
 from .device_models import (
     AlertState,
     BatteryState,
+    DoorActuatorResult,
     DeviceCommand,
     DeviceCommandResult,
     DeviceRegistration,
@@ -44,6 +45,7 @@ from .simulated_device import SimulatedDeviceAdapter
 __all__ = [
     "AlertState",
     "BatteryState",
+    "DoorActuatorResult",
     "DeviceCommand",
     "DeviceCommandResult",
     "DeviceRegistration",

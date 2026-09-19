@@ -13,6 +13,7 @@ class DeviceType(str, Enum):
 
     LIGHT = "light"
     FAN = "fan"
+    WINDOW = "window"
     DOOR_LOCK = "door_lock"
 
 
@@ -21,6 +22,8 @@ class DeviceStateValue(str, Enum):
 
     ON = "on"
     OFF = "off"
+    OPEN = "open"
+    CLOSED = "closed"
 
 
 class SensorKind(str, Enum):
@@ -31,6 +34,7 @@ class SensorKind(str, Enum):
     CO2 = "co2"
     ILLUMINANCE = "illuminance"
     MOTION = "motion"
+    SMOKE = "smoke"
 
 
 class SensorQuality(str, Enum):
@@ -79,6 +83,8 @@ class DoorLockAction(str, Enum):
     LOCK = "lock"
     ENGAGE_DEADBOLT = "engage_deadbolt"
     RELEASE_DEADBOLT = "release_deadbolt"
+    OPEN_DOOR = "open_door"
+    CLOSE_DOOR = "close_door"
 
 
 class DoorLockAckStatus(str, Enum):
@@ -213,6 +219,20 @@ class DoorLockCommandResult(BaseModel):
     acknowledged_at: datetime
 
 
+class DoorActuatorResult(BaseModel):
+    """舵机门体动作的底层执行回执。"""
+
+    model_config = ConfigDict(frozen=True)
+
+    request_id: UUID
+    device_id: str
+    action: DoorLockAction
+    accepted: bool
+    ack_status: DoorLockAckStatus
+    message: str
+    blocked_reason: str | None = None
+
+
 class EnvironmentSnapshot(BaseModel):
     """某一房间的环境快照。"""
 
@@ -278,6 +298,33 @@ class HomeModeName(str, Enum):
     NORMAL = "normal"
     SLEEP = "sleep"
     AWAY = "away"
+
+
+class AutomationMode(str, Enum):
+    """版本三本地控制模式；与睡眠/离家场景配置相互独立。"""
+
+    MANUAL = "manual"
+    AUTOMATIC = "automatic"
+
+
+class ThresholdName(str, Enum):
+    """允许由云端调整的版本三固定阈值。"""
+
+    TEMPERATURE_MAX = "temperature_max"
+    HUMIDITY_MAX = "humidity_max"
+    ILLUMINANCE_MIN = "illuminance_min"
+    SMOKE_MAX = "smoke_max"
+
+
+class EnvironmentThresholds(BaseModel):
+    """当前生效的版本三阈值快照。"""
+
+    model_config = ConfigDict(frozen=True)
+
+    temperature_max: float
+    humidity_max: float
+    illuminance_min: float
+    smoke_max: float
 
 
 class ModeExecutionStatus(str, Enum):

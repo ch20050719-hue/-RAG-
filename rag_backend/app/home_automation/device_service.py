@@ -4,8 +4,9 @@ from datetime import datetime, timedelta, timezone
 from typing import Final
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
-from .adapters import DeviceAdapter
+from .adapters import DeviceAdapter, DoorActuator
 from .device_models import (
+    AutomationMode,
     DeviceCommand,
     DeviceCommandResult,
     DeviceRegistration,
@@ -18,6 +19,7 @@ from .device_models import (
     DoorState,
     EnvironmentAlert,
     EnvironmentSnapshot,
+    EnvironmentThresholds,
     HomeModeName,
     HomeScenarioName,
     ModeExecutionResult,
@@ -26,6 +28,7 @@ from .device_models import (
     ScenarioExecutionResult,
     SensorReading,
     SensorRegistration,
+    ThresholdName,
 )
 from .environment_history import EnvironmentHistoryService
 from .environment_monitor import (
@@ -77,7 +80,11 @@ class DeviceService:
         self._history = history_service or EnvironmentHistoryService()
         self._alerts = alert_service or EnvironmentAlertService(self._environment_config)
         self._mode = HomeModeName.NORMAL
-        self._door_lock = door_lock_service or DoorLockService(room=default_room)
+        self._automation_mode = AutomationMode.MANUAL
+        self._door_lock = door_lock_service or DoorLockService(
+            room=default_room,
+            actuator=adapter if isinstance(adapter, DoorActuator) else None,
+        )
 
     def list_devices(self) -> list[DeviceState]:
         """列出设备状态。"""
@@ -93,6 +100,55 @@ class DeviceService:
         """读取当前运行模式。"""
 
         return self._mode
+
+    def get_automation_mode(self) -> AutomationMode:
+        """读取版本三手动/自动控制模式。"""
+
+        return self._automation_mode
+
+    def set_automation_mode(self, mode: AutomationMode) -> AutomationMode:
+        """切换阈值自动联动；不改变睡眠/离家场景配置。"""
+
+        self._automation_mode = mode
+        return mode
+
+    def get_thresholds(self) -> EnvironmentThresholds:
+        """返回当前进程内生效的版本三阈值。"""
+
+        return EnvironmentThresholds(
+            temperature_max=float(self._environment_config.temperature.danger_max),
+            humidity_max=float(self._environment_config.humidity.danger_max),
+            illuminance_min=float(self._environment_config.illuminance.danger_min),
+            smoke_max=float(self._environment_config.smoke.danger_max),
+        )
+
+    def set_threshold(self, name: ThresholdName, value: float) -> EnvironmentThresholds:
+        """校验并更新固定阈值；模拟模式在当前进程生命周期内保存。"""
+
+        ranges = {
+            ThresholdName.TEMPERATURE_MAX: (-20.0, 80.0),
+            ThresholdName.HUMIDITY_MAX: (1.0, 100.0),
+            ThresholdName.ILLUMINANCE_MIN: (0.0, 100000.0),
+            ThresholdName.SMOKE_MAX: (1.0, 4095.0),
+        }
+        minimum, maximum = ranges[name]
+        numeric = float(value)
+        if not minimum <= numeric <= maximum:
+            raise ValueError(f"threshold value outside allowed range [{minimum}, {maximum}]")
+        field_name, boundary = {
+            ThresholdName.TEMPERATURE_MAX: ("temperature", "danger_max"),
+            ThresholdName.HUMIDITY_MAX: ("humidity", "danger_max"),
+            ThresholdName.ILLUMINANCE_MIN: ("illuminance", "danger_min"),
+            ThresholdName.SMOKE_MAX: ("smoke", "danger_max"),
+        }[name]
+        metric = getattr(self._environment_config, field_name).model_copy(
+            update={boundary: numeric}
+        )
+        self._environment_config = self._environment_config.model_copy(
+            update={field_name: metric}
+        )
+        self._alerts = EnvironmentAlertService(self._environment_config)
+        return self.get_thresholds()
 
     def set_mode(
         self,
@@ -233,24 +289,79 @@ class DeviceService:
             for reading in snapshot.readings
             if (alert := self._alerts.evaluate(reading, now=snapshot.generated_at)) is not None
         ]
+        if self._automation_mode is not AutomationMode.AUTOMATIC:
+            return alerts
         for alert in alerts:
-            if alert.state.value != "active" or alert.related_action != "fan_on":
+            if alert.state.value != "active":
                 continue
-            fan = next(
-                (
-                    device
-                    for device in self.list_devices()
-                    if device.room == snapshot.room and device.device_type is DeviceType.FAN
-                ),
-                None,
-            )
-            if fan is not None and fan.state is not DeviceStateValue.ON:
-                self.set_device_state(
-                    fan.device_id,
-                    DeviceStateValue.ON,
-                    expected_device_type=DeviceType.FAN,
-                )
+            if alert.related_action in {"fan_on", "fan_and_window_on"}:
+                self.set_switch_state("desk_fan", DeviceStateValue.ON)
+            if alert.related_action == "fan_and_window_on":
+                self.set_window_state(DeviceStateValue.OPEN)
+            if alert.related_action == "light_on":
+                self.set_switch_state("desk_light", DeviceStateValue.ON)
         return alerts
+
+    def set_switch_state(
+        self,
+        device_id: str,
+        state: DeviceStateValue,
+        request_id: str | None = None,
+    ) -> DeviceCommandResult:
+        """只控制灯和风扇，阻止门锁/窗户进入通用 on/off 通道。"""
+
+        try:
+            current = self._adapter.read_state(device_id)
+        except (DeviceNotFoundError, DeviceOfflineError, ExpiredCommandError, DeviceError) as exc:
+            return self._blocked_result(device_id, state, request_id, str(exc))
+        if current.device_type not in {DeviceType.LIGHT, DeviceType.FAN}:
+            return self._blocked_result(
+                device_id,
+                state,
+                request_id,
+                f"Device type {current.device_type.value} requires a dedicated control endpoint",
+            )
+        if state not in {DeviceStateValue.ON, DeviceStateValue.OFF}:
+            return self._blocked_result(device_id, state, request_id, "Switch state must be on or off")
+        return self.set_device_state(
+            device_id,
+            state,
+            request_id=request_id,
+            expected_device_type=current.device_type,
+        )
+
+    def set_window_state(
+        self,
+        state: DeviceStateValue,
+        request_id: str | None = None,
+    ) -> DeviceCommandResult:
+        """通过固定窗户设备执行 open/closed 状态。"""
+
+        if state not in {DeviceStateValue.OPEN, DeviceStateValue.CLOSED}:
+            return self._blocked_result("window_motor", state, request_id, "Window state must be open or closed")
+        return self.set_device_state(
+            "window_motor",
+            state,
+            request_id=request_id,
+            expected_device_type=DeviceType.WINDOW,
+        )
+
+    def _blocked_result(
+        self,
+        device_id: str,
+        state: DeviceStateValue,
+        request_id: str | None,
+        reason: str,
+    ) -> DeviceCommandResult:
+        return DeviceCommandResult(
+            request_id=_coerce_request_id(request_id),
+            device_id=device_id,
+            accepted=False,
+            state=state,
+            acknowledged_at=datetime.now(timezone.utc),
+            message=reason,
+            blocked_reason=reason,
+        )
 
     def get_environment_alerts(
         self,
@@ -280,7 +391,7 @@ class DeviceService:
             expires_at=datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds),
         )
         decision = evaluate_control_risk(command)
-        if decision.allowed and expected_device_type is not None:
+        if decision.allowed:
             try:
                 current_state = self._adapter.read_state(device_id)
             except (DeviceNotFoundError, DeviceOfflineError, ExpiredCommandError, DeviceError) as exc:
@@ -293,7 +404,18 @@ class DeviceService:
                     message=str(exc),
                     blocked_reason=str(exc),
                 )
-            decision = validate_expected_device_type(current_state, expected_device_type)
+            if (
+                expected_device_type is None
+                and current_state.device_type in {DeviceType.DOOR_LOCK, DeviceType.WINDOW}
+            ):
+                return self._blocked_result(
+                    device_id,
+                    state,
+                    command.request_id,
+                    "Door locks and windows require their dedicated control endpoints",
+                )
+            if expected_device_type is not None:
+                decision = validate_expected_device_type(current_state, expected_device_type)
         if not decision.allowed:
             return DeviceCommandResult(
                 request_id=command.request_id,

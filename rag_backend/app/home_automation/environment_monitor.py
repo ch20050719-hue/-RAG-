@@ -62,7 +62,8 @@ class EnvironmentMonitorConfig(BaseModel):
 
     temperature: MetricThreshold
     humidity: MetricThreshold
-    co2: MetricThreshold
+    illuminance: MetricThreshold
+    smoke: MetricThreshold
     confirmation_count: int = Field(default=3, ge=1, le=20)
     recovery_count: int = Field(default=3, ge=1, le=20)
     sensor_max_age_seconds: int = Field(default=30, ge=1, le=3600)
@@ -73,7 +74,8 @@ class EnvironmentMonitorConfig(BaseModel):
         return {
             SensorKind.TEMPERATURE: self.temperature,
             SensorKind.HUMIDITY: self.humidity,
-            SensorKind.CO2: self.co2,
+            SensorKind.ILLUMINANCE: self.illuminance,
+            SensorKind.SMOKE: self.smoke,
         }.get(kind)
 
 
@@ -94,11 +96,17 @@ DEFAULT_ENVIRONMENT_CONFIG = EnvironmentMonitorConfig(
         valid_min=0,
         valid_max=100,
     ),
-    co2=MetricThreshold(
-        normal_max=1000,
-        danger_max=1500,
+    illuminance=MetricThreshold(
+        normal_min=100,
+        danger_min=50,
         valid_min=0,
-        valid_max=5000,
+        valid_max=100000,
+    ),
+    smoke=MetricThreshold(
+        normal_max=500,
+        danger_max=800,
+        valid_min=0,
+        valid_max=4095,
     ),
 )
 
@@ -183,7 +191,10 @@ def environment_config_from_env(
     return EnvironmentMonitorConfig(
         temperature=_threshold_from_env("HOME_TEMP", DEFAULT_ENVIRONMENT_CONFIG.temperature, values),
         humidity=_threshold_from_env("HOME_HUMIDITY", DEFAULT_ENVIRONMENT_CONFIG.humidity, values),
-        co2=_threshold_from_env("HOME_CO2", DEFAULT_ENVIRONMENT_CONFIG.co2, values),
+        illuminance=_threshold_from_env(
+            "HOME_ILLUMINANCE", DEFAULT_ENVIRONMENT_CONFIG.illuminance, values
+        ),
+        smoke=_threshold_from_env("HOME_SMOKE", DEFAULT_ENVIRONMENT_CONFIG.smoke, values),
         confirmation_count=_env_int_any(
             values,
             ("HOME_ALERT_CONFIRM_COUNT", "HOME_ALERT_CONFIRMATION_COUNT"),
@@ -237,7 +248,16 @@ class EnvironmentAlertService:
                 if count >= self._config.confirmation_count
                 else AlertState.SUSPECTED
             )
-            related_action = "fan_on" if state is AlertState.ACTIVE else None
+            related_action = (
+                {
+                    SensorKind.TEMPERATURE: "fan_on",
+                    SensorKind.HUMIDITY: "fan_and_window_on",
+                    SensorKind.SMOKE: "fan_on",
+                    SensorKind.ILLUMINANCE: "light_on",
+                }.get(reading.kind)
+                if state is AlertState.ACTIVE
+                else None
+            )
             alert = self._build_alert(
                 reading,
                 state,

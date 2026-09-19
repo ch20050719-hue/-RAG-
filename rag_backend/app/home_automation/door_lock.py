@@ -6,8 +6,10 @@ from datetime import datetime, timedelta, timezone
 from typing import Final
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
+from .adapters import DoorActuator
 from .device_models import (
     BatteryState,
+    DoorActuatorResult,
     DeadboltState,
     DoorLockAckStatus,
     DoorLockAction,
@@ -33,6 +35,7 @@ class DoorLockService:
         online: bool = True,
         battery_level: int = 100,
         door_state: DoorState = DoorState.CLOSED,
+        actuator: DoorActuator | None = None,
     ) -> None:
         self._state = DoorLockState(
             device_id=device_id,
@@ -49,6 +52,7 @@ class DoorLockService:
         )
         self._results: dict[str, DoorLockCommandResult] = {}
         self._logs: tuple[DoorLockCommandResult, ...] = ()
+        self._actuator = actuator
 
     def get_status(self) -> DoorLockState:
         """读取门锁和门磁状态。"""
@@ -121,6 +125,26 @@ class DoorLockService:
             )
             return result
 
+        door_state = self._state.door_state
+        if command in (DoorLockAction.OPEN_DOOR, DoorLockAction.CLOSE_DOOR):
+            actuator_result = self._execute_door_motion(command, request_uuid, expires_at)
+            if not actuator_result.accepted:
+                return self._finish(
+                    request_uuid,
+                    command,
+                    accepted=False,
+                    ack_status=actuator_result.ack_status,
+                    message=actuator_result.message,
+                    blocked_reason=actuator_result.blocked_reason or actuator_result.message,
+                    now=now,
+                    expires_at=expires_at,
+                )
+            door_state = (
+                DoorState.OPEN
+                if command is DoorLockAction.OPEN_DOOR
+                else DoorState.CLOSED
+            )
+
         if command is DoorLockAction.UNLOCK:
             latch_state = LockState.UNLOCKED
             deadbolt_state = self._state.deadbolt_state
@@ -130,6 +154,9 @@ class DoorLockService:
         elif command is DoorLockAction.ENGAGE_DEADBOLT:
             latch_state = self._effective_latch_state()
             deadbolt_state = DeadboltState.ENGAGED
+        elif command in (DoorLockAction.OPEN_DOOR, DoorLockAction.CLOSE_DOOR):
+            latch_state = self._effective_latch_state()
+            deadbolt_state = self._state.deadbolt_state
         else:
             latch_state = self._effective_latch_state()
             deadbolt_state = DeadboltState.RELEASED
@@ -137,6 +164,7 @@ class DoorLockService:
         updated = DoorLockState(
             **self._state.model_dump(
                 exclude={
+                    "door_state",
                     "lock_state",
                     "latch_state",
                     "deadbolt_state",
@@ -145,6 +173,7 @@ class DoorLockService:
                     "updated_at",
                 }
             ),
+            door_state=door_state,
             lock_state=latch_state,
             latch_state=latch_state,
             deadbolt_state=deadbolt_state,
@@ -181,7 +210,12 @@ class DoorLockService:
         expires_at: datetime,
         now: datetime,
     ) -> str | None:
-        if action in (DoorLockAction.UNLOCK, DoorLockAction.RELEASE_DEADBOLT) and not authorized:
+        if action in (
+            DoorLockAction.UNLOCK,
+            DoorLockAction.RELEASE_DEADBOLT,
+            DoorLockAction.OPEN_DOOR,
+            DoorLockAction.CLOSE_DOOR,
+        ) and not authorized:
             return "User authorization is required for this door lock action"
         if action is DoorLockAction.RELEASE_DEADBOLT and not confirmed:
             return "Second confirmation is required to release the deadbolt"
@@ -194,7 +228,46 @@ class DoorLockService:
         if action in (DoorLockAction.LOCK, DoorLockAction.ENGAGE_DEADBOLT):
             if self._state.door_state is DoorState.OPEN:
                 return "Door is open; lock action is blocked"
+        if action is DoorLockAction.OPEN_DOOR:
+            if self._state.latch_state is LockState.LOCKED or self._state.deadbolt_state is DeadboltState.ENGAGED:
+                return "Unlock door before opening"
+        if action is DoorLockAction.CLOSE_DOOR:
+            if self._state.latch_state is LockState.LOCKED or self._state.deadbolt_state is DeadboltState.ENGAGED:
+                return "Release the lock before closing the door"
         return None
+
+    def _execute_door_motion(
+        self,
+        action: DoorLockAction,
+        request_id: UUID,
+        expires_at: datetime,
+    ) -> DoorActuatorResult:
+        if self._actuator is None:
+            return DoorActuatorResult(
+                request_id=request_id,
+                device_id=self._state.device_id,
+                action=action,
+                accepted=True,
+                ack_status=DoorLockAckStatus.SUCCESS,
+                message=f"Simulated servo acknowledged {action.value}",
+            )
+        try:
+            return self._actuator.execute_door_motion(
+                self._state.device_id,
+                action,
+                request_id=request_id,
+                expires_at=expires_at,
+            )
+        except Exception as exc:  # noqa: BLE001 - actuator boundary
+            return DoorActuatorResult(
+                request_id=request_id,
+                device_id=self._state.device_id,
+                action=action,
+                accepted=False,
+                ack_status=DoorLockAckStatus.FAILED,
+                message=f"Door actuator failed: {exc}",
+                blocked_reason=str(exc),
+            )
 
     def _effective_latch_state(self) -> LockState:
         return self._state.latch_state or self._state.lock_state

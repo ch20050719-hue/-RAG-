@@ -6,7 +6,6 @@ Agent 工具注册器
 """
 
 import logging
-from typing import List
 
 from app.agent_framework.tools.tool_manager import ToolManager
 
@@ -148,12 +147,14 @@ def get_specialist_tools_config(specialty: str = "general") -> dict:
 
     home_tools = [
         "list_home_devices", "get_device_status", "read_home_environment",
-        "set_light_state", "set_fan_state", "run_home_scenario",
+        "get_environment_thresholds", "get_automation_mode", "set_automation_mode",
+        "set_environment_threshold", "set_light_state", "set_fan_state",
+        "set_window_state", "run_home_scenario",
     ]
     mapping = {
         "home_butler": {"mcp_tools": [], "local_tools": home_tools},
-        "environment": {"mcp_tools": [], "local_tools": ["list_home_devices", "get_device_status", "read_home_environment"]},
-        "device_control": {"mcp_tools": [], "local_tools": ["get_device_status", "set_light_state", "set_fan_state", "run_home_scenario"]},
+        "environment": {"mcp_tools": [], "local_tools": ["list_home_devices", "get_device_status", "read_home_environment", "get_environment_thresholds"]},
+        "device_control": {"mcp_tools": [], "local_tools": ["get_device_status", "set_light_state", "set_fan_state", "set_window_state", "get_automation_mode", "set_automation_mode", "set_environment_threshold", "run_home_scenario"]},
         "comfort": {"mcp_tools": [], "local_tools": home_tools},
     }
 

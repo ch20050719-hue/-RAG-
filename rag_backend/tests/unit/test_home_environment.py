@@ -21,8 +21,8 @@ from app.home_automation.environment_monitor import (
 def _reading(
     value: float,
     *,
-    sensor_id: str = "room_co2",
-    kind: SensorKind = SensorKind.CO2,
+    sensor_id: str = "room_smoke",
+    kind: SensorKind = SensorKind.SMOKE,
     recorded_at: datetime | None = None,
 ) -> SensorReading:
     return SensorReading(
@@ -30,25 +30,25 @@ def _reading(
         room="study",
         kind=kind,
         value=value,
-        unit="ppm" if kind is SensorKind.CO2 else "celsius",
+        unit="raw" if kind is SensorKind.SMOKE else "celsius",
         online=True,
         recorded_at=recorded_at or datetime.now(timezone.utc),
     )
 
 
 def test_threshold_boundaries_match_the_plan():
-    assert assess_reading(_reading(999)).level is EnvironmentLevel.NORMAL
-    assert assess_reading(_reading(1000)).level is EnvironmentLevel.ATTENTION
-    assert assess_reading(_reading(1499)).level is EnvironmentLevel.ATTENTION
-    assert assess_reading(_reading(1500)).level is EnvironmentLevel.DANGER
+    assert assess_reading(_reading(499)).level is EnvironmentLevel.NORMAL
+    assert assess_reading(_reading(500)).level is EnvironmentLevel.ATTENTION
+    assert assess_reading(_reading(799)).level is EnvironmentLevel.ATTENTION
+    assert assess_reading(_reading(800)).level is EnvironmentLevel.DANGER
 
 
 def test_danger_alert_is_suspected_then_active_after_three_samples():
     service = EnvironmentAlertService(DEFAULT_ENVIRONMENT_CONFIG)
 
-    first = service.evaluate(_reading(1600))
-    second = service.evaluate(_reading(1650))
-    third = service.evaluate(_reading(1680))
+    first = service.evaluate(_reading(850))
+    second = service.evaluate(_reading(900))
+    third = service.evaluate(_reading(950))
 
     assert first is not None and first.state is AlertState.SUSPECTED
     assert second is not None and second.state is AlertState.SUSPECTED
@@ -60,9 +60,9 @@ def test_danger_alert_is_suspected_then_active_after_three_samples():
 def test_three_normal_samples_recover_an_active_alert():
     service = EnvironmentAlertService(DEFAULT_ENVIRONMENT_CONFIG)
 
-    for value in (1600, 1650, 1680):
+    for value in (850, 900, 950):
         service.evaluate(_reading(value))
-    recovered = [service.evaluate(_reading(800)) for _ in range(3)][-1]
+    recovered = [service.evaluate(_reading(300)) for _ in range(3)][-1]
 
     assert recovered is not None
     assert recovered.state is AlertState.RECOVERED
@@ -70,7 +70,7 @@ def test_three_normal_samples_recover_an_active_alert():
 
 
 def test_stale_reading_is_sensor_fault_and_does_not_request_fan():
-    stale = _reading(1600, recorded_at=datetime.now(timezone.utc) - timedelta(seconds=31))
+    stale = _reading(850, recorded_at=datetime.now(timezone.utc) - timedelta(seconds=31))
     assessed = assess_reading(stale, now=datetime.now(timezone.utc))
 
     assert assessed.quality is SensorQuality.STALE
@@ -101,10 +101,10 @@ def test_environment_history_keeps_recent_snapshots_only():
 def test_environment_config_accepts_plan_environment_variable_names():
     config = environment_config_from_env(
         {
-            "HOME_CO2_DANGER_HIGH": "1400",
+            "HOME_SMOKE_DANGER_HIGH": "700",
             "HOME_ALERT_CONFIRM_COUNT": "2",
         }
     )
 
-    assert config.co2.danger_max == 1400
+    assert config.smoke.danger_max == 700
     assert config.confirmation_count == 2

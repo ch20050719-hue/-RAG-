@@ -3,13 +3,19 @@
 import math
 from datetime import datetime, timezone
 from typing import Final
+from uuid import UUID
 
 from .default_devices import SENSOR_UNITS
 from .device_models import (
+    DoorActuatorResult,
     DeviceCommand,
     DeviceCommandResult,
     DeviceRegistration,
     DeviceState,
+    DeviceStateValue,
+    DeviceType,
+    DoorLockAction,
+    DoorLockAckStatus,
     SensorKind,
     SensorQuality,
     SensorReading,
@@ -41,6 +47,7 @@ _DEFAULT_SENSOR_VALUES: Final[dict[SensorKind, float]] = {
     SensorKind.CO2: 600.0,
     SensorKind.ILLUMINANCE: 180.0,
     SensorKind.MOTION: 0.0,
+    SensorKind.SMOKE: 120.0,
 }
 
 
@@ -54,6 +61,7 @@ class SimulatedDeviceAdapter:
     ) -> None:
         self._states: dict[str, DeviceState] = {}
         self._results: dict[str, DeviceCommandResult] = {}
+        self._door_results: dict[str, DoorActuatorResult] = {}
         self._sensors: dict[str, SensorReading] = {}
         for registration in registrations:
             if registration.device_id in self._states:
@@ -65,6 +73,11 @@ class SimulatedDeviceAdapter:
                     room=registration.room,
                     device_type=registration.device_type,
                     online=registration.online,
+                    state=(
+                        DeviceStateValue.CLOSED
+                        if registration.device_type is DeviceType.WINDOW
+                        else DeviceStateValue.OFF
+                    ),
                     updated_at=datetime.now(timezone.utc),
                 ),
             }
@@ -158,4 +171,38 @@ class SimulatedDeviceAdapter:
         )
         self._states = {**self._states, command.device_id: updated_state}
         self._results = {**self._results, request_key: result}
+        return result
+
+    def execute_door_motion(
+        self,
+        device_id: str,
+        action: DoorLockAction,
+        *,
+        request_id: UUID,
+        expires_at: datetime | None,
+    ) -> DoorActuatorResult:
+        """模拟舵机开合并返回与 MQTT 一致的执行回执。"""
+
+        request_key = str(request_id)
+        if request_key in self._door_results:
+            return self._door_results[request_key]
+        current = self.read_state(device_id)
+        if current.device_type is not DeviceType.DOOR_LOCK:
+            raise ValueError(f"Device is not a door lock: {device_id}")
+        if not current.online:
+            raise DeviceOfflineError(f"Device is offline: {device_id}")
+        if expires_at is not None and expires_at <= datetime.now(timezone.utc):
+            raise ExpiredCommandError(f"Command has expired: {request_id}")
+        if action not in (DoorLockAction.OPEN_DOOR, DoorLockAction.CLOSE_DOOR):
+            raise ValueError(f"Unsupported door action: {action}")
+
+        result = DoorActuatorResult(
+            request_id=request_id,
+            device_id=device_id,
+            action=action,
+            accepted=True,
+            ack_status=DoorLockAckStatus.SUCCESS,
+            message=f"Simulated servo acknowledged {action.value}",
+        )
+        self._door_results = {**self._door_results, request_key: result}
         return result

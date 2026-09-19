@@ -953,7 +953,7 @@ watch(newPassword, checkPasswordStrength)
               <Sparkles :size="40" class="text-teal-600" />
             </div>
             <p class="text-gray-600 mb-6 max-w-md mx-auto">
-              {{ currentEnterprise 
+              {{ currentEnterprise
                 ? '如果您想加入另一个家庭空间，可以使用新的邀请码进行切换'
                 : '请使用家庭邀请码加入家庭空间' }}
             </p>

@@ -24,7 +24,9 @@ from app.home_automation.device_tools import (
     get_home_tools,
     get_home_alerts,
     get_door_lock_status,
+    close_home_door,
     lock_home_door,
+    open_home_door,
     unlock_home_door,
     list_home_devices,
     read_home_environment,
@@ -32,6 +34,9 @@ from app.home_automation.device_tools import (
     set_device_service,
     set_home_mode,
     set_light_state,
+    set_window_state,
+    set_environment_threshold,
+    set_automation_mode,
 )
 from app.home_automation.mqtt_adapter import (
     topic_for_state_ack,
@@ -60,12 +65,19 @@ def test_home_tools_are_registered():
         "get_home_mode",
         "set_home_mode",
         "get_door_lock_status",
+        "open_door",
+        "close_door",
         "lock_door",
         "unlock_door",
         "engage_deadbolt",
         "release_deadbolt",
         "set_light_state",
         "set_fan_state",
+        "set_window_state",
+        "get_environment_thresholds",
+        "set_environment_threshold",
+        "get_automation_mode",
+        "set_automation_mode",
         "run_home_scenario",
     } <= names
 
@@ -115,7 +127,7 @@ def test_run_home_scenario_tool_sleep():
         set_device_service(None)
 
 
-def test_read_environment_tool_includes_source():
+def test_read_environment_tool_includes_version_three_sensors():
     set_device_service(_fresh_service())
     try:
         raw = read_home_environment.invoke({"room": "study"})
@@ -123,7 +135,9 @@ def test_read_environment_tool_includes_source():
         assert payload["room"] == "study"
         assert payload["readings"]
         assert payload["readings"][0]["source"] == "simulated"
-        assert {item["kind"] for item in payload["readings"]} == {"temperature", "humidity", "co2"}
+        assert {item["kind"] for item in payload["readings"]} == {
+            "temperature", "humidity", "illuminance", "smoke"
+        }
         assert all(item["quality"] == "valid" for item in payload["readings"])
         assert all("level" in item for item in payload["readings"])
     finally:
@@ -143,19 +157,36 @@ def test_environment_history_tool_returns_recent_samples():
         set_device_service(None)
 
 
-def test_home_alert_tool_exposes_confirmed_co2_alert():
+def test_home_alert_tool_exposes_confirmed_smoke_alert():
     service = _fresh_service()
     adapter = service._adapter
     set_device_service(service)
     try:
-        for value in (1600, 1650, 1680):
-            adapter.update_sensor_value("room_co2", value)
+        for value in (850, 900, 950):
+            adapter.update_sensor_value("room_smoke", value)
             service.evaluate_environment("study")
         raw = get_home_alerts.invoke({"room": "study", "active_only": True})
         payload = json.loads(raw)
         assert payload
         assert payload[-1]["state"] == "active"
         assert payload[-1]["related_action"] == "fan_on"
+    finally:
+        set_device_service(None)
+
+
+def test_window_threshold_and_automation_tools():
+    set_device_service(_fresh_service())
+    try:
+        window = json.loads(set_window_state.invoke({"state": "open"}))
+        threshold = json.loads(
+            set_environment_threshold.invoke({"name": "smoke_max", "value": 700})
+        )
+        automation = json.loads(set_automation_mode.invoke({"mode": "automatic"}))
+
+        assert window["accepted"] is True
+        assert window["state"] == "open"
+        assert threshold["thresholds"]["smoke_max"] == 700
+        assert automation["automation_mode"] == "automatic"
     finally:
         set_device_service(None)
 
@@ -189,6 +220,20 @@ def test_door_lock_tools_require_explicit_authorization_for_unlock():
 
         locked = json.loads(lock_home_door.invoke({}))
         assert locked["accepted"] is True
+
+        opened = json.loads(open_home_door.invoke({"authorized": True}))
+        assert opened["accepted"] is False
+        assert "unlock" in opened["message"].lower()
+
+        unlocked = json.loads(unlock_home_door.invoke({"authorized": True}))
+        assert unlocked["accepted"] is True
+        opened = json.loads(open_home_door.invoke({"authorized": True}))
+        assert opened["accepted"] is True
+        assert opened["door_state"] == "open"
+
+        closed = json.loads(close_home_door.invoke({"authorized": True}))
+        assert closed["accepted"] is True
+        assert closed["door_state"] == "closed"
     finally:
         set_device_service(None)
 

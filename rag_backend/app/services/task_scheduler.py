@@ -22,6 +22,7 @@ class TaskType(str, Enum):
     """任务类型"""
     HOME_SCENARIO = "home_scenario"  # 智能家居场景
     DEVICE_STATUS_CHECK = "device_status_check"  # 设备状态检查
+    DEVICE_CONTROL = "device_control"  # 单设备控制
     CUSTOM = "custom"  # 自定义任务
 
 
@@ -85,10 +86,6 @@ class ScheduledTask:
             "schedule": schedule,
         }
 
-
-from dataclasses import dataclass
-
-
 async def home_scenario_task(params: Dict[str, Any]):
     """按计划执行受控的智能家居场景。"""
     from app.home_automation.device_tools import get_device_service
@@ -117,7 +114,7 @@ async def device_control_task(params: Dict[str, Any]):
     if not device_id:
         raise ValueError("定时设备控制缺少 device_id")
     state = DeviceStateValue(str(params.get("state", "")))
-    result = get_device_service().set_device_state(device_id=device_id, state=state)
+    result = get_device_service().set_switch_state(device_id=device_id, state=state)
     if not result.accepted:
         raise ValueError(result.blocked_reason or result.message or "设备控制未被接受")
     logger.info("智能家居设备定时控制完成: %s=%s", device_id, state.value)

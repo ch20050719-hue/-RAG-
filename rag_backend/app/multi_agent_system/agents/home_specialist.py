@@ -9,10 +9,12 @@ from typing import Any, AsyncGenerator, List, Optional, TYPE_CHECKING
 from app.agent_framework.llm.base_adapter import BaseLLMAdapter
 from app.agent_framework.tools.tool_manager import ToolManager
 from app.home_automation.device_models import (
+    AutomationMode,
     DeviceStateValue,
     DeviceType,
     HomeModeName,
     HomeScenarioName,
+    ThresholdName,
 )
 from app.home_automation.device_service import DeviceService
 from app.home_automation.device_tools import get_device_service
@@ -97,6 +99,11 @@ class HomeSpecialistAgent(BaseSpecialistAgent):
         self._reset_state()
         query = user_input.strip()
         state = _state_from_query(query)
+        if _contains_any(query, ("窗户", "window")):
+            if _contains_any(query, ("打开", "开启", "open")):
+                return await self._call_home_tool("set_window_state", state="open")
+            if _contains_any(query, ("关闭", "关上", "close")):
+                return await self._call_home_tool("set_window_state", state="closed")
         if state and _contains_any(query, ("灯", "light")):
             return await self._call_home_tool(
                 "set_light_state",
@@ -115,10 +122,18 @@ class HomeSpecialistAgent(BaseSpecialistAgent):
             return await self._call_home_tool("set_home_mode", mode="sleep")
         if _contains_any(query, ("离家", "出门", "节能")):
             return await self._call_home_tool("set_home_mode", mode="away")
+        if _contains_any(query, ("自动模式",)):
+            return await self._call_home_tool("set_automation_mode", mode="automatic")
+        if _contains_any(query, ("手动模式",)):
+            return await self._call_home_tool("set_automation_mode", mode="manual")
         if _contains_any(query, ("解除反锁", "释放反锁")):
             return await self._call_home_tool("release_deadbolt", authorized=False)
         if _contains_any(query, ("远程开锁", "远程开门")):
             return await self._call_home_tool("unlock_door", authorized=True)
+        if _contains_any(query, ("自动开门", "舵机开门", "打开房门")):
+            return await self._call_home_tool("open_door", authorized=True)
+        if _contains_any(query, ("自动关门", "舵机关门", "关闭房门")):
+            return await self._call_home_tool("close_door", authorized=True)
         if _contains_any(query, ("远程锁门", "锁住房门")):
             return await self._call_home_tool("lock_door")
         if _contains_any(query, ("反锁房门", "室内反锁")):
@@ -186,6 +201,27 @@ class HomeSpecialistAgent(BaseSpecialistAgent):
                 ).model_dump(mode="json"),
                 ensure_ascii=False,
             )
+        if tool_name == "set_window_state":
+            return json.dumps(
+                self.device_service.set_window_state(
+                    DeviceStateValue(kwargs["state"]), request_id=kwargs.get("request_id")
+                ).model_dump(mode="json"),
+                ensure_ascii=False,
+            )
+        if tool_name == "set_automation_mode":
+            selected = self.device_service.set_automation_mode(AutomationMode(kwargs["mode"]))
+            return json.dumps({"accepted": True, "automation_mode": selected.value}, ensure_ascii=False)
+        if tool_name == "get_automation_mode":
+            return json.dumps(
+                {"automation_mode": self.device_service.get_automation_mode().value},
+                ensure_ascii=False,
+            )
+        if tool_name == "get_environment_thresholds":
+            return self.device_service.get_thresholds().model_dump_json()
+        if tool_name == "set_environment_threshold":
+            return self.device_service.set_threshold(
+                ThresholdName(kwargs["name"]), float(kwargs["value"])
+            ).model_dump_json()
         if tool_name == "get_home_mode":
             return json.dumps(
                 {"room": kwargs.get("room", "study"), "mode": self.device_service.get_mode().value},
@@ -193,8 +229,17 @@ class HomeSpecialistAgent(BaseSpecialistAgent):
             )
         if tool_name == "get_door_lock_status":
             return json.dumps(self.device_service.get_door_lock().model_dump(mode="json"), ensure_ascii=False)
-        if tool_name in {"unlock_door", "lock_door", "engage_deadbolt", "release_deadbolt"}:
+        if tool_name in {
+            "open_door",
+            "close_door",
+            "unlock_door",
+            "lock_door",
+            "engage_deadbolt",
+            "release_deadbolt",
+        }:
             action_by_tool = {
+                "open_door": "open_door",
+                "close_door": "close_door",
                 "unlock_door": "unlock",
                 "lock_door": "lock",
                 "engage_deadbolt": "engage_deadbolt",
@@ -270,7 +315,7 @@ def _default_prompt(specialty: str) -> str:
     role = {
         "home_butler": "你是总管家，负责理解自然语言并协调环境与设备动作。",
         "environment": "你是环境感知专家，负责读取温湿度、光照与人体状态并给出舒适判断。",
-        "device_control": "你是设备控制专家，负责安全地控制灯、风扇、模式和实验门锁，并回报设备状态。",
+        "device_control": "你是设备控制专家，负责安全地控制灯、风扇、模式、实验门锁和舵机门体，并回报设备状态。",
         "comfort": "你是舒适度专家，负责睡眠、离家等场景建议与执行。",
     }.get(specialty, "你是智能家居助手。")
     return f"{role}\n{shared}"

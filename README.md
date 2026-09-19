@@ -1,6 +1,6 @@
 # RAG 智能家居控制平台
 
-本仓库当前只维护智能家居业务，是一个面向个人知识问答与智能家居控制的全栈应用。RAG 检索、Agent 调度和多轮会话是保留的通用基座；设备工具、安全规则、MQTT 适配器和 ESP32 低压原型是当前唯一业务扩展。项目以 FastAPI 提供后端 API，以 Vue 3 + Vite 提供管理与对话界面，并使用 LangChain/LangGraph 编排 RAG 检索、工具调用和多智能体流程。
+本仓库当前只维护智能家居业务，是一个面向个人知识问答与智能家居控制的全栈应用。RAG 检索、Agent 调度和多轮会话是保留的通用基座；设备工具、安全规则、受控协议桥和 STM32F103C8T6 版本三硬件方案是当前业务扩展，旧 ESP32 仅作历史参考。项目以 FastAPI 提供后端 API，以 Vue 3 + Vite 提供管理与对话界面，并使用 LangChain/LangGraph 编排 RAG 检索、工具调用和多智能体流程。
 
 ## 项目简介
 
@@ -41,7 +41,7 @@ FastAPI API
                     │
           ┌─────────┴─────────┐
           ▼                   ▼
-   SimulatedAdapter      MqttAdapter → ESP32
+   SimulatedAdapter      受控协议桥 → STM32F103C8T6
 ```
 
 ## 智能家居 API
@@ -67,7 +67,7 @@ MQTT 控制使用结构化 JSON、QoS 1、`request_id` 幂等和 ack 回执。
 │   ├── app/api/v1/endpoints/    HTTP API，含 /api/v1/home
 │   └── tests/                   后端测试
 ├── rag_frontend/                Vue 3 + TypeScript 控制台
-├── esp32/esp32_home_node/       ESP32 桌面原型固件
+├── esp32/esp32_home_node/       旧 ESP32 原型（历史参考）
 ├── docs/                        智能家居方案、联调和安全文档
 ├── mcp_server/                  MCP 相关服务代码
 └── 530.sql                      数据库初始化/迁移相关脚本
@@ -159,15 +159,15 @@ MQTT_ACK_TIMEOUT_SECONDS=5
 
 Broker、设备固件、Topic 和接线版本必须与联调环境一致。详细说明见 [`docs/02-技术方案/MQTT联调说明.md`](docs/02-技术方案/MQTT联调说明.md)。
 
-## ESP32 低压原型
+## 硬件版本三与历史 ESP32 原型
 
-固件位于 [`esp32/esp32_home_node/esp32_home_node.ino`](esp32/esp32_home_node/esp32_home_node.ino)，接线和烧录步骤见 [`esp32/esp32_home_node/README.md`](esp32/esp32_home_node/README.md)。
+当前硬件规格以 [`docs/02-技术方案/智能家电版本三功能与硬件规格.md`](docs/02-技术方案/智能家电版本三功能与硬件规格.md) 为准，主控为 STM32F103C8T6，控制低压灯、5V 风扇、28BYJ 窗户和舵机锁门装置。
 
-- GPIO25：低压 LED。
-- GPIO26：5V 风扇控制，经 MOSFET 或合适驱动模块。
-- GPIO4：DHT22；I2C 21/22：BH1750；GPIO27：人体传感器。
-- 仅订阅后端约定的控制主题，并发布 ack、telemetry 和 availability。
-- 禁止接入 220V 市电；禁止把 Wi-Fi 或 MQTT 密码提交到 Git。
+- 自动模式由本地状态机执行温度、湿度、光照和烟雾阈值联动；云端 Agent 只能通过固定工具提交合法动作和阈值。
+- STM32 通过 ESP8266-01S 或受控协议桥与云端通信，不接收任意 GPIO、寄存器或 MQTT Topic。
+- USB 灯、USB 风扇、窗户电机和舵机均使用低压独立供电，禁止接入 220V 市电。
+
+旧 ESP32 固件仍保留在 [`esp32/esp32_home_node/`](esp32/esp32_home_node/)，仅用于历史桌面原型参考，不代表当前硬件版本。
 
 ## 测试与构建
 
@@ -190,17 +190,18 @@ npm run build
 git diff --check
 ```
 
-最近一次验证：智能家居核心测试 32 passed，前端 Vite 构建通过。
+最近一次验证：智能家居与安全回归测试 112 passed，前端 Vite 构建通过。
 
 ## 安全边界
 
 - 生产环境必须替换默认密钥并使用环境变量或密钥管理服务。
 - 不向模型暴露 GPIO、任意 Topic 或未经注册的设备。
 - 所有设备控制必须经过固定工具和安全校验。
-- ESP32 原型只用于低压 LED 与 5V 风扇演示，禁止接入 220V 市电。
+- STM32 版本三只用于低压 LED、5V 风扇、窗户电机和舵机锁门装置演示，禁止接入 220V 市电。
 
 ## 相关文档
 
 - [`docs/README.md`](docs/README.md)：文档导航。
 - [`docs/02-技术方案/智能家居改造实施方案.md`](docs/02-技术方案/智能家居改造实施方案.md)：整体实施方案。
 - [`docs/02-技术方案/智能家居模拟设备闭环.md`](docs/02-技术方案/智能家居模拟设备闭环.md)：无硬件开发与测试闭环。
+- [`docs/02-技术方案/智能家电版本三功能与硬件规格.md`](docs/02-技术方案/智能家电版本三功能与硬件规格.md)：当前 STM32F103C8T6 硬件规格。

@@ -9,6 +9,8 @@ import VChart from 'vue-echarts'
 import { ElMessage } from 'element-plus'
 import {
   AlertTriangle,
+  DoorClosed,
+  DoorOpen,
   Home,
   Lock,
   Power,
@@ -22,7 +24,6 @@ import {
 } from 'lucide-vue-next'
 import {
   homeApi,
-  type DeviceState,
   type DoorLockCommandResult,
   type DoorLockState,
   type EnvironmentLevel,
@@ -53,7 +54,8 @@ let pollTimer: number | undefined
 const metrics = [
   { kind: 'temperature', label: '温度', color: '#f97316', unit: '°C', dangerLine: 35 },
   { kind: 'humidity', label: '湿度', color: '#0ea5e9', unit: '%', dangerLine: 80 },
-  { kind: 'co2', label: 'CO₂', color: '#8b5cf6', unit: 'ppm', dangerLine: 1500 }
+  { kind: 'illuminance', label: '光照', color: '#eab308', unit: 'lux', dangerLine: 50 },
+  { kind: 'smoke', label: '实验烟雾', color: '#8b5cf6', unit: 'raw', dangerLine: 800 }
 ] as const
 
 const sensorSummary = computed(() => environment.value?.readings ?? [])
@@ -153,7 +155,7 @@ async function loadHome(showSpinner = false) {
 
 async function toggleDevice(device: HomeDevice) {
   busyDeviceId.value = device.device_id
-  const nextState: DeviceState = device.state === 'on' ? 'off' : 'on'
+  const nextState: 'on' | 'off' = device.state === 'on' ? 'off' : 'on'
   try {
     const result = await homeApi.setDeviceState(device.device_id, nextState)
     if (!result.accepted) {
@@ -165,6 +167,18 @@ async function toggleDevice(device: HomeDevice) {
   } catch (error) {
     console.error('Failed to control home device', error)
     ElMessage.error('指令下发失败')
+  } finally {
+    busyDeviceId.value = null
+  }
+}
+
+async function toggleWindow(device: HomeDevice) {
+  busyDeviceId.value = device.device_id
+  try {
+    const result = await homeApi.setWindowState(device.state === 'open' ? 'closed' : 'open')
+    if (!result.accepted) ElMessage.warning(result.blocked_reason || result.message)
+    else ElMessage.success(result.state === 'open' ? '窗户已打开' : '窗户已关闭')
+    await loadHome()
   } finally {
     busyDeviceId.value = null
   }
@@ -186,17 +200,19 @@ async function switchMode(nextMode: HomeMode) {
   }
 }
 
-async function runDoorAction(action: 'unlock' | 'lock' | 'engage' | 'release') {
+async function runDoorAction(action: 'open' | 'close' | 'unlock' | 'lock' | 'engage' | 'release') {
   if (action === 'release' && !window.confirm('确认解除门锁反锁吗？')) return
   busyDoorAction.value = action
   try {
     let result: DoorLockCommandResult
-    if (action === 'unlock') result = await homeApi.unlockDoor(room)
+    if (action === 'open') result = await homeApi.openDoor(room)
+    else if (action === 'close') result = await homeApi.closeDoor(room)
+    else if (action === 'unlock') result = await homeApi.unlockDoor(room)
     else if (action === 'lock') result = await homeApi.lockDoor(room)
     else if (action === 'engage') result = await homeApi.engageDeadbolt(room)
     else result = await homeApi.releaseDeadbolt(room)
     if (!result.accepted) ElMessage.warning(result.blocked_reason || result.message)
-    else ElMessage.success('门锁指令已收到成功 ack')
+    else ElMessage.success(action === 'open' ? '门体已打开' : action === 'close' ? '门体已关闭' : '门锁指令已收到成功 ack')
     await loadHome()
   } catch (error) {
     console.error('Failed to control door lock', error)
@@ -263,6 +279,8 @@ onBeforeUnmount(() => {
             <div><p class="text-xs text-slate-400">电量</p><p class="mt-1 font-semibold">{{ doorLock?.battery_level ?? '--' }}%</p></div>
           </div>
           <div class="mt-4 flex flex-wrap gap-2">
+            <button class="inline-flex items-center gap-1 rounded-lg bg-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-800 disabled:cursor-not-allowed disabled:opacity-50" :disabled="busyDoorAction !== null || !doorLock?.online || doorLock?.door_state !== 'closed' || doorLock?.latch_state !== 'unlocked' || doorLock?.deadbolt_state !== 'released'" @click="runDoorAction('open')"><DoorOpen :size="14" /> 自动开门</button>
+            <button class="inline-flex items-center gap-1 rounded-lg bg-sky-100 px-3 py-2 text-xs font-semibold text-sky-800 disabled:cursor-not-allowed disabled:opacity-50" :disabled="busyDoorAction !== null || !doorLock?.online || doorLock?.door_state !== 'open' || doorLock?.latch_state !== 'unlocked' || doorLock?.deadbolt_state !== 'released'" @click="runDoorAction('close')"><DoorClosed :size="14" /> 自动关门</button>
             <button class="inline-flex items-center gap-1 rounded-lg bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-800 disabled:cursor-not-allowed disabled:opacity-50" :disabled="busyDoorAction !== null || !doorLock?.online" @click="runDoorAction('unlock')"><Unlock :size="14" /> 解锁</button>
             <button class="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50" :disabled="busyDoorAction !== null || !doorLock?.online || doorLock?.door_state !== 'closed'" @click="runDoorAction('lock')"><Lock :size="14" /> 锁门</button>
             <button class="inline-flex items-center gap-1 rounded-lg bg-indigo-100 px-3 py-2 text-xs font-semibold text-indigo-800 disabled:cursor-not-allowed disabled:opacity-50" :disabled="busyDoorAction !== null || !doorLock?.online || doorLock?.door_state !== 'closed'" @click="runDoorAction('engage')"><ShieldCheck :size="14" /> 反锁</button>
@@ -284,7 +302,8 @@ onBeforeUnmount(() => {
           <div class="mt-4 grid gap-3 sm:grid-cols-2">
             <div v-for="device in devices.filter((item) => item.device_type !== 'door_lock')" :key="device.device_id" class="rounded-xl bg-slate-50 p-4">
               <div class="flex items-center justify-between"><div><p class="text-xs text-slate-400">{{ device.device_type }}</p><p class="mt-1 font-semibold">{{ device.device_id }}</p></div><component :is="device.online ? Wifi : WifiOff" :size="16" :class="device.online ? 'text-emerald-500' : 'text-slate-300'" /></div>
-              <button class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" :class="device.state === 'on' ? 'bg-slate-700' : 'bg-indigo-600'" :disabled="!device.online || busyDeviceId === device.device_id" @click="toggleDevice(device)"><Power :size="15" /> {{ device.state === 'on' ? '关闭' : '开启' }}</button>
+              <button v-if="device.device_type === 'window'" class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-sky-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50" :disabled="!device.online || busyDeviceId === device.device_id" @click="toggleWindow(device)">{{ device.state === 'open' ? '关闭窗户' : '打开窗户' }}</button>
+              <button v-else class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50" :class="device.state === 'on' ? 'bg-slate-700' : 'bg-indigo-600'" :disabled="!device.online || busyDeviceId === device.device_id" @click="toggleDevice(device)"><Power :size="15" /> {{ device.state === 'on' ? '关闭' : '开启' }}</button>
             </div>
           </div>
         </article>

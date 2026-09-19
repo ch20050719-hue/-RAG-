@@ -13,17 +13,27 @@ from app.home_automation.device_models import (
     DoorState,
     DeviceType,
     EnvironmentAlert,
+    AutomationMode,
     HomeModeName,
     LockState,
     ModeExecutionResult,
     ModeExecutionStatus,
     SensorKind,
+    ThresholdName,
 )
 
 
 def test_new_sensor_and_device_types_are_explicitly_supported():
-    assert SensorKind.CO2.value == "co2"
+    assert SensorKind.ILLUMINANCE.value == "illuminance"
+    assert SensorKind.SMOKE.value == "smoke"
+    assert DeviceType.WINDOW.value == "window"
     assert DeviceType.DOOR_LOCK.value == "door_lock"
+
+
+def test_automation_mode_is_separate_from_scene_profile():
+    assert {item.value for item in AutomationMode} == {"manual", "automatic"}
+    assert HomeModeName.SLEEP.value == "sleep"
+    assert ThresholdName.SMOKE_MAX.value == "smoke_max"
 
 
 def test_door_lock_state_carries_safety_relevant_status():

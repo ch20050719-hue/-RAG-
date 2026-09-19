@@ -11,11 +11,15 @@ from uuid import UUID
 
 from .default_devices import SENSOR_UNITS
 from .device_models import (
+    DoorActuatorResult,
     DeviceCommand,
     DeviceCommandResult,
     DeviceRegistration,
     DeviceState,
     DeviceStateValue,
+    DeviceType,
+    DoorLockAckStatus,
+    DoorLockAction,
     SensorQuality,
     SensorReading,
     SensorRegistration,
@@ -66,6 +70,18 @@ def topic_for_availability(room: str, device_id: str) -> str:
     return f"{TOPIC_PREFIX}/{room}/{device_id}/availability"
 
 
+def topic_for_door_set(room: str, device_id: str) -> str:
+    """门体舵机动作下发 Topic。"""
+
+    return f"{TOPIC_PREFIX}/{room}/{device_id}/door/set"
+
+
+def topic_for_door_ack(room: str, device_id: str) -> str:
+    """门体舵机动作回执 Topic。"""
+
+    return f"{TOPIC_PREFIX}/{room}/{device_id}/door/ack"
+
+
 def topic_for_room_availability(room: str) -> str:
     """节点级在线状态 Topic，用于 MQTT Last Will。"""
 
@@ -107,9 +123,14 @@ class MqttDeviceAdapter:
         self._client_id = client_id
         self._states: dict[str, DeviceState] = {}
         self._results: dict[str, DeviceCommandResult] = {}
+        self._door_results: dict[str, DoorActuatorResult] = {}
         self._sensors: dict[str, SensorReading] = {}
         self._pending_acks: dict[str, threading.Event] = {}
+        self._pending_ack_targets: dict[str, tuple[str, str]] = {}
         self._ack_payloads: dict[str, DeviceCommandResult] = {}
+        self._pending_door_acks: dict[str, threading.Event] = {}
+        self._pending_door_ack_targets: dict[str, tuple[str, str, DoorLockAction]] = {}
+        self._door_ack_payloads: dict[str, DoorActuatorResult] = {}
         self._client: Any = None
         self._connected = False
         self._lock = threading.RLock()
@@ -210,6 +231,7 @@ class MqttDeviceAdapter:
 
             event = threading.Event()
             self._pending_acks[request_key] = event
+            self._pending_ack_targets[request_key] = (current.room, command.device_id)
 
         payload = {
             "request_id": request_key,
@@ -229,6 +251,7 @@ class MqttDeviceAdapter:
         except Exception as exc:  # noqa: BLE001 - transport boundary
             with self._lock:
                 self._pending_acks.pop(request_key, None)
+                self._pending_ack_targets.pop(request_key, None)
             if isinstance(exc, MqttTransportError):
                 raise
             raise MqttTransportError(f"MQTT publish failed: {exc}") from exc
@@ -236,6 +259,7 @@ class MqttDeviceAdapter:
         if not event.wait(timeout=self._ack_timeout):
             with self._lock:
                 self._pending_acks.pop(request_key, None)
+                self._pending_ack_targets.pop(request_key, None)
             raise MqttAckTimeoutError(
                 f"No ack for request {request_key} within {self._ack_timeout}s"
             )
@@ -243,9 +267,81 @@ class MqttDeviceAdapter:
         with self._lock:
             result = self._ack_payloads.pop(request_key, None)
             self._pending_acks.pop(request_key, None)
+            self._pending_ack_targets.pop(request_key, None)
             if result is None:
                 raise MqttAckTimeoutError(f"Empty ack payload for request {request_key}")
             self._results[request_key] = result
+            return result
+
+    def execute_door_motion(
+        self,
+        device_id: str,
+        action: DoorLockAction,
+        *,
+        request_id: UUID,
+        expires_at: datetime | None,
+    ) -> DoorActuatorResult:
+        """发布固定舵机动作并等待 STM32 或通信模块的 door/ack。"""
+
+        command = DoorLockAction(action)
+        if command not in (DoorLockAction.OPEN_DOOR, DoorLockAction.CLOSE_DOOR):
+            raise ValueError(f"Unsupported door action: {command}")
+        request_key = str(request_id)
+        with self._lock:
+            if request_key in self._door_results:
+                return self._door_results[request_key]
+            current = self._states.get(device_id)
+            if current is None:
+                raise DeviceNotFoundError(f"Device is not registered: {device_id}")
+            if current.device_type is not DeviceType.DOOR_LOCK:
+                raise ValueError(f"Device is not a door lock: {device_id}")
+            if not current.online:
+                raise DeviceOfflineError(f"Device is offline: {device_id}")
+            if expires_at is not None and expires_at <= datetime.now(timezone.utc):
+                raise ExpiredCommandError(f"Command has expired: {request_id}")
+            if not self._connected or self._client is None:
+                raise MqttTransportError("MQTT client is not connected")
+            event = threading.Event()
+            self._pending_door_acks[request_key] = event
+            self._pending_door_ack_targets[request_key] = (current.room, device_id, command)
+
+        payload = {
+            "request_id": request_key,
+            "action": command.value,
+            "expires_at": expires_at.isoformat() if expires_at else None,
+        }
+        topic = topic_for_door_set(current.room, device_id)
+        try:
+            publish_info = self._client.publish(topic, json.dumps(payload), qos=1)
+            publish_rc = getattr(publish_info, "rc", 0)
+            if publish_rc != 0:
+                raise MqttTransportError(f"MQTT publish failed with return code {publish_rc}")
+            wait_for_publish = getattr(publish_info, "wait_for_publish", None)
+            if wait_for_publish is not None:
+                wait_for_publish(timeout=self._ack_timeout)
+        except Exception as exc:  # noqa: BLE001 - transport boundary
+            with self._lock:
+                self._pending_door_acks.pop(request_key, None)
+                self._pending_door_ack_targets.pop(request_key, None)
+            if isinstance(exc, MqttTransportError):
+                raise
+            raise MqttTransportError(f"MQTT publish failed: {exc}") from exc
+
+        if not event.wait(timeout=self._ack_timeout):
+            with self._lock:
+                self._pending_door_acks.pop(request_key, None)
+                self._pending_door_ack_targets.pop(request_key, None)
+            raise MqttAckTimeoutError(
+                f"No door ack for request {request_key} within {self._ack_timeout}s"
+            )
+
+        with self._lock:
+            result = self._door_ack_payloads.pop(request_key, None)
+            self._pending_door_acks.pop(request_key, None)
+            self._pending_door_ack_targets.pop(request_key, None)
+            if result is None:
+                raise MqttAckTimeoutError(f"Empty door ack payload for request {request_key}")
+            self._door_results[request_key] = result
             return result
 
     def ingest_telemetry(self, room: str, device_id: str, payload: dict[str, Any]) -> None:
@@ -303,16 +399,29 @@ class MqttDeviceAdapter:
         """处理设备执行回执。"""
 
         request_id = str(payload.get("request_id", ""))
-        result = DeviceCommandResult(
-            request_id=UUID(request_id),
-            device_id=device_id,
-            accepted=bool(payload.get("accepted", False)),
-            state=DeviceStateValue(payload.get("state", "off")),
-            acknowledged_at=datetime.now(timezone.utc),
-            message=str(payload.get("message", "ack")),
-            blocked_reason=payload.get("blocked_reason"),
-        )
         with self._lock:
+            target = self._pending_ack_targets.get(request_id)
+            if target != (room, device_id):
+                logger.warning(
+                    "Ignoring MQTT ack for unexpected target: request_id=%s room=%s device_id=%s",
+                    request_id,
+                    room,
+                    device_id,
+                )
+                return
+            try:
+                result = DeviceCommandResult(
+                    request_id=UUID(request_id),
+                    device_id=device_id,
+                    accepted=bool(payload.get("accepted", False)),
+                    state=DeviceStateValue(payload.get("state", "off")),
+                    acknowledged_at=datetime.now(timezone.utc),
+                    message=str(payload.get("message", "ack")),
+                    blocked_reason=payload.get("blocked_reason"),
+                )
+            except (TypeError, ValueError) as exc:
+                logger.warning("Ignoring invalid MQTT ack payload: request_id=%s error=%s", request_id, exc)
+                return
             self._ack_payloads[request_id] = result
             event = self._pending_acks.get(request_id)
             if result.accepted and device_id in self._states:
@@ -323,6 +432,48 @@ class MqttDeviceAdapter:
                     updated_at=datetime.now(timezone.utc),
                     last_request_id=result.request_id,
                 )
+        if event is not None:
+            event.set()
+
+    def ingest_door_ack(self, room: str, device_id: str, payload: dict[str, Any]) -> None:
+        """处理 STM32 或通信模块的舵机门体动作回执。"""
+
+        request_key = str(payload.get("request_id", ""))
+        with self._lock:
+            target = self._pending_door_ack_targets.get(request_key)
+            try:
+                request_id = UUID(request_key)
+                action = DoorLockAction(payload.get("action", ""))
+            except (TypeError, ValueError) as exc:
+                logger.warning("Ignoring invalid door ack payload: request_id=%s error=%s", request_key, exc)
+                return
+            if target != (room, device_id, action):
+                logger.warning(
+                    "Ignoring door ack for unexpected target: request_id=%s room=%s device_id=%s action=%s",
+                    request_key,
+                    room,
+                    device_id,
+                    action.value,
+                )
+                return
+            accepted = bool(payload.get("accepted", False))
+            try:
+                result = DoorActuatorResult(
+                    request_id=request_id,
+                    device_id=device_id,
+                    action=action,
+                    accepted=accepted,
+                    ack_status=DoorLockAckStatus(
+                        payload.get("ack_status", "success" if accepted else "failed")
+                    ),
+                    message=str(payload.get("message", "ack")),
+                    blocked_reason=payload.get("blocked_reason"),
+                )
+            except (TypeError, ValueError) as exc:
+                logger.warning("Ignoring invalid door ack payload: request_id=%s error=%s", request_key, exc)
+                return
+            self._door_ack_payloads[request_key] = result
+            event = self._pending_door_acks.get(request_key)
         if event is not None:
             event.set()
 
@@ -337,6 +488,8 @@ class MqttDeviceAdapter:
             client.subscribe(topic_for_state_ack(state.room, state.device_id))
             client.subscribe(topic_for_telemetry(state.room, state.device_id))
             client.subscribe(topic_for_availability(state.room, state.device_id))
+            if state.device_type is DeviceType.DOOR_LOCK:
+                client.subscribe(topic_for_door_ack(state.room, state.device_id))
             client.subscribe(topic_for_room_availability(state.room))
         logger.info("MQTT adapter connected and subscribed")
 
@@ -355,7 +508,9 @@ class MqttDeviceAdapter:
                 return
             room, device_id, channel = parts[2], parts[3], parts[4]
             payload = json.loads(msg.payload.decode("utf-8") or "{}")
-            if channel == "ack":
+            if len(parts) >= 6 and channel == "door" and parts[5] == "ack":
+                self.ingest_door_ack(room, device_id, payload)
+            elif channel == "ack":
                 self.ingest_ack(room, device_id, payload)
             elif channel == "telemetry":
                 self.ingest_telemetry(room, device_id, payload)
@@ -374,6 +529,8 @@ __all__ = [
     "topic_for_state_ack",
     "topic_for_telemetry",
     "topic_for_availability",
+    "topic_for_door_set",
+    "topic_for_door_ack",
     "topic_for_room_availability",
     "TOPIC_PREFIX",
 ]

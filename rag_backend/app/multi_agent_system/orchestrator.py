@@ -331,6 +331,8 @@ class AgentOrchestrator:
             "set_light_state",
             "set_fan_state",
             "get_door_lock_status",
+            "open_door",
+            "close_door",
             "unlock_door",
             "lock_door",
             "engage_deadbolt",

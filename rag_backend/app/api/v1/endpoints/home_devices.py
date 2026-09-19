@@ -11,10 +11,12 @@ from starlette import status
 
 from app.api import deps
 from app.home_automation.device_models import (
+    AutomationMode,
     DeviceStateValue,
     DoorLockAction,
     HomeModeName,
     HomeScenarioName,
+    ThresholdName,
 )
 from app.home_automation.device_service import DeviceService
 from app.home_automation.device_tools import get_device_service
@@ -51,6 +53,20 @@ class DoorLockRequest(BaseModel):
     confirmed: bool = False
 
 
+class WindowStateRequest(BaseModel):
+    state: DeviceStateValue
+    request_id: str | None = Field(default=None, max_length=64)
+
+
+class AutomationModeRequest(BaseModel):
+    mode: AutomationMode
+
+
+class ThresholdRequest(BaseModel):
+    name: ThresholdName
+    value: float
+
+
 def _ensure_service() -> DeviceService:
     """获取设备服务（默认模拟适配器）。"""
 
@@ -80,6 +96,18 @@ def _snapshot_payload(snapshot) -> dict[str, Any]:
         "room": snapshot.room,
         "generated_at": snapshot.generated_at.isoformat(),
         "readings": [_reading_payload(reading) for reading in snapshot.readings],
+    }
+
+
+def _device_result_payload(result) -> dict[str, Any]:
+    return {
+        "request_id": str(result.request_id),
+        "device_id": result.device_id,
+        "accepted": result.accepted,
+        "state": result.state.value,
+        "message": result.message,
+        "blocked_reason": result.blocked_reason,
+        "acknowledged_at": result.acknowledged_at.isoformat(),
     }
 
 
@@ -217,20 +245,64 @@ async def set_device_state(
     """下发设备开关指令（经安全规则与设备回执）。"""
 
     service = _ensure_service()
-    result = service.set_device_state(
+    result = service.set_switch_state(
         device_id=device_id,
         state=request.state,
         request_id=request.request_id,
     )
+    return _device_result_payload(result)
+
+
+@router.post("/window/state")
+async def set_window_state(
+    request: WindowStateRequest,
+    current_user: User = Depends(deps.get_current_user),
+) -> dict[str, Any]:
+    """控制版本三窗户；拒绝 on/off 和非窗户设备。"""
+
+    return _device_result_payload(
+        _ensure_service().set_window_state(request.state, request_id=request.request_id)
+    )
+
+
+@router.get("/automation-mode")
+async def get_automation_mode(
+    current_user: User = Depends(deps.get_current_user),
+) -> dict[str, str]:
+    service = _ensure_service()
     return {
-        "request_id": str(result.request_id),
-        "device_id": result.device_id,
-        "accepted": result.accepted,
-        "state": result.state.value,
-        "message": result.message,
-        "blocked_reason": result.blocked_reason,
-        "acknowledged_at": result.acknowledged_at.isoformat(),
+        "room": "study",
+        "automation_mode": service.get_automation_mode().value,
+        "scene_profile": service.get_mode().value,
     }
+
+
+@router.post("/automation-mode")
+async def set_automation_mode(
+    request: AutomationModeRequest,
+    current_user: User = Depends(deps.get_current_user),
+) -> dict[str, str | bool]:
+    selected = _ensure_service().set_automation_mode(request.mode)
+    return {"accepted": True, "room": "study", "automation_mode": selected.value}
+
+
+@router.get("/thresholds")
+async def get_thresholds(
+    current_user: User = Depends(deps.get_current_user),
+) -> dict[str, Any]:
+    return {"room": "study", "thresholds": _ensure_service().get_thresholds().model_dump()}
+
+
+@router.post("/thresholds")
+async def set_threshold(
+    request: ThresholdRequest,
+    current_user: User = Depends(deps.get_current_user),
+) -> dict[str, Any]:
+    try:
+        thresholds = _ensure_service().set_threshold(request.name, request.value)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    return {"accepted": True, "room": "study", "thresholds": thresholds.model_dump()}
 
 
 @router.get("/environment")
@@ -316,6 +388,36 @@ async def unlock_door(
 
     result = _ensure_service().command_door_lock(
         DoorLockAction.UNLOCK,
+        authorized=True,
+        request_id=request.request_id,
+    )
+    return _door_lock_result_payload(result)
+
+
+@router.post("/door/open")
+async def open_door(
+    request: DoorLockRequest,
+    current_user: User = Depends(deps.get_current_user),
+) -> dict[str, Any]:
+    """在门锁已解锁时通过舵机打开门体。"""
+
+    result = _ensure_service().command_door_lock(
+        DoorLockAction.OPEN_DOOR,
+        authorized=True,
+        request_id=request.request_id,
+    )
+    return _door_lock_result_payload(result)
+
+
+@router.post("/door/close")
+async def close_door(
+    request: DoorLockRequest,
+    current_user: User = Depends(deps.get_current_user),
+) -> dict[str, Any]:
+    """在门锁已释放时通过舵机关上门体。"""
+
+    result = _ensure_service().command_door_lock(
+        DoorLockAction.CLOSE_DOOR,
         authorized=True,
         request_id=request.request_id,
     )

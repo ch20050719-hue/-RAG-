@@ -10,11 +10,13 @@ from langchain_core.tools import tool
 
 from .default_devices import DEFAULT_DEVICE_REGISTRATIONS, DEFAULT_SENSOR_REGISTRATIONS
 from .device_models import (
+    AutomationMode,
     DeviceStateValue,
     DeviceType,
     DoorLockAction,
     HomeModeName,
     HomeScenarioName,
+    ThresholdName,
 )
 from .device_service import DeviceService
 from .simulated_device import SimulatedDeviceAdapter
@@ -241,6 +243,61 @@ def get_home_mode(room: str = "study") -> str:
     )
 
 
+@tool("get_automation_mode")
+def get_automation_mode(room: str = "study") -> str:
+    """读取版本三手动/自动控制模式；该模式独立于睡眠、离家场景。"""
+
+    import json
+
+    return json.dumps(
+        {"room": room, "automation_mode": get_device_service().get_automation_mode().value},
+        ensure_ascii=False,
+    )
+
+
+@tool("set_automation_mode")
+def set_automation_mode(mode: str, room: str = "study") -> str:
+    """切换 manual/automatic；自动模式允许阈值规则执行固定联动。"""
+
+    import json
+
+    try:
+        target = AutomationMode(mode)
+    except ValueError:
+        return json.dumps({"accepted": False, "message": "mode must be manual or automatic"}, ensure_ascii=False)
+    selected = get_device_service().set_automation_mode(target)
+    return json.dumps({"accepted": True, "room": room, "automation_mode": selected.value}, ensure_ascii=False)
+
+
+@tool("get_environment_thresholds")
+def get_environment_thresholds(room: str = "study") -> str:
+    """读取温度上限、湿度上限、光照下限和实验烟雾上限。"""
+
+    import json
+
+    return json.dumps(
+        {"room": room, "thresholds": get_device_service().get_thresholds().model_dump()},
+        ensure_ascii=False,
+    )
+
+
+@tool("set_environment_threshold")
+def set_environment_threshold(name: str, value: float, room: str = "study") -> str:
+    """更新一个固定版本三阈值，名称不接受任意寄存器或底层参数。"""
+
+    import json
+
+    try:
+        threshold_name = ThresholdName(name)
+        thresholds = get_device_service().set_threshold(threshold_name, value)
+    except (ValueError, TypeError) as exc:
+        return json.dumps({"accepted": False, "message": str(exc)}, ensure_ascii=False)
+    return json.dumps(
+        {"accepted": True, "room": room, "thresholds": thresholds.model_dump()},
+        ensure_ascii=False,
+    )
+
+
 @tool("set_home_mode")
 def set_home_mode(mode: str, room: str = "study", request_prefix: str = "") -> str:
     """切换正常、睡眠或离家模式，并返回每一步真实执行结果。"""
@@ -368,6 +425,28 @@ def unlock_home_door(authorized: bool = False, request_id: str = "") -> str:
     )
 
 
+@tool("open_door")
+def open_home_door(authorized: bool = False, request_id: str = "") -> str:
+    """通过舵机自动打开门体；必须显式提供用户授权。"""
+
+    return _execute_door_lock_tool(
+        DoorLockAction.OPEN_DOOR,
+        authorized=authorized,
+        request_id=request_id,
+    )
+
+
+@tool("close_door")
+def close_home_door(authorized: bool = False, request_id: str = "") -> str:
+    """通过舵机自动关闭门体；必须显式提供用户授权。"""
+
+    return _execute_door_lock_tool(
+        DoorLockAction.CLOSE_DOOR,
+        authorized=authorized,
+        request_id=request_id,
+    )
+
+
 @tool("lock_door")
 def lock_home_door(request_id: str = "") -> str:
     """远程锁门；房门打开时会被门磁安全规则拒绝。"""
@@ -444,6 +523,20 @@ def set_fan_state(device_id: str, state: str, request_id: str = "") -> str:
     return json.dumps(_result_payload(result), ensure_ascii=False)
 
 
+@tool("set_window_state")
+def set_window_state(state: str, request_id: str = "") -> str:
+    """打开或关闭版本三 28BYJ 模拟窗户。state 只能是 open 或 closed。"""
+
+    import json
+
+    try:
+        target = DeviceStateValue(state)
+    except ValueError:
+        return json.dumps({"accepted": False, "blocked_reason": "state must be open/closed"}, ensure_ascii=False)
+    result = get_device_service().set_window_state(target, request_id=request_id or None)
+    return json.dumps(_result_payload(result), ensure_ascii=False)
+
+
 @tool("run_home_scenario")
 def run_home_scenario(scenario: str) -> str:
     """执行智能家居场景。scenario 支持 sleep、away、movie。睡眠模式会关闭灯和风扇。"""
@@ -478,13 +571,20 @@ def get_home_tools():
         get_environment_history,
         get_home_alerts,
         get_home_mode,
+        get_automation_mode,
+        set_automation_mode,
+        get_environment_thresholds,
+        set_environment_threshold,
         set_home_mode,
         get_door_lock_status,
+        open_home_door,
+        close_home_door,
         unlock_home_door,
         lock_home_door,
         engage_home_deadbolt,
         release_home_deadbolt,
         set_light_state,
         set_fan_state,
+        set_window_state,
         run_home_scenario,
     ]

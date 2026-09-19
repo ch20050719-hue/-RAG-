@@ -11,6 +11,7 @@ from app.home_automation.default_devices import (
 )
 from app.home_automation.device_models import (
     AlertState,
+    AutomationMode,
     DeviceCommand,
     DeviceType,
     DeviceStateValue,
@@ -19,6 +20,7 @@ from app.home_automation.device_models import (
     HomeModeName,
     HomeScenarioName,
     ModeExecutionStatus,
+    ThresholdName,
 )
 from app.home_automation.device_service import DeviceService
 from app.home_automation.safety_rules import evaluate_control_risk, validate_command_shape
@@ -54,38 +56,78 @@ def test_unknown_device_control_is_blocked(service: DeviceService):
     assert "not registered" in result.blocked_reason.lower()
 
 
-def test_environment_snapshot_contains_three_core_sensors(service: DeviceService):
+def test_environment_snapshot_contains_version_three_sensors(service: DeviceService):
     snapshot = service.get_environment("study")
 
     kinds = {reading.kind.value for reading in snapshot.readings}
-    assert kinds == {"temperature", "humidity", "co2"}
+    assert kinds == {"temperature", "humidity", "illuminance", "smoke"}
 
 
-def test_environment_snapshot_exposes_co2_quality_and_level(service: DeviceService):
+def test_environment_snapshot_exposes_smoke_quality_and_level(service: DeviceService):
     snapshot = service.get_environment("study")
 
-    co2 = next(reading for reading in snapshot.readings if reading.sensor_id == "room_co2")
+    smoke = next(reading for reading in snapshot.readings if reading.sensor_id == "room_smoke")
 
-    assert co2.value == 600
-    assert co2.unit == "ppm"
-    assert co2.quality.value == "valid"
-    assert co2.level.value == "normal"
+    assert smoke.value == 120
+    assert smoke.unit == "raw"
+    assert smoke.quality.value == "valid"
+    assert smoke.level.value == "normal"
 
 
-def test_three_dangerous_co2_samples_turn_on_the_fan():
+def test_automatic_mode_turns_on_fan_after_confirmed_smoke_alert():
     adapter = SimulatedDeviceAdapter(
         registrations=list(DEFAULT_DEVICE_REGISTRATIONS),
         sensor_registrations=list(DEFAULT_SENSOR_REGISTRATIONS),
     )
     service = DeviceService(adapter=adapter)
+    service.set_automation_mode(AutomationMode.AUTOMATIC)
 
     alerts = []
-    for value in (1600, 1650, 1680):
-        adapter.update_sensor_value("room_co2", value)
+    for value in (850, 900, 950):
+        adapter.update_sensor_value("room_smoke", value)
         alerts = service.evaluate_environment("study")
 
     assert any(alert.state is AlertState.ACTIVE for alert in alerts)
     assert service.get_device("desk_fan").state is DeviceStateValue.ON
+
+
+def test_manual_mode_keeps_alerts_but_does_not_override_devices(service: DeviceService):
+    adapter = service._adapter
+    for value in (850, 900, 950):
+        adapter.update_sensor_value("room_smoke", value)
+        service.evaluate_environment("study")
+
+    assert service.get_automation_mode() is AutomationMode.MANUAL
+    assert service.get_device("desk_fan").state is DeviceStateValue.OFF
+
+
+def test_generic_switch_control_rejects_door_lock(service: DeviceService):
+    result = service.set_switch_state("door_lock", DeviceStateValue.ON)
+    low_level_result = service.set_device_state("door_lock", DeviceStateValue.ON)
+
+    assert result.accepted is False
+    assert low_level_result.accepted is False
+    assert "type" in (result.blocked_reason or "").lower()
+    assert "dedicated" in (low_level_result.blocked_reason or "").lower()
+
+
+def test_window_and_thresholds_are_typed_and_validated(service: DeviceService):
+    opened = service.set_window_state(DeviceStateValue.OPEN)
+    changed = service.set_threshold(ThresholdName.SMOKE_MAX, 700)
+
+    assert opened.accepted is True
+    assert service.get_device("window_motor").state is DeviceStateValue.OPEN
+    assert changed.smoke_max == 700
+    with pytest.raises(ValueError, match="range"):
+        service.set_threshold(ThresholdName.HUMIDITY_MAX, 101)
+
+
+def test_automation_mode_does_not_replace_sleep_or_away_profile(service: DeviceService):
+    service.set_automation_mode(AutomationMode.AUTOMATIC)
+    service.set_mode(HomeModeName.SLEEP)
+
+    assert service.get_automation_mode() is AutomationMode.AUTOMATIC
+    assert service.get_mode() is HomeModeName.SLEEP
 
 
 def test_normal_mode_is_an_explicit_successful_state_transition(service: DeviceService):
@@ -146,6 +188,41 @@ def test_door_lock_requires_authorization_for_remote_unlock(service: DeviceServi
     assert denied.accepted is False
     assert "authorization" in denied.message.lower()
     assert accepted.accepted is True
+
+
+def test_servo_door_actions_open_and_close_the_door(service: DeviceService):
+    service.command_door_lock(DoorLockAction.UNLOCK, authorized=True)
+
+    opened = service.command_door_lock(DoorLockAction.OPEN_DOOR, authorized=True)
+
+    assert opened.accepted is True
+    assert opened.action is DoorLockAction.OPEN_DOOR
+    assert opened.door_state is DoorState.OPEN
+    assert service.get_door_lock().door_state is DoorState.OPEN
+
+    closed = service.command_door_lock(DoorLockAction.CLOSE_DOOR, authorized=True)
+
+    assert closed.accepted is True
+    assert closed.action is DoorLockAction.CLOSE_DOOR
+    assert closed.door_state is DoorState.CLOSED
+    assert service.get_door_lock().door_state is DoorState.CLOSED
+
+
+def test_servo_door_open_requires_authorization(service: DeviceService):
+    result = service.command_door_lock(DoorLockAction.OPEN_DOOR)
+
+    assert result.accepted is False
+    assert "authorization" in result.message.lower()
+
+
+def test_servo_door_open_is_blocked_until_the_latch_is_unlocked(service: DeviceService):
+    service.command_door_lock(DoorLockAction.LOCK)
+
+    result = service.command_door_lock(DoorLockAction.OPEN_DOOR, authorized=True)
+
+    assert result.accepted is False
+    assert "unlock" in result.message.lower()
+    assert service.get_door_lock().door_state is DoorState.CLOSED
 
 
 def test_releasing_deadbolt_requires_authorization_and_second_confirmation(service: DeviceService):
