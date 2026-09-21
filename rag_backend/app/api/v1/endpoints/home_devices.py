@@ -14,7 +14,6 @@ from app.home_automation.device_models import (
     AutomationMode,
     DeviceStateValue,
     DoorLockAction,
-    HomeModeName,
     HomeScenarioName,
     ThresholdName,
 )
@@ -33,29 +32,11 @@ class SetDeviceStateRequest(BaseModel):
     request_id: str | None = Field(default=None, max_length=64)
 
 
-class ScenarioRequest(BaseModel):
-    """场景执行请求。"""
-
-    scenario: HomeScenarioName
-
-
-class ModeRequest(BaseModel):
-    """模式切换请求。"""
-
-    mode: HomeModeName
-    request_prefix: str | None = Field(default=None, max_length=64)
-
-
 class DoorLockRequest(BaseModel):
     """门锁控制请求。"""
 
     request_id: str | None = Field(default=None, max_length=64)
     confirmed: bool = False
-
-
-class WindowStateRequest(BaseModel):
-    state: DeviceStateValue
-    request_id: str | None = Field(default=None, max_length=64)
 
 
 class AutomationModeRequest(BaseModel):
@@ -65,6 +46,11 @@ class AutomationModeRequest(BaseModel):
 class ThresholdRequest(BaseModel):
     name: ThresholdName
     value: float
+
+
+class ScenarioRequest(BaseModel):
+    scenario: HomeScenarioName
+    request_id: str | None = Field(default=None, max_length=64)
 
 
 def _ensure_service() -> DeviceService:
@@ -108,46 +94,6 @@ def _device_result_payload(result) -> dict[str, Any]:
         "message": result.message,
         "blocked_reason": result.blocked_reason,
         "acknowledged_at": result.acknowledged_at.isoformat(),
-    }
-
-
-def _mode_payload(result, room: str) -> dict[str, Any]:
-    """序列化模式切换结果，保留每一步 ack 回执。"""
-
-    return {
-        "room": room,
-        "mode": result.mode.value,
-        "previous_mode": result.previous_mode.value,
-        "accepted": result.accepted,
-        "overall_status": result.overall_status.value,
-        "message": result.message,
-        "actions": [
-            {
-                "name": action.name,
-                "accepted": action.accepted,
-                "message": action.message,
-                "device_id": action.device_id,
-                "command_result": (
-                    {
-                        "request_id": str(action.command_result.request_id),
-                        "device_id": action.command_result.device_id,
-                        "accepted": action.command_result.accepted,
-                        "state": action.command_result.state.value,
-                        "message": action.command_result.message,
-                        "blocked_reason": action.command_result.blocked_reason,
-                        "acknowledged_at": action.command_result.acknowledged_at.isoformat(),
-                    }
-                    if action.command_result is not None
-                    else None
-                ),
-                "lock_result": (
-                    action.lock_result.model_dump(mode="json")
-                    if action.lock_result is not None
-                    else None
-                ),
-            }
-            for action in result.actions
-        ],
     }
 
 
@@ -253,15 +199,27 @@ async def set_device_state(
     return _device_result_payload(result)
 
 
-@router.post("/window/state")
-async def set_window_state(
-    request: WindowStateRequest,
+@router.post("/pump/state")
+async def set_pump_state(
+    request: SetDeviceStateRequest,
     current_user: User = Depends(deps.get_current_user),
 ) -> dict[str, Any]:
-    """控制版本三窗户；拒绝 on/off 和非窗户设备。"""
+    """通过专用接口控制模拟喷淋水泵。"""
 
     return _device_result_payload(
-        _ensure_service().set_window_state(request.state, request_id=request.request_id)
+        _ensure_service().set_pump_state(request.state, request_id=request.request_id)
+    )
+
+
+@router.post("/buzzer/state")
+async def set_buzzer_state(
+    request: SetDeviceStateRequest,
+    current_user: User = Depends(deps.get_current_user),
+) -> dict[str, Any]:
+    """通过专用接口控制报警蜂鸣器。"""
+
+    return _device_result_payload(
+        _ensure_service().set_buzzer_state(request.state, request_id=request.request_id)
     )
 
 
@@ -273,7 +231,6 @@ async def get_automation_mode(
     return {
         "room": "study",
         "automation_mode": service.get_automation_mode().value,
-        "scene_profile": service.get_mode().value,
     }
 
 
@@ -282,7 +239,10 @@ async def set_automation_mode(
     request: AutomationModeRequest,
     current_user: User = Depends(deps.get_current_user),
 ) -> dict[str, str | bool]:
-    selected = _ensure_service().set_automation_mode(request.mode)
+    try:
+        selected = _ensure_service().set_automation_mode(request.mode)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     return {"accepted": True, "room": "study", "automation_mode": selected.value}
 
 
@@ -303,6 +263,30 @@ async def set_threshold(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     return {"accepted": True, "room": "study", "thresholds": thresholds.model_dump()}
+
+
+@router.post("/scenarios")
+async def run_home_scenario(
+    request: ScenarioRequest,
+    current_user: User = Depends(deps.get_current_user),
+) -> dict[str, Any]:
+    """执行 normal/sleep/away 固定场景预设。"""
+
+    result = _ensure_service().run_scenario(
+        request.scenario,
+        request_id=request.request_id,
+    )
+    return result.model_dump(mode="json")
+
+
+@router.get("/scenarios")
+async def get_home_scenario(
+    current_user: User = Depends(deps.get_current_user),
+) -> dict[str, str]:
+    """读取当前场景预设；不改变手动/自动主控制模式。"""
+
+    service = _ensure_service()
+    return {"room": "study", "scene": service.get_scene().value}
 
 
 @router.get("/environment")
@@ -346,28 +330,6 @@ async def get_environment_alerts(
     service = _ensure_service()
     alerts = service.get_environment_alerts(room, active_only=active_only)
     return [alert.model_dump(mode="json") for alert in alerts]
-
-
-@router.get("/mode")
-async def get_home_mode(
-    current_user: User = Depends(deps.get_current_user),
-) -> dict[str, str]:
-    """读取当前房间运行模式。"""
-
-    service = _ensure_service()
-    return {"room": "study", "mode": service.get_mode().value}
-
-
-@router.post("/mode")
-async def set_home_mode(
-    request: ModeRequest,
-    current_user: User = Depends(deps.get_current_user),
-) -> dict[str, Any]:
-    """切换正常、睡眠或离家模式并返回逐步执行结果。"""
-
-    service = _ensure_service()
-    result = service.set_mode(request.mode, request_prefix=request.request_prefix)
-    return _mode_payload(result, room="study")
 
 
 @router.get("/lock/status")
@@ -466,30 +428,3 @@ async def release_deadbolt(
         request_id=request.request_id,
     )
     return _door_lock_result_payload(result)
-
-
-@router.post("/scenarios")
-async def run_scenario(
-    request: ScenarioRequest,
-    current_user: User = Depends(deps.get_current_user),
-) -> dict[str, Any]:
-    """执行预置场景（sleep/away/movie）。"""
-
-    service = _ensure_service()
-    result = service.run_scenario(request.scenario)
-    return {
-        "scenario": result.scenario.value,
-        "accepted": result.accepted,
-        "message": result.message,
-        "results": [
-            {
-                "request_id": str(item.request_id),
-                "device_id": item.device_id,
-                "accepted": item.accepted,
-                "state": item.state.value,
-                "message": item.message,
-                "blocked_reason": item.blocked_reason,
-            }
-            for item in result.results
-        ],
-    }

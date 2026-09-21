@@ -44,10 +44,9 @@ _SET_STATE_ACTION: Final[str] = "set_state"
 _DEFAULT_SENSOR_VALUES: Final[dict[SensorKind, float]] = {
     SensorKind.TEMPERATURE: 26.5,
     SensorKind.HUMIDITY: 48.0,
-    SensorKind.CO2: 600.0,
-    SensorKind.ILLUMINANCE: 180.0,
-    SensorKind.MOTION: 0.0,
     SensorKind.SMOKE: 120.0,
+    SensorKind.FLAME: 0.0,
+    SensorKind.PRESENCE: 0.0,
 }
 
 
@@ -73,11 +72,7 @@ class SimulatedDeviceAdapter:
                     room=registration.room,
                     device_type=registration.device_type,
                     online=registration.online,
-                    state=(
-                        DeviceStateValue.CLOSED
-                        if registration.device_type is DeviceType.WINDOW
-                        else DeviceStateValue.OFF
-                    ),
+                    state=DeviceStateValue.OFF,
                     updated_at=datetime.now(timezone.utc),
                 ),
             }

@@ -190,7 +190,7 @@ npm run build
 git diff --check
 ```
 
-最近一次验证：智能家居与安全回归测试 112 passed，前端 Vite 构建通过。
+最近一次验证：智能家居与安全回归测试 118 passed，前端 Vite 构建通过。
 
 ## 安全边界
 

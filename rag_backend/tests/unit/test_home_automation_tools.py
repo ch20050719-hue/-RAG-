@@ -18,9 +18,7 @@ from app.home_automation.device_models import (
 )
 from app.home_automation.device_service import DeviceService
 from app.home_automation.device_tools import (
-    get_device_service,
     get_environment_history,
-    get_home_mode,
     get_home_tools,
     get_home_alerts,
     get_door_lock_status,
@@ -30,11 +28,10 @@ from app.home_automation.device_tools import (
     unlock_home_door,
     list_home_devices,
     read_home_environment,
-    run_home_scenario,
     set_device_service,
-    set_home_mode,
     set_light_state,
-    set_window_state,
+    set_alarm_buzzer_state,
+    set_sprinkler_pump_state,
     set_environment_threshold,
     set_automation_mode,
 )
@@ -62,8 +59,6 @@ def test_home_tools_are_registered():
         "read_home_environment",
         "get_environment_history",
         "get_home_alerts",
-        "get_home_mode",
-        "set_home_mode",
         "get_door_lock_status",
         "open_door",
         "close_door",
@@ -73,7 +68,8 @@ def test_home_tools_are_registered():
         "release_deadbolt",
         "set_light_state",
         "set_fan_state",
-        "set_window_state",
+        "set_sprinkler_pump_state",
+        "set_alarm_buzzer_state",
         "get_environment_thresholds",
         "set_environment_threshold",
         "get_automation_mode",
@@ -114,19 +110,6 @@ def test_light_tool_rejects_a_fan_device():
         set_device_service(None)
 
 
-def test_run_home_scenario_tool_sleep():
-    set_device_service(_fresh_service())
-    try:
-        service = get_device_service()
-        service.set_device_state("desk_light", DeviceStateValue.ON)
-        raw = run_home_scenario.invoke({"scenario": "sleep"})
-        payload = json.loads(raw)
-        assert payload["accepted"] is True
-        assert service.get_device("desk_light").state is DeviceStateValue.OFF
-    finally:
-        set_device_service(None)
-
-
 def test_read_environment_tool_includes_version_three_sensors():
     set_device_service(_fresh_service())
     try:
@@ -136,7 +119,7 @@ def test_read_environment_tool_includes_version_three_sensors():
         assert payload["readings"]
         assert payload["readings"][0]["source"] == "simulated"
         assert {item["kind"] for item in payload["readings"]} == {
-            "temperature", "humidity", "illuminance", "smoke"
+            "temperature", "humidity", "smoke", "flame", "presence"
         }
         assert all(item["quality"] == "valid" for item in payload["readings"])
         assert all("level" in item for item in payload["readings"])
@@ -169,40 +152,26 @@ def test_home_alert_tool_exposes_confirmed_smoke_alert():
         payload = json.loads(raw)
         assert payload
         assert payload[-1]["state"] == "active"
-        assert payload[-1]["related_action"] == "fan_on"
+        assert payload[-1]["related_action"] == "fan_and_buzzer_on"
     finally:
         set_device_service(None)
 
 
-def test_window_threshold_and_automation_tools():
+def test_pump_threshold_and_automation_tools():
     set_device_service(_fresh_service())
     try:
-        window = json.loads(set_window_state.invoke({"state": "open"}))
+        pump = json.loads(set_sprinkler_pump_state.invoke({"state": "on"}))
+        buzzer = json.loads(set_alarm_buzzer_state.invoke({"state": "on"}))
         threshold = json.loads(
             set_environment_threshold.invoke({"name": "smoke_max", "value": 700})
         )
         automation = json.loads(set_automation_mode.invoke({"mode": "automatic"}))
 
-        assert window["accepted"] is True
-        assert window["state"] == "open"
+        assert pump["accepted"] is True
+        assert buzzer["accepted"] is True
+        assert pump["state"] == "on"
         assert threshold["thresholds"]["smoke_max"] == 700
         assert automation["automation_mode"] == "automatic"
-    finally:
-        set_device_service(None)
-
-
-def test_home_mode_tool_returns_partial_failure_without_lock_success():
-    set_device_service(_fresh_service())
-    try:
-        raw = set_home_mode.invoke({"mode": "sleep"})
-        payload = json.loads(raw)
-        assert payload["mode"] == "sleep"
-        assert payload["overall_status"] == "success"
-        assert payload["actions"][-1]["name"] == "check_door_and_lock"
-        assert payload["actions"][-1]["accepted"] is True
-
-        status = json.loads(get_home_mode.invoke({}))
-        assert status["mode"] == "sleep"
     finally:
         set_device_service(None)
 

@@ -14,7 +14,6 @@ from .device_models import (
     DeviceStateValue,
     DeviceType,
     DoorLockAction,
-    HomeModeName,
     HomeScenarioName,
     ThresholdName,
 )
@@ -149,7 +148,7 @@ def list_home_devices() -> str:
 
 @tool("read_home_environment")
 def read_home_environment(room: str = "study") -> str:
-    """读取指定房间的环境传感器数据（温度、湿度、CO₂）。默认房间 study。"""
+    """读取指定房间的环境传感器数据（温度、湿度、烟雾、火焰和有人状态）。默认房间 study。"""
 
     import json
 
@@ -230,22 +229,9 @@ def get_home_alerts(room: str = "study", active_only: bool = False) -> str:
     )
 
 
-@tool("get_home_mode")
-def get_home_mode(room: str = "study") -> str:
-    """读取指定房间当前运行模式。"""
-
-    import json
-
-    service = get_device_service()
-    return json.dumps(
-        {"room": room, "mode": service.get_mode().value},
-        ensure_ascii=False,
-    )
-
-
 @tool("get_automation_mode")
 def get_automation_mode(room: str = "study") -> str:
-    """读取版本三手动/自动控制模式；该模式独立于睡眠、离家场景。"""
+    """读取版本三手动/自动设备主控制模式。"""
 
     import json
 
@@ -265,13 +251,35 @@ def set_automation_mode(mode: str, room: str = "study") -> str:
         target = AutomationMode(mode)
     except ValueError:
         return json.dumps({"accepted": False, "message": "mode must be manual or automatic"}, ensure_ascii=False)
-    selected = get_device_service().set_automation_mode(target)
+    try:
+        selected = get_device_service().set_automation_mode(target)
+    except ValueError as exc:
+        return json.dumps({"accepted": False, "message": str(exc)}, ensure_ascii=False)
     return json.dumps({"accepted": True, "room": room, "automation_mode": selected.value}, ensure_ascii=False)
+
+
+@tool("run_home_scenario")
+def run_home_scenario(scenario: str, room: str = "study", request_id: str = "") -> str:
+    """执行 normal/sleep/away 固定场景预设，返回逐动作回执。"""
+
+    import json
+
+    try:
+        target = HomeScenarioName(scenario)
+    except ValueError:
+        return json.dumps(
+            {"accepted": False, "message": "scenario must be normal, sleep, or away"},
+            ensure_ascii=False,
+        )
+    result = get_device_service().run_scenario(target, request_id=request_id or None)
+    payload = result.model_dump(mode="json")
+    payload["room"] = result.room
+    return json.dumps(payload, ensure_ascii=False)
 
 
 @tool("get_environment_thresholds")
 def get_environment_thresholds(room: str = "study") -> str:
-    """读取温度上限、湿度上限、光照下限和实验烟雾上限。"""
+    """读取温度上限、湿度上限和实验烟雾上限。"""
 
     import json
 
@@ -294,59 +302,6 @@ def set_environment_threshold(name: str, value: float, room: str = "study") -> s
         return json.dumps({"accepted": False, "message": str(exc)}, ensure_ascii=False)
     return json.dumps(
         {"accepted": True, "room": room, "thresholds": thresholds.model_dump()},
-        ensure_ascii=False,
-    )
-
-
-@tool("set_home_mode")
-def set_home_mode(mode: str, room: str = "study", request_prefix: str = "") -> str:
-    """切换正常、睡眠或离家模式，并返回每一步真实执行结果。"""
-
-    import json
-
-    try:
-        target = HomeModeName(mode)
-    except ValueError:
-        return json.dumps(
-            {
-                "room": room,
-                "mode": mode,
-                "accepted": False,
-                "overall_status": "failed",
-                "actions": [],
-                "message": f"Unsupported mode: {mode}",
-            },
-            ensure_ascii=False,
-        )
-    result = get_device_service().set_mode(target, request_prefix=request_prefix or None)
-    return json.dumps(
-        {
-            "room": room,
-            "mode": result.mode.value,
-            "previous_mode": result.previous_mode.value,
-            "accepted": result.accepted,
-            "overall_status": result.overall_status.value,
-            "message": result.message,
-            "actions": [
-                {
-                    "name": action.name,
-                    "accepted": action.accepted,
-                    "message": action.message,
-                    "device_id": action.device_id,
-                    "command_result": (
-                        _result_payload(action.command_result)
-                        if action.command_result is not None
-                        else None
-                    ),
-                    "lock_result": (
-                        _door_lock_result_payload(action.lock_result)
-                        if action.lock_result is not None
-                        else None
-                    ),
-                }
-                for action in result.actions
-            ],
-        },
         ensure_ascii=False,
     )
 
@@ -523,42 +478,38 @@ def set_fan_state(device_id: str, state: str, request_id: str = "") -> str:
     return json.dumps(_result_payload(result), ensure_ascii=False)
 
 
-@tool("set_window_state")
-def set_window_state(state: str, request_id: str = "") -> str:
-    """打开或关闭版本三 28BYJ 模拟窗户。state 只能是 open 或 closed。"""
+@tool("set_sprinkler_pump_state")
+def set_sprinkler_pump_state(state: str, request_id: str = "") -> str:
+    """控制模拟喷淋水泵。state 只能是 on 或 off。"""
 
     import json
 
     try:
         target = DeviceStateValue(state)
     except ValueError:
-        return json.dumps({"accepted": False, "blocked_reason": "state must be open/closed"}, ensure_ascii=False)
-    result = get_device_service().set_window_state(target, request_id=request_id or None)
+        return json.dumps(
+            {"accepted": False, "blocked_reason": f"state must be on/off, got: {state}"},
+            ensure_ascii=False,
+        )
+    result = get_device_service().set_pump_state(target, request_id=request_id or None)
     return json.dumps(_result_payload(result), ensure_ascii=False)
 
 
-@tool("run_home_scenario")
-def run_home_scenario(scenario: str) -> str:
-    """执行智能家居场景。scenario 支持 sleep、away、movie。睡眠模式会关闭灯和风扇。"""
+@tool("set_alarm_buzzer_state")
+def set_alarm_buzzer_state(state: str, request_id: str = "") -> str:
+    """控制报警蜂鸣器。state 只能是 on 或 off。"""
 
     import json
 
-    service = get_device_service()
     try:
-        name = HomeScenarioName(scenario)
+        target = DeviceStateValue(state)
     except ValueError:
         return json.dumps(
-            {"accepted": False, "message": f"Unsupported scenario: {scenario}"},
+            {"accepted": False, "blocked_reason": f"state must be on/off, got: {state}"},
             ensure_ascii=False,
         )
-    result = service.run_scenario(name)
-    payload = {
-        "scenario": result.scenario.value,
-        "accepted": result.accepted,
-        "message": result.message,
-        "results": [_result_payload(item) for item in result.results],
-    }
-    return json.dumps(payload, ensure_ascii=False)
+    result = get_device_service().set_buzzer_state(target, request_id=request_id or None)
+    return json.dumps(_result_payload(result), ensure_ascii=False)
 
 
 def get_home_tools():
@@ -570,12 +521,11 @@ def get_home_tools():
         read_home_environment,
         get_environment_history,
         get_home_alerts,
-        get_home_mode,
         get_automation_mode,
         set_automation_mode,
+        run_home_scenario,
         get_environment_thresholds,
         set_environment_threshold,
-        set_home_mode,
         get_door_lock_status,
         open_home_door,
         close_home_door,
@@ -585,6 +535,6 @@ def get_home_tools():
         release_home_deadbolt,
         set_light_state,
         set_fan_state,
-        set_window_state,
-        run_home_scenario,
+        set_sprinkler_pump_state,
+        set_alarm_buzzer_state,
     ]

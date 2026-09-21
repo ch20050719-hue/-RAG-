@@ -17,9 +17,6 @@ from app.home_automation.device_models import (
     DeviceStateValue,
     DoorLockAction,
     DoorState,
-    HomeModeName,
-    HomeScenarioName,
-    ModeExecutionStatus,
     ThresholdName,
 )
 from app.home_automation.device_service import DeviceService
@@ -60,7 +57,7 @@ def test_environment_snapshot_contains_version_three_sensors(service: DeviceServ
     snapshot = service.get_environment("study")
 
     kinds = {reading.kind.value for reading in snapshot.readings}
-    assert kinds == {"temperature", "humidity", "illuminance", "smoke"}
+    assert kinds == {"temperature", "humidity", "smoke", "flame", "presence"}
 
 
 def test_environment_snapshot_exposes_smoke_quality_and_level(service: DeviceService):
@@ -111,64 +108,15 @@ def test_generic_switch_control_rejects_door_lock(service: DeviceService):
     assert "dedicated" in (low_level_result.blocked_reason or "").lower()
 
 
-def test_window_and_thresholds_are_typed_and_validated(service: DeviceService):
-    opened = service.set_window_state(DeviceStateValue.OPEN)
+def test_pump_and_thresholds_are_typed_and_validated(service: DeviceService):
+    pump = service.set_pump_state(DeviceStateValue.ON)
     changed = service.set_threshold(ThresholdName.SMOKE_MAX, 700)
 
-    assert opened.accepted is True
-    assert service.get_device("window_motor").state is DeviceStateValue.OPEN
+    assert pump.accepted is True
+    assert service.get_device("sprinkler_pump").state is DeviceStateValue.ON
     assert changed.smoke_max == 700
     with pytest.raises(ValueError, match="range"):
         service.set_threshold(ThresholdName.HUMIDITY_MAX, 101)
-
-
-def test_automation_mode_does_not_replace_sleep_or_away_profile(service: DeviceService):
-    service.set_automation_mode(AutomationMode.AUTOMATIC)
-    service.set_mode(HomeModeName.SLEEP)
-
-    assert service.get_automation_mode() is AutomationMode.AUTOMATIC
-    assert service.get_mode() is HomeModeName.SLEEP
-
-
-def test_normal_mode_is_an_explicit_successful_state_transition(service: DeviceService):
-    result = service.set_mode(HomeModeName.NORMAL)
-
-    assert result.accepted is True
-    assert result.overall_status is ModeExecutionStatus.SUCCESS
-    assert service.get_mode() is HomeModeName.NORMAL
-
-
-def test_sleep_mode_closes_light_and_engages_deadbolt(service: DeviceService):
-    service.set_device_state("desk_light", DeviceStateValue.ON)
-
-    result = service.set_mode(HomeModeName.SLEEP)
-
-    assert result.accepted is True
-    assert result.overall_status is ModeExecutionStatus.SUCCESS
-    assert [action.name for action in result.actions] == ["turn_off_light", "check_door_and_lock"]
-    assert result.actions[0].accepted is True
-    assert result.actions[1].accepted is True
-    assert service.get_device("desk_light").state is DeviceStateValue.OFF
-    assert service.get_mode() is HomeModeName.SLEEP
-    assert service.get_door_lock().deadbolt_state.value == "engaged"
-
-
-def test_away_mode_closes_light_and_fan_before_lock_step(service: DeviceService):
-    service.set_device_state("desk_light", DeviceStateValue.ON)
-    service.set_device_state("desk_fan", DeviceStateValue.ON)
-
-    result = service.set_mode(HomeModeName.AWAY)
-
-    assert result.accepted is True
-    assert result.overall_status is ModeExecutionStatus.SUCCESS
-    assert [action.name for action in result.actions] == [
-        "turn_off_light",
-        "turn_off_fan",
-        "check_door_and_lock",
-    ]
-    assert service.get_device("desk_light").state is DeviceStateValue.OFF
-    assert service.get_device("desk_fan").state is DeviceStateValue.OFF
-    assert service.get_door_lock().latch_state.value == "locked"
 
 
 def test_door_lock_rejects_lock_when_door_is_open(service: DeviceService):
@@ -239,17 +187,6 @@ def test_releasing_deadbolt_requires_authorization_and_second_confirmation(servi
     assert "confirmation" in denied.message.lower()
     assert accepted.accepted is True
     assert service.get_door_lock().deadbolt_state.value == "released"
-
-
-def test_sleep_scenario_turns_off_light_and_fan(service: DeviceService):
-    service.set_device_state("desk_light", DeviceStateValue.ON)
-    service.set_device_state("desk_fan", DeviceStateValue.ON)
-
-    result = service.run_scenario(HomeScenarioName.SLEEP)
-
-    assert result.accepted is True
-    assert service.get_device("desk_light").state is DeviceStateValue.OFF
-    assert service.get_device("desk_fan").state is DeviceStateValue.OFF
 
 
 def test_repeat_request_id_is_idempotent(service: DeviceService):

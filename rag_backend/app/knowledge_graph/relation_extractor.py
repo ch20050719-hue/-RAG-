@@ -2,7 +2,6 @@
 
 from typing import Any, Callable, Dict, List, Optional
 
-from app.core.config import settings
 from .kg_types import RelationType, RELATION_TYPE_DESCRIPTIONS
 
 

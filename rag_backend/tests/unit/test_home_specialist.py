@@ -49,7 +49,31 @@ def test_home_specialist_runs_a_light_control_request():
     assert service.get_device("desk_light").state.value == "on"
 
 
-def test_home_specialist_routes_mode_and_lock_queries_to_fixed_tools():
+def test_home_specialist_routes_pump_and_buzzer_to_dedicated_tools():
+    service = _home_service()
+    tools = ToolManager()
+    for home_tool in get_home_tools():
+        tools.register_langchain_tool(home_tool)
+
+    agent = HomeSpecialistAgent(
+        specialty="device_control",
+        llm_adapter=DummyHomeLLM(),
+        tool_manager=tools,
+        device_service=service,
+    )
+
+    import asyncio
+
+    pump_result = asyncio.run(agent.run("打开喷淋水泵"))
+    buzzer_result = asyncio.run(agent.run("打开蜂鸣器"))
+
+    assert '"device_id": "sprinkler_pump"' in pump_result
+    assert '"device_id": "alarm_buzzer"' in buzzer_result
+    assert service.get_device("sprinkler_pump").state.value == "on"
+    assert service.get_device("alarm_buzzer").state.value == "on"
+
+
+def test_home_specialist_routes_lock_queries_to_fixed_tools():
     service = _home_service()
     tools = ToolManager()
     for home_tool in get_home_tools():
@@ -64,10 +88,8 @@ def test_home_specialist_routes_mode_and_lock_queries_to_fixed_tools():
 
     import asyncio
 
-    mode_result = asyncio.run(agent.run("切换睡眠模式"))
     lock_result = asyncio.run(agent.run("查看门锁状态"))
 
-    assert '"mode": "sleep"' in mode_result
     assert '"device_id": "door_lock"' in lock_result
 
 

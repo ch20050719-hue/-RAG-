@@ -40,7 +40,7 @@ class StateFactory:
         session_id="session-123",
         tenant_id="tenant-456",
         user_id="user-789",
-        user_query="执行睡眠模式"
+        user_query="切换自动模式"
     )
     
     # 复制状态

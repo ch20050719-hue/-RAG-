@@ -111,10 +111,12 @@ class IntentPatternMatcher:
         
         self._tool_keywords: Dict[str, List[str]] = {
             "search_enterprise_knowledge": ["设备", "传感器", "场景", "手册"],
-            "read_home_environment": ["温度", "湿度", "光照", "环境"],
+            "read_home_environment": ["温度", "湿度", "烟雾", "火焰", "有人", "环境"],
             "get_device_status": ["设备", "状态", "在线", "离线"],
             "check_device_safety": ["安全", "风险", "危险", "确认"],
-            "run_home_scenario": ["场景", "睡眠", "离家", "节能"],
+            "set_sprinkler_pump_state": ["喷淋", "水泵"],
+            "set_alarm_buzzer_state": ["蜂鸣器", "报警"],
+            "run_home_scenario": ["正常场景", "睡眠模式", "离家模式", "场景预设"],
         }
     
     def match_intent(self, query: str) -> List[Tuple[IntentCategory, float]]:
@@ -410,7 +412,6 @@ class IntentBasedToolFilter:
         """
         tool_name = tool.get("name", "")
         description = tool.get("description", "").lower()
-        capabilities = tool.get("capabilities", [])
         
         intent_keywords = [
             "search", "retrieve", "find" if intent.category == IntentCategory.INFORMATION_RETRIEVAL else "",

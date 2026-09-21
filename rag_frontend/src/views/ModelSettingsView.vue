@@ -209,7 +209,7 @@ const localProviders = computed(() => providers.value.filter(p => p.group === 'l
 const roles: { key: ChatRole; label: string; desc: string; primary?: boolean }[] = [
   { key: 'chat', label: '默认对话模型', desc: '通用问答与检索增强对话的主模型（保存后立即生效）', primary: true },
   { key: 'home_butler', label: '家居总管家模型', desc: '自然语言家居编排与总控' },
-  { key: 'environment', label: '环境感知模型', desc: '温湿度、光照与人体状态' },
+  { key: 'environment', label: '环境感知模型', desc: '温湿度、烟雾、火焰与有人状态' },
   { key: 'device_control', label: '设备控制模型', desc: '设备状态查询与安全控制' },
   { key: 'comfort', label: '舒适度模型', desc: '睡眠、离家与节能场景' },
 ]

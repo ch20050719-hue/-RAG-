@@ -7,7 +7,7 @@
 - `home_control`：自然语言家居总控或需要协调多个动作
 - `device_switch`：打开或关闭灯、风扇等已注册设备
 - `device_status`：查询设备状态或设备列表
-- `sensor_reading`：查询温度、湿度、光照、人体状态
+- `sensor_reading`：查询温度、湿度、烟雾、火焰、有人状态
 - `comfort_assessment`：舒适度判断或环境建议
 - `sleep_mode`：睡眠场景
 - `energy_save`：节能、离家场景

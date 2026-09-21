@@ -1997,8 +1997,8 @@ import numpy as np
 INTENT_KEYWORDS = {
     "device_control": ["打开", "关闭", "台灯", "风扇", "控制"],
     "device_status": ["设备", "状态", "在线", "离线"],
-    "environment_query": ["温度", "湿度", "光照", "人体", "环境"],
-    "scene_execution": ["场景", "睡眠", "离家", "节能"],
+    "environment_query": ["温度", "湿度", "烟雾", "火焰", "有人", "环境"],
+    "automation_mode": ["手动模式", "自动模式", "阈值"],
     "safety_check": ["安全", "风险", "危险", "确认"],
 }
 
@@ -2019,8 +2019,8 @@ INTENT_EXAMPLES = {
     ],
     "device_control": ["打开书桌台灯", "关闭桌面风扇", "控制设备"],
     "device_status": ["查看当前设备状态", "设备是否在线", "列出所有设备"],
-    "environment_query": ["读取书房温度", "查看湿度和光照", "当前环境怎么样"],
-    "scene_execution": ["执行睡眠模式", "执行离家模式", "开启节能场景"],
+    "environment_query": ["读取书房温度", "查看湿度和烟雾", "当前环境怎么样"],
+    "automation_mode": ["切换自动模式", "切换手动模式", "调整烟雾阈值"],
     "safety_check": ["检查控制是否安全", "查看设备安全规则", "确认远程控制风险"],
 }
 

@@ -1,4 +1,4 @@
-"""智能家居设备服务：状态查询、安全控制与场景执行。"""
+"""智能家居设备服务：状态查询、安全控制与场景预设执行。"""
 
 from datetime import datetime, timedelta, timezone
 from typing import Final
@@ -20,13 +20,10 @@ from .device_models import (
     EnvironmentAlert,
     EnvironmentSnapshot,
     EnvironmentThresholds,
-    HomeModeName,
     HomeScenarioName,
-    ModeExecutionResult,
-    ModeExecutionStatus,
-    ModeStepResult,
-    ScenarioExecutionResult,
     SensorReading,
+    SceneActionResult,
+    SceneExecutionResult,
     SensorRegistration,
     ThresholdName,
 )
@@ -39,6 +36,7 @@ from .environment_monitor import (
 )
 from .door_lock import DoorLockService
 from .safety_rules import evaluate_control_risk, validate_expected_device_type
+from .scene_policy import blocked_reason, tool_allowed
 from .simulated_device import (
     DeviceError,
     DeviceNotFoundError,
@@ -47,19 +45,6 @@ from .simulated_device import (
 )
 
 DEFAULT_COMMAND_TTL_SECONDS: Final[int] = 15
-
-_SLEEP_OFF_DEVICES: Final[tuple[str, ...]] = ("desk_light", "desk_fan")
-_AWAY_OFF_DEVICES: Final[tuple[str, ...]] = ("desk_light", "desk_fan")
-_MOVIE_OFF_DEVICES: Final[tuple[str, ...]] = ("desk_fan",)
-
-_SLEEP_MODE_PLAN: Final[tuple[tuple[str, str, DeviceType], ...]] = (
-    ("turn_off_light", "desk_light", DeviceType.LIGHT),
-)
-_AWAY_MODE_PLAN: Final[tuple[tuple[str, str, DeviceType], ...]] = (
-    ("turn_off_light", "desk_light", DeviceType.LIGHT),
-    ("turn_off_fan", "desk_fan", DeviceType.FAN),
-)
-
 
 class DeviceService:
     """统一封装设备适配器与安全规则。"""
@@ -79,8 +64,8 @@ class DeviceService:
         self._environment_config = environment_config or DEFAULT_ENVIRONMENT_CONFIG
         self._history = history_service or EnvironmentHistoryService()
         self._alerts = alert_service or EnvironmentAlertService(self._environment_config)
-        self._mode = HomeModeName.NORMAL
         self._automation_mode = AutomationMode.MANUAL
+        self._scene = HomeScenarioName.NORMAL
         self._door_lock = door_lock_service or DoorLockService(
             room=default_room,
             actuator=adapter if isinstance(adapter, DoorActuator) else None,
@@ -96,21 +81,130 @@ class DeviceService:
 
         return self._adapter.read_state(device_id)
 
-    def get_mode(self) -> HomeModeName:
-        """读取当前运行模式。"""
-
-        return self._mode
-
     def get_automation_mode(self) -> AutomationMode:
         """读取版本三手动/自动控制模式。"""
 
         return self._automation_mode
 
-    def set_automation_mode(self, mode: AutomationMode) -> AutomationMode:
-        """切换阈值自动联动；不改变睡眠/离家场景配置。"""
+    def set_automation_mode(
+        self,
+        mode: AutomationMode,
+        *,
+        source: str = "manual",
+    ) -> AutomationMode:
+        """切换手动或自动设备控制模式。"""
 
+        if source == "manual" and not tool_allowed(self._scene, "set_automation_mode"):
+            raise ValueError(blocked_reason(self._scene, "set_automation_mode"))
         self._automation_mode = mode
         return mode
+
+    def get_scene(self) -> HomeScenarioName:
+        """读取当前场景预设；它独立于手动/自动主控制模式。"""
+
+        return self._scene
+
+    def run_scenario(
+        self,
+        scene: HomeScenarioName,
+        *,
+        request_id: str | None = None,
+    ) -> SceneExecutionResult:
+        """执行 normal/sleep/away 固定场景，并保留逐动作结果。"""
+
+        target = HomeScenarioName(scene)
+        previous = self._scene
+        base_request_id = _coerce_request_id(request_id)
+        actions: list[SceneActionResult] = []
+
+        if target is HomeScenarioName.NORMAL:
+            self._scene = target
+            actions.append(
+                SceneActionResult(
+                    name="select_normal_scene",
+                    accepted=True,
+                    message="Normal scene selected without changing device state",
+                )
+            )
+        else:
+            actions.extend(self._run_scene_switch_actions(target, base_request_id))
+            if all(action.accepted for action in actions):
+                self._scene = target
+
+        accepted = bool(actions) and all(action.accepted for action in actions)
+        if accepted:
+            overall_status = "success"
+        elif any(action.accepted for action in actions):
+            overall_status = "partial_failed"
+        else:
+            overall_status = "failed"
+        return SceneExecutionResult(
+            room=self._default_room,
+            scene=target,
+            previous_scene=previous,
+            accepted=accepted,
+            overall_status=overall_status,
+            message=(
+                f"Scene {target.value} executed"
+                if accepted
+                else f"Scene {target.value} was not fully applied"
+            ),
+            actions=tuple(actions),
+        )
+
+    def _run_scene_switch_actions(
+        self,
+        scene: HomeScenarioName,
+        base_request_id: UUID,
+    ) -> list[SceneActionResult]:
+        """执行场景的固定开关与门锁步骤，失败后停止后续动作。"""
+
+        actions: list[SceneActionResult] = []
+        switch_steps = {
+            HomeScenarioName.SLEEP: (("desk_light", DeviceStateValue.OFF),),
+            HomeScenarioName.AWAY: (
+                ("desk_light", DeviceStateValue.OFF),
+                ("desk_fan", DeviceStateValue.OFF),
+            ),
+        }[scene]
+        for index, (device_id, state) in enumerate(switch_steps):
+            result = self.set_switch_state(
+                device_id,
+                state,
+                request_id=str(uuid5(base_request_id, f"{scene.value}:switch:{index}")),
+                source="scene",
+            )
+            actions.append(
+                SceneActionResult(
+                    name=f"set_{device_id}_{state.value}",
+                    accepted=result.accepted,
+                    message=result.message,
+                    device_id=device_id,
+                    command_result=result,
+                )
+            )
+            if not result.accepted:
+                return actions
+
+        lock_action = (
+            DoorLockAction.ENGAGE_DEADBOLT
+            if scene is HomeScenarioName.SLEEP
+            else DoorLockAction.LOCK
+        )
+        lock_result = self.command_door_lock(
+            lock_action,
+            request_id=str(uuid5(base_request_id, f"{scene.value}:lock")),
+        )
+        actions.append(
+            SceneActionResult(
+                name=lock_action.value,
+                accepted=lock_result.accepted,
+                message=lock_result.message,
+                device_id=lock_result.device_id,
+                lock_result=lock_result,
+            )
+        )
+        return actions
 
     def get_thresholds(self) -> EnvironmentThresholds:
         """返回当前进程内生效的版本三阈值。"""
@@ -118,17 +212,23 @@ class DeviceService:
         return EnvironmentThresholds(
             temperature_max=float(self._environment_config.temperature.danger_max),
             humidity_max=float(self._environment_config.humidity.danger_max),
-            illuminance_min=float(self._environment_config.illuminance.danger_min),
             smoke_max=float(self._environment_config.smoke.danger_max),
         )
 
-    def set_threshold(self, name: ThresholdName, value: float) -> EnvironmentThresholds:
+    def set_threshold(
+        self,
+        name: ThresholdName,
+        value: float,
+        *,
+        source: str = "manual",
+    ) -> EnvironmentThresholds:
         """校验并更新固定阈值；模拟模式在当前进程生命周期内保存。"""
 
+        if source == "manual" and not tool_allowed(self._scene, "set_environment_threshold"):
+            raise ValueError(blocked_reason(self._scene, "set_environment_threshold"))
         ranges = {
             ThresholdName.TEMPERATURE_MAX: (-20.0, 80.0),
             ThresholdName.HUMIDITY_MAX: (1.0, 100.0),
-            ThresholdName.ILLUMINANCE_MIN: (0.0, 100000.0),
             ThresholdName.SMOKE_MAX: (1.0, 4095.0),
         }
         minimum, maximum = ranges[name]
@@ -138,7 +238,6 @@ class DeviceService:
         field_name, boundary = {
             ThresholdName.TEMPERATURE_MAX: ("temperature", "danger_max"),
             ThresholdName.HUMIDITY_MAX: ("humidity", "danger_max"),
-            ThresholdName.ILLUMINANCE_MIN: ("illuminance", "danger_min"),
             ThresholdName.SMOKE_MAX: ("smoke", "danger_max"),
         }[name]
         metric = getattr(self._environment_config, field_name).model_copy(
@@ -149,82 +248,6 @@ class DeviceService:
         )
         self._alerts = EnvironmentAlertService(self._environment_config)
         return self.get_thresholds()
-
-    def set_mode(
-        self,
-        mode: HomeModeName,
-        request_prefix: str | None = None,
-    ) -> ModeExecutionResult:
-        """按固定顺序执行模式切换，并如实汇总每一步结果。"""
-
-        previous_mode = self._mode
-        if mode is HomeModeName.NORMAL:
-            self._mode = mode
-            return ModeExecutionResult(
-                mode=mode,
-                previous_mode=previous_mode,
-                accepted=True,
-                overall_status=ModeExecutionStatus.SUCCESS,
-                actions=(),
-                message="Mode normal activated",
-            )
-
-        prefix = request_prefix or str(uuid4())
-        actions: list[ModeStepResult] = []
-        for index, (name, device_id, device_type) in enumerate(_mode_device_plan(mode)):
-            result = self.set_device_state(
-                device_id=device_id,
-                state=DeviceStateValue.OFF,
-                request_id=f"{prefix}-{index}",
-                expected_device_type=device_type,
-            )
-            actions.append(
-                ModeStepResult(
-                    name=name,
-                    accepted=result.accepted,
-                    message=result.message,
-                    device_id=device_id,
-                    command_result=result,
-                )
-            )
-
-        lock_action = (
-            DoorLockAction.ENGAGE_DEADBOLT
-            if mode is HomeModeName.SLEEP
-            else DoorLockAction.LOCK
-        )
-        lock_result = self.command_door_lock(lock_action)
-        actions.append(
-            ModeStepResult(
-                name="check_door_and_lock",
-                accepted=lock_result.accepted,
-                message=lock_result.message,
-                device_id=lock_result.device_id,
-                lock_result=lock_result,
-            )
-        )
-        accepted_count = sum(action.accepted for action in actions)
-        if accepted_count == len(actions):
-            status = ModeExecutionStatus.SUCCESS
-            accepted = True
-            self._mode = mode
-            message = f"Mode {mode.value} activated"
-        elif accepted_count > 0:
-            status = ModeExecutionStatus.PARTIAL_FAILED
-            accepted = False
-            message = f"Mode {mode.value} partially failed; current mode remains {previous_mode.value}"
-        else:
-            status = ModeExecutionStatus.FAILED
-            accepted = False
-            message = f"Mode {mode.value} failed; current mode remains {previous_mode.value}"
-        return ModeExecutionResult(
-            mode=mode,
-            previous_mode=previous_mode,
-            accepted=accepted,
-            overall_status=status,
-            actions=tuple(actions),
-            message=message,
-        )
 
     def get_door_lock(self) -> DoorLockState:
         """读取实验门锁与门磁状态。"""
@@ -294,12 +317,14 @@ class DeviceService:
         for alert in alerts:
             if alert.state.value != "active":
                 continue
-            if alert.related_action in {"fan_on", "fan_and_window_on"}:
-                self.set_switch_state("desk_fan", DeviceStateValue.ON)
-            if alert.related_action == "fan_and_window_on":
-                self.set_window_state(DeviceStateValue.OPEN)
+            if alert.related_action in {"fan_on", "fan_and_buzzer_on"}:
+                self.set_switch_state("desk_fan", DeviceStateValue.ON, source="automatic")
+            if alert.related_action in {"fan_and_buzzer_on", "sprinkler_and_buzzer_on"}:
+                self.set_buzzer_state(DeviceStateValue.ON, source="automatic")
+            if alert.related_action == "sprinkler_and_buzzer_on":
+                self.set_pump_state(DeviceStateValue.ON, source="automatic")
             if alert.related_action == "light_on":
-                self.set_switch_state("desk_light", DeviceStateValue.ON)
+                self.set_switch_state("desk_light", DeviceStateValue.ON, source="automatic")
         return alerts
 
     def set_switch_state(
@@ -307,8 +332,10 @@ class DeviceService:
         device_id: str,
         state: DeviceStateValue,
         request_id: str | None = None,
+        *,
+        source: str = "manual",
     ) -> DeviceCommandResult:
-        """只控制灯和风扇，阻止门锁/窗户进入通用 on/off 通道。"""
+        """只控制灯和风扇，阻止专用执行器进入通用 on/off 通道。"""
 
         try:
             current = self._adapter.read_state(device_id)
@@ -328,22 +355,52 @@ class DeviceService:
             state,
             request_id=request_id,
             expected_device_type=current.device_type,
+            source=source,
         )
 
-    def set_window_state(
+    def set_pump_state(
         self,
         state: DeviceStateValue,
         request_id: str | None = None,
+        *,
+        source: str = "manual",
     ) -> DeviceCommandResult:
-        """通过固定窗户设备执行 open/closed 状态。"""
+        """通过专用接口控制模拟喷淋水泵。"""
 
-        if state not in {DeviceStateValue.OPEN, DeviceStateValue.CLOSED}:
-            return self._blocked_result("window_motor", state, request_id, "Window state must be open or closed")
+        return self._set_dedicated_switch_state(
+            "sprinkler_pump", DeviceType.WATER_PUMP, state, request_id, source=source
+        )
+
+    def set_buzzer_state(
+        self,
+        state: DeviceStateValue,
+        request_id: str | None = None,
+        *,
+        source: str = "manual",
+    ) -> DeviceCommandResult:
+        """通过专用接口控制报警蜂鸣器。"""
+
+        return self._set_dedicated_switch_state(
+            "alarm_buzzer", DeviceType.BUZZER, state, request_id, source=source
+        )
+
+    def _set_dedicated_switch_state(
+        self,
+        device_id: str,
+        expected_device_type: DeviceType,
+        state: DeviceStateValue,
+        request_id: str | None,
+        *,
+        source: str = "manual",
+    ) -> DeviceCommandResult:
+        if state not in {DeviceStateValue.ON, DeviceStateValue.OFF}:
+            return self._blocked_result(device_id, state, request_id, "State must be on or off")
         return self.set_device_state(
-            "window_motor",
+            device_id,
             state,
             request_id=request_id,
-            expected_device_type=DeviceType.WINDOW,
+            expected_device_type=expected_device_type,
+            source=source,
         )
 
     def _blocked_result(
@@ -380,6 +437,9 @@ class DeviceService:
         request_id: str | None = None,
         ttl_seconds: int = DEFAULT_COMMAND_TTL_SECONDS,
         expected_device_type: DeviceType | None = None,
+        *,
+        source: str = "manual",
+        tool_name: str | None = None,
     ) -> DeviceCommandResult:
         """安全控制设备开关状态。"""
 
@@ -406,16 +466,30 @@ class DeviceService:
                 )
             if (
                 expected_device_type is None
-                and current_state.device_type in {DeviceType.DOOR_LOCK, DeviceType.WINDOW}
+                and current_state.device_type
+                in {DeviceType.DOOR_LOCK, DeviceType.WATER_PUMP, DeviceType.BUZZER}
             ):
                 return self._blocked_result(
                     device_id,
                     state,
                     command.request_id,
-                    "Door locks and windows require their dedicated control endpoints",
+                    "Door locks and dedicated actuators require their dedicated control endpoints",
                 )
             if expected_device_type is not None:
                 decision = validate_expected_device_type(current_state, expected_device_type)
+            resolved_tool_name = tool_name or _tool_name_for_device_type(current_state.device_type)
+            if (
+                decision.allowed
+                and source == "manual"
+                and resolved_tool_name is not None
+                and not tool_allowed(self._scene, resolved_tool_name)
+            ):
+                return self._blocked_result(
+                    device_id,
+                    state,
+                    command.request_id,
+                    blocked_reason(self._scene, resolved_tool_name),
+                )
         if not decision.allowed:
             return DeviceCommandResult(
                 request_id=command.request_id,
@@ -439,47 +513,6 @@ class DeviceService:
                 blocked_reason=str(exc),
             )
 
-    def run_scenario(
-        self,
-        scenario: HomeScenarioName,
-        request_prefix: str | None = None,
-    ) -> ScenarioExecutionResult:
-        """执行预置场景，逐台设备安全控制。"""
-
-        plan = _scenario_plan(scenario)
-        if not plan:
-            return ScenarioExecutionResult(
-                scenario=scenario,
-                accepted=False,
-                results=(),
-                message=f"Unknown scenario: {scenario}",
-            )
-
-        prefix = request_prefix or str(uuid4())
-        results: list[DeviceCommandResult] = []
-        for index, (device_id, state) in enumerate(plan):
-            result = self.set_device_state(
-                device_id=device_id,
-                state=state,
-                request_id=f"{prefix}-{index}",
-            )
-            results.append(result)
-
-        accepted = all(item.accepted for item in results)
-        failed = [item for item in results if not item.accepted]
-        if accepted:
-            message = f"Scenario {scenario.value} executed"
-        else:
-            reasons = "; ".join(item.blocked_reason or item.message for item in failed)
-            message = f"Scenario {scenario.value} partially blocked: {reasons}"
-        return ScenarioExecutionResult(
-            scenario=scenario,
-            accepted=accepted,
-            results=tuple(results),
-            message=message,
-        )
-
-
 def _coerce_request_id(request_id: str | None) -> UUID:
     """将可选请求 ID 转为 UUID，缺省则生成。"""
 
@@ -491,26 +524,15 @@ def _coerce_request_id(request_id: str | None) -> UUID:
         return uuid5(NAMESPACE_URL, request_id)
 
 
-def _scenario_plan(scenario: HomeScenarioName) -> list[tuple[str, DeviceStateValue]]:
-    """返回场景对应的设备目标状态列表。"""
+def _tool_name_for_device_type(device_type: DeviceType) -> str | None:
+    """将设备类型映射到场景策略使用的固定控制工具名。"""
 
-    if scenario is HomeScenarioName.SLEEP:
-        return [(device_id, DeviceStateValue.OFF) for device_id in _SLEEP_OFF_DEVICES]
-    if scenario is HomeScenarioName.AWAY:
-        return [(device_id, DeviceStateValue.OFF) for device_id in _AWAY_OFF_DEVICES]
-    if scenario is HomeScenarioName.MOVIE:
-        return [(device_id, DeviceStateValue.OFF) for device_id in _MOVIE_OFF_DEVICES]
-    return []
-
-
-def _mode_device_plan(mode: HomeModeName) -> tuple[tuple[str, str, DeviceType], ...]:
-    """返回模式切换中需要执行的灯/风扇基线动作。"""
-
-    if mode is HomeModeName.SLEEP:
-        return _SLEEP_MODE_PLAN
-    if mode is HomeModeName.AWAY:
-        return _AWAY_MODE_PLAN
-    return ()
+    return {
+        DeviceType.LIGHT: "set_light_state",
+        DeviceType.FAN: "set_fan_state",
+        DeviceType.WATER_PUMP: "set_sprinkler_pump_state",
+        DeviceType.BUZZER: "set_alarm_buzzer_state",
+    }.get(device_type)
 
 
 __all__ = [

@@ -29,8 +29,8 @@ class DomainDetector:
     # 文件名启发式规则。当前产品只接收智能家居知识文档。
     FILENAME_PATTERNS = {
         "smart_home": [
-            "智能家居", "智能家庭", "设备说明书", "传感器", "mqtt", "esp32",
-            "物联网", "灯光控制", "风扇控制", "睡眠模式", "home assistant",
+            "智能家居", "智能家庭", "设备说明书", "传感器", "mqtt", "esp8266",
+            "物联网", "灯光控制", "风扇控制", "喷淋", "自动模式", "home assistant",
         ],
     }
 
@@ -70,7 +70,7 @@ class DomainDetector:
                 return domain_from_llm
 
         # 4. 默认回退
-        logger.info(f"[DomainDetector] 未检测到领域，默认: general")
+        logger.info("[DomainDetector] 未检测到领域，默认: general")
         return "general"
 
     def _detect_from_filename(self, filename: str) -> Optional[str]:

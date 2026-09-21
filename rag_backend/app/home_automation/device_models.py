@@ -1,4 +1,4 @@
-"""智能家居设备、传感器与场景领域模型。"""
+"""智能家居设备、传感器与场景预设领域模型。"""
 
 from datetime import datetime
 from enum import Enum
@@ -13,7 +13,8 @@ class DeviceType(str, Enum):
 
     LIGHT = "light"
     FAN = "fan"
-    WINDOW = "window"
+    WATER_PUMP = "water_pump"
+    BUZZER = "buzzer"
     DOOR_LOCK = "door_lock"
 
 
@@ -22,8 +23,6 @@ class DeviceStateValue(str, Enum):
 
     ON = "on"
     OFF = "off"
-    OPEN = "open"
-    CLOSED = "closed"
 
 
 class SensorKind(str, Enum):
@@ -31,10 +30,9 @@ class SensorKind(str, Enum):
 
     TEMPERATURE = "temperature"
     HUMIDITY = "humidity"
-    CO2 = "co2"
-    ILLUMINANCE = "illuminance"
-    MOTION = "motion"
     SMOKE = "smoke"
+    FLAME = "flame"
+    PRESENCE = "presence"
 
 
 class SensorQuality(str, Enum):
@@ -284,27 +282,46 @@ class EnvironmentAlert(BaseModel):
     last_updated_at: datetime
 
 
+class AutomationMode(str, Enum):
+    """设备主控制模式：谁可以触发自动联动。"""
+
+    MANUAL = "manual"
+    AUTOMATIC = "automatic"
+
+
 class HomeScenarioName(str, Enum):
-    """预置场景名。"""
-
-    SLEEP = "sleep"
-    AWAY = "away"
-    MOVIE = "movie"
-
-
-class HomeModeName(str, Enum):
-    """本科版固定运行模式。"""
+    """可执行的固定场景预设。"""
 
     NORMAL = "normal"
     SLEEP = "sleep"
     AWAY = "away"
 
 
-class AutomationMode(str, Enum):
-    """版本三本地控制模式；与睡眠/离家场景配置相互独立。"""
+class SceneActionResult(BaseModel):
+    """场景中单个固定动作的结果。"""
 
-    MANUAL = "manual"
-    AUTOMATIC = "automatic"
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+    accepted: bool
+    message: str
+    device_id: str | None = None
+    command_result: DeviceCommandResult | None = None
+    lock_result: DoorLockCommandResult | None = None
+
+
+class SceneExecutionResult(BaseModel):
+    """场景预设执行结果，保留逐动作回执。"""
+
+    model_config = ConfigDict(frozen=True)
+
+    room: str
+    scene: HomeScenarioName
+    previous_scene: HomeScenarioName
+    accepted: bool
+    overall_status: Literal["success", "partial_failed", "failed"]
+    message: str
+    actions: tuple[SceneActionResult, ...] = ()
 
 
 class ThresholdName(str, Enum):
@@ -312,7 +329,6 @@ class ThresholdName(str, Enum):
 
     TEMPERATURE_MAX = "temperature_max"
     HUMIDITY_MAX = "humidity_max"
-    ILLUMINANCE_MIN = "illuminance_min"
     SMOKE_MAX = "smoke_max"
 
 
@@ -323,50 +339,4 @@ class EnvironmentThresholds(BaseModel):
 
     temperature_max: float
     humidity_max: float
-    illuminance_min: float
     smoke_max: float
-
-
-class ModeExecutionStatus(str, Enum):
-    """模式切换的整体执行状态。"""
-
-    SUCCESS = "success"
-    PARTIAL_FAILED = "partial_failed"
-    FAILED = "failed"
-
-
-class ModeStepResult(BaseModel):
-    """模式切换中单个动作的真实执行结果。"""
-
-    model_config = ConfigDict(frozen=True)
-
-    name: str = Field(min_length=1, max_length=100)
-    accepted: bool
-    message: str
-    device_id: str | None = None
-    command_result: DeviceCommandResult | None = None
-    lock_result: DoorLockCommandResult | None = None
-
-
-class ModeExecutionResult(BaseModel):
-    """模式切换汇总，包含每一步动作结果。"""
-
-    model_config = ConfigDict(frozen=True)
-
-    mode: HomeModeName
-    previous_mode: HomeModeName
-    accepted: bool
-    overall_status: ModeExecutionStatus
-    actions: tuple[ModeStepResult, ...] = ()
-    message: str
-
-
-class ScenarioExecutionResult(BaseModel):
-    """场景执行汇总回执。"""
-
-    model_config = ConfigDict(frozen=True)
-
-    scenario: HomeScenarioName
-    accepted: bool
-    results: tuple[DeviceCommandResult, ...] = ()
-    message: str

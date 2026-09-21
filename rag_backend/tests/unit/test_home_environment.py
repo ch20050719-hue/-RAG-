@@ -54,7 +54,7 @@ def test_danger_alert_is_suspected_then_active_after_three_samples():
     assert second is not None and second.state is AlertState.SUSPECTED
     assert third is not None and third.state is AlertState.ACTIVE
     assert third.consecutive_count == 3
-    assert third.related_action == "fan_on"
+    assert third.related_action == "fan_and_buzzer_on"
 
 
 def test_three_normal_samples_recover_an_active_alert():

@@ -116,7 +116,7 @@ class GraphQueryClassifier:
         return any(pattern.search(query) for pattern in self.graph_patterns)
 
     def _extract_entities(self, query: str) -> List[str]:
-        candidates = re.findall(r"(?:desk_light|desk_fan|esp32|书桌灯|台灯|风扇|空调|传感器|睡眠模式|离家模式|节能模式|书房|客厅|卧室)", query, re.IGNORECASE)
+        candidates = re.findall(r"(?:desk_light|desk_fan|sprinkler_pump|alarm_buzzer|esp8266|书桌灯|台灯|风扇|水泵|蜂鸣器|传感器|手动模式|自动模式|书房|客厅|卧室)", query, re.IGNORECASE)
         return list(dict.fromkeys(item for item in candidates if item not in self.CN_STOP_WORDS))
 
     def _has_graph_keywords(self, query: str) -> bool:

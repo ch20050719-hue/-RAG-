@@ -13,7 +13,6 @@ interface TaskForm {
   task_type: ScheduledTask['task_type']
   frequency: Frequency
   next_run_time: string
-  scenario: string
   device_id: string
   device_state: 'on' | 'off'
   reminder_enabled: boolean
@@ -25,8 +24,8 @@ interface TaskForm {
 }
 
 const emptyForm = (): TaskForm => ({
-  name: '晚间回家场景', description: '按计划执行智能家居场景', task_type: 'home_scenario', frequency: 'once',
-  next_run_time: '', scenario: 'away', device_id: '', device_state: 'on', reminder_enabled: true, reminder_time: '', reminder_before_minutes: 10,
+  name: '定时设备控制', description: '按计划控制已注册的智能家居设备', task_type: 'device_control', frequency: 'once',
+  next_run_time: '', device_id: '', device_state: 'on', reminder_enabled: true, reminder_time: '', reminder_before_minutes: 10,
   deadline: '', repeat_until: '', notification_channels: ['in_app']
 })
 
@@ -36,7 +35,6 @@ const loading = ref(false)
 const showCreate = ref(false)
 const form = ref<TaskForm>(emptyForm())
 const isRecurring = computed(() => form.value.frequency !== 'once')
-const isScenarioTask = computed(() => form.value.task_type === 'home_scenario')
 const controllableDevices = computed(() => devices.value.filter(device => ['light', 'fan'].includes(device.device_type) && device.online))
 
 const frequencyLabels: Record<Frequency, string> = { once: '一次性', daily: '每天', weekly: '每周', monthly: '每月', quarterly: '每季度', yearly: '每年' }
@@ -72,7 +70,7 @@ async function loadTasks() {
 function validateForm() {
   if (!form.value.name.trim()) return '请输入任务名称'
   if (!form.value.next_run_time) return '请选择执行时间'
-  if (!isScenarioTask.value && !form.value.device_id) return '请选择要控制的家居设备'
+  if (!form.value.device_id) return '请选择要控制的家居设备'
   if (form.value.reminder_enabled && !isRecurring.value && !form.value.reminder_time) return '请选择提醒时间'
   if (form.value.reminder_enabled && isRecurring.value && !form.value.reminder_before_minutes) return '请输入提前提醒分钟数'
   const execution = new Date(form.value.next_run_time).getTime()
@@ -90,9 +88,7 @@ async function createTask() {
     await taskManagerApi.createTask({
       name: form.value.name, description: form.value.description, task_type: form.value.task_type,
       frequency: form.value.frequency, next_run_time: toUtcIso(form.value.next_run_time)!,
-      params: isScenarioTask.value
-        ? { scenario: form.value.scenario }
-        : { device_id: form.value.device_id, state: form.value.device_state },
+      params: { device_id: form.value.device_id, state: form.value.device_state },
       reminder_enabled: form.value.reminder_enabled,
       reminder_time: !isRecurring.value ? toUtcIso(form.value.reminder_time) : undefined,
       reminder_before_minutes: isRecurring.value && form.value.reminder_enabled ? form.value.reminder_before_minutes : undefined,
@@ -121,7 +117,7 @@ onMounted(loadTasks)
 
 <template>
   <div class="min-h-full bg-slate-50 p-6"><div class="mx-auto max-w-6xl">
-    <div class="mb-6 flex items-center justify-between"><div><h1 class="text-2xl font-bold text-slate-900">智能家居定时任务</h1><p class="mt-1 text-sm text-slate-500">设置场景或具体设备的执行时间、提醒时间、截止时间和重复规则。</p></div><div class="flex gap-2"><el-button :icon="RefreshCw" @click="loadTasks">刷新</el-button><el-button type="primary" :icon="Plus" @click="openCreate">新建定时任务</el-button></div></div>
+    <div class="mb-6 flex items-center justify-between"><div><h1 class="text-2xl font-bold text-slate-900">智能家居定时任务</h1><p class="mt-1 text-sm text-slate-500">设置具体设备的执行时间、提醒时间、截止时间和重复规则。</p></div><div class="flex gap-2"><el-button :icon="RefreshCw" @click="loadTasks">刷新</el-button><el-button type="primary" :icon="Plus" @click="openCreate">新建定时任务</el-button></div></div>
     <el-card v-loading="loading" shadow="never"><el-table :data="tasks" empty-text="暂无智能家居定时任务">
       <el-table-column prop="name" label="任务" min-width="220" /><el-table-column label="规则" width="120"><template #default="{ row }">{{ frequencyLabels[row.frequency] }}</template></el-table-column>
       <el-table-column label="下次执行" width="190"><template #default="{ row }">{{ formatDate(row.next_run_time) }}</template></el-table-column>
@@ -131,9 +127,8 @@ onMounted(loadTasks)
     </el-table></el-card>
   </div>
   <el-dialog v-model="showCreate" title="新建智能家居定时任务" width="640px" destroy-on-close><el-form label-position="top">
-    <div class="grid grid-cols-2 gap-4"><el-form-item label="任务名称" required><el-input v-model="form.name" /></el-form-item><el-form-item label="任务类型" required><el-select v-model="form.task_type" class="w-full"><el-option label="场景执行" value="home_scenario" /><el-option label="控制具体设备" value="device_control" /></el-select></el-form-item></div>
-    <div v-if="isScenarioTask" class="grid grid-cols-2 gap-4"><el-form-item label="场景" required><el-select v-model="form.scenario" class="w-full"><el-option label="离家" value="away" /><el-option label="睡眠" value="sleep" /><el-option label="观影" value="movie" /></el-select></el-form-item><div /></div>
-    <div v-else class="grid grid-cols-2 gap-4"><el-form-item label="家居设备" required><el-select v-model="form.device_id" class="w-full" placeholder="请选择设备"><el-option v-for="device in controllableDevices" :key="device.device_id" :label="`${device.room} · ${device.device_id}（${deviceTypeLabels[device.device_type] || device.device_type}）`" :value="device.device_id" /></el-select></el-form-item><el-form-item label="执行动作" required><el-select v-model="form.device_state" class="w-full"><el-option label="打开" value="on" /><el-option label="关闭" value="off" /></el-select></el-form-item></div>
+    <div class="grid grid-cols-2 gap-4"><el-form-item label="任务名称" required><el-input v-model="form.name" /></el-form-item><el-form-item label="家居设备" required><el-select v-model="form.device_id" class="w-full" placeholder="请选择设备"><el-option v-for="device in controllableDevices" :key="device.device_id" :label="`${device.room} · ${device.device_id}（${deviceTypeLabels[device.device_type] || device.device_type}）`" :value="device.device_id" /></el-select></el-form-item></div>
+    <div class="grid grid-cols-2 gap-4"><el-form-item label="执行动作" required><el-select v-model="form.device_state" class="w-full"><el-option label="打开" value="on" /><el-option label="关闭" value="off" /></el-select></el-form-item><div /></div>
     <el-form-item label="说明"><el-input v-model="form.description" /></el-form-item><div class="grid grid-cols-2 gap-4"><el-form-item label="重复规则" required><el-select v-model="form.frequency" class="w-full"><el-option v-for="(label, value) in frequencyLabels" :key="value" :label="label" :value="value" /></el-select></el-form-item><el-form-item label="执行时间" required><el-date-picker v-model="form.next_run_time" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" class="w-full" /></el-form-item></div>
     <el-form-item label="执行前提醒"><el-switch v-model="form.reminder_enabled" active-text="开启站内提醒" /></el-form-item><el-form-item v-if="form.reminder_enabled && !isRecurring" label="提醒时间" required><el-date-picker v-model="form.reminder_time" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" class="w-full" /></el-form-item><el-form-item v-if="form.reminder_enabled && isRecurring" label="每次执行前提醒"><el-input-number v-model="form.reminder_before_minutes" :min="1" :max="10080" /><span class="ml-2 text-xs text-slate-500">分钟（最多提前7天）</span></el-form-item>
     <div class="grid grid-cols-2 gap-4"><el-form-item label="截止时间（可选）"><el-date-picker v-model="form.deadline" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" class="w-full" /></el-form-item><el-form-item v-if="isRecurring" label="重复结束时间（可选）"><el-date-picker v-model="form.repeat_until" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" class="w-full" /></el-form-item></div><el-form-item label="通知方式"><el-checkbox-group v-model="form.notification_channels"><el-checkbox label="in_app">站内通知</el-checkbox></el-checkbox-group></el-form-item>

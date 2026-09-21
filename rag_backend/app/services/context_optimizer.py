@@ -18,10 +18,9 @@
     messages = optimizer.optimize(messages)
 """
 
-import re
 import json
 import logging
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 
 logger = logging.getLogger(__name__)
 
@@ -138,9 +137,6 @@ class ContextOptimizer:
         skip_indices = set()
 
         # 找到 system prompt 的起止位置，保留第一个 system
-        first_system_idx = None
-        last_user_idx = None
-
         for i, msg in enumerate(messages):
             role = msg.get("role", "")
             content = msg.get("content", "")
@@ -152,9 +148,6 @@ class ContextOptimizer:
             if role == "tool" and not content:
                 skip_indices.add(i)
                 continue
-
-            if role == "system" and first_system_idx is None:
-                first_system_idx = i
 
         # 构建结果
         for i, msg in enumerate(messages):
@@ -228,7 +221,8 @@ class ContextOptimizer:
             home_keys = [
                 ("device_id", "设备"), ("device_type", "类型"), ("state", "状态"),
                 ("online", "在线"), ("room", "房间"), ("scenario", "场景"),
-                ("temperature", "温度"), ("humidity", "湿度"), ("light_level", "光照"),
+                ("temperature", "温度"), ("humidity", "湿度"), ("smoke", "烟雾"),
+                ("flame", "火焰"), ("presence", "有人"),
             ]
 
             for eng_key, cn_key in home_keys:
@@ -304,8 +298,6 @@ class ContextOptimizer:
         for msg in to_compress:
             role = msg.get("role", "")
             content = msg.get("content", "")
-            tool_calls = msg.get("tool_calls")
-
             if role == "assistant":
                 if current_round:
                     round_texts.append(self._format_round(current_round))

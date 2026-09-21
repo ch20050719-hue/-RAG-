@@ -1,5 +1,5 @@
 {
-  "_description": "智能家居设备、场景联动与安全操作知识库。",
+  "_description": "智能家居设备、环境联动与安全操作知识库。",
   "home_butler": [
     {"rule_id": "HOME_001", "category": "设备白名单", "description": "仅允许控制已注册设备，动作限于 set_state，禁止下发任意 Topic 或 GPIO。", "risk_level": "high"},
     {"rule_id": "HOME_002", "category": "状态回执", "description": "设备状态以回执为准，不得以按钮点击或模型输出作为最终执行成功依据。", "risk_level": "high"},
@@ -7,16 +7,16 @@
   ],
   "environment": [
     {"rule_id": "ENV_001", "category": "传感器时效", "description": "环境数据必须标注采集时间与来源，过期数据不得直接触发高风险动作。", "risk_level": "medium"},
-    {"rule_id": "ENV_002", "category": "异常读数", "description": "DHT11 温湿度、光敏电阻和 MQ-2 实验烟雾读数超出有效范围时应标记异常；仅 automatic 模式可按固定规则联动。", "risk_level": "high"}
+    {"rule_id": "ENV_002", "category": "异常读数", "description": "温湿度、烟雾、火焰和有人传感器读数超出有效范围时应标记异常；仅 automatic 模式可按固定规则联动。", "risk_level": "high"}
   ],
   "device_control": [
     {"rule_id": "DEV_001", "category": "幂等控制", "description": "重复 request_id 返回首次回执，不重复执行设备动作。", "risk_level": "medium"},
-    {"rule_id": "DEV_002", "category": "参数校验", "description": "灯/风扇仅允许 on/off，窗户仅允许 open/closed，门锁必须使用专用动作；非法参数直接拒绝。", "risk_level": "high"},
-    {"rule_id": "DEV_003", "category": "模式边界", "description": "manual/automatic 控制阈值联动，normal/sleep/away 是独立场景配置，两者不得混为同一状态。", "risk_level": "medium"}
+    {"rule_id": "DEV_002", "category": "参数校验", "description": "LED、风扇、水泵和蜂鸣器仅允许 on/off，门锁必须使用专用动作；非法参数直接拒绝。", "risk_level": "high"},
+    {"rule_id": "DEV_003", "category": "模式边界", "description": "manual/automatic 分别表示人工控制和固定自动联动；自动规则只允许控制注册的风扇、蜂鸣器、水泵和 LED。", "risk_level": "medium"}
   ],
   "comfort": [
-    {"rule_id": "COM_001", "category": "睡眠模式", "description": "睡眠模式应关闭灯和风扇，并保证夜间可安全恢复。", "risk_level": "low"},
-    {"rule_id": "COM_002", "category": "节能", "description": "无人场景优先关闭非必要设备，避免长时间空转。", "risk_level": "low"}
+    {"rule_id": "COM_001", "category": "有人照明", "description": "automatic 模式检测到有人时开启 LED；无人时不因模型猜测执行其他高风险动作。", "risk_level": "low"},
+    {"rule_id": "COM_002", "category": "场景预设", "description": "normal 不改变设备状态；sleep 关闭 LED 并尝试反锁；away 关闭 LED/风扇并尝试锁门。场景与 manual/automatic 独立。人工工具白名单为：normal 允许 LED、风扇、水泵、蜂鸣器、阈值、模式和门锁；sleep 允许 LED、风扇、蜂鸣器和门锁；away 允许水泵、蜂鸣器和门锁。环境查询、状态查询、场景切换和 automatic 安全联动始终保留。", "risk_level": "high"}
   ],
   "general": [
     {"rule_id": "GEN_001", "category": "知识溯源", "description": "设备控制建议应优先引用当前家庭知识库和设备状态。", "risk_level": "low"}

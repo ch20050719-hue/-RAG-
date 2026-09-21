@@ -1,14 +1,13 @@
 import { request } from '@/utils/request'
 
-export type DeviceState = 'on' | 'off' | 'open' | 'closed'
+export type DeviceState = 'on' | 'off'
 export type SwitchState = 'on' | 'off'
-export type HomeMode = 'normal' | 'sleep' | 'away'
 export type AutomationMode = 'manual' | 'automatic'
-export type ThresholdName = 'temperature_max' | 'humidity_max' | 'illuminance_min' | 'smoke_max'
+export type HomeScenario = 'normal' | 'sleep' | 'away'
+export type ThresholdName = 'temperature_max' | 'humidity_max' | 'smoke_max'
 export interface EnvironmentThresholds {
   temperature_max: number
   humidity_max: number
-  illuminance_min: number
   smoke_max: number
 }
 export type EnvironmentLevel = 'normal' | 'attention' | 'danger' | 'fault'
@@ -17,7 +16,7 @@ export type SensorQuality = 'valid' | 'stale' | 'invalid' | 'offline'
 export interface HomeDevice {
   device_id: string
   room: string
-  device_type: 'light' | 'fan' | 'window' | 'door_lock' | string
+  device_type: 'light' | 'fan' | 'water_pump' | 'buzzer' | 'door_lock' | string
   state: DeviceState
   online: boolean
   updated_at: string
@@ -73,25 +72,6 @@ export interface HomeAlert {
   last_updated_at: string
 }
 
-export interface ModeActionResult {
-  name: string
-  accepted: boolean
-  message: string
-  device_id?: string | null
-  command_result?: DeviceCommandResult | null
-  lock_result?: DoorLockCommandResult | null
-}
-
-export interface ModeExecutionResult {
-  room: string
-  mode: HomeMode
-  previous_mode: HomeMode
-  accepted: boolean
-  overall_status: 'success' | 'partial_failed' | 'failed'
-  message: string
-  actions: ModeActionResult[]
-}
-
 export interface DoorLockState {
   device_id: string
   room: string
@@ -107,6 +87,25 @@ export interface DoorLockState {
   last_command: string | null
   ack_status: 'accepted' | 'success' | 'failed'
   updated_at: string
+}
+
+export interface SceneActionResult {
+  name: string
+  accepted: boolean
+  message: string
+  device_id?: string | null
+  command_result?: DeviceCommandResult | null
+  lock_result?: DoorLockCommandResult | null
+}
+
+export interface SceneExecutionResult {
+  room: string
+  scene: HomeScenario
+  previous_scene: HomeScenario
+  accepted: boolean
+  overall_status: 'success' | 'partial_failed' | 'failed'
+  message: string
+  actions: SceneActionResult[]
 }
 
 export interface DoorLockCommandResult {
@@ -133,12 +132,18 @@ export const homeApi = {
       method: 'POST',
       data: { state }
     }),
-  setWindowState: (state: 'open' | 'closed'): Promise<DeviceCommandResult> =>
-    request('/home/window/state', { method: 'POST', data: { state } }),
-  getAutomationMode: (): Promise<{ room: string; automation_mode: AutomationMode; scene_profile: HomeMode }> =>
+  setPumpState: (state: SwitchState): Promise<DeviceCommandResult> =>
+    request('/home/pump/state', { method: 'POST', data: { state } }),
+  setBuzzerState: (state: SwitchState): Promise<DeviceCommandResult> =>
+    request('/home/buzzer/state', { method: 'POST', data: { state } }),
+  getAutomationMode: (): Promise<{ room: string; automation_mode: AutomationMode }> =>
     request('/home/automation-mode', { method: 'GET' }),
   setAutomationMode: (mode: AutomationMode): Promise<{ accepted: boolean; automation_mode: AutomationMode }> =>
     request('/home/automation-mode', { method: 'POST', data: { mode } }),
+  getScenario: (): Promise<{ room: string; scene: HomeScenario }> =>
+    request('/home/scenarios', { method: 'GET' }),
+  runScenario: (scenario: HomeScenario): Promise<SceneExecutionResult> =>
+    request('/home/scenarios', { method: 'POST', data: { scenario } }),
   getThresholds: (): Promise<{ room: string; thresholds: EnvironmentThresholds }> =>
     request('/home/thresholds', { method: 'GET' }),
   setThreshold: (name: ThresholdName, value: number): Promise<{ accepted: boolean; thresholds: EnvironmentThresholds }> =>
@@ -149,10 +154,6 @@ export const homeApi = {
     request('/home/environment/history', { method: 'GET', params: { room, minutes } }),
   getAlerts: (room = 'study', activeOnly = false): Promise<HomeAlert[]> =>
     request('/home/alerts', { method: 'GET', params: { room, active_only: activeOnly } }),
-  getMode: (room = 'study'): Promise<{ room: string; mode: HomeMode }> =>
-    request('/home/mode', { method: 'GET', params: { room } }),
-  setMode: (mode: HomeMode, room = 'study'): Promise<ModeExecutionResult> =>
-    request('/home/mode', { method: 'POST', data: { mode }, params: { room } }),
   getDoorLockStatus: (room = 'study'): Promise<DoorLockState> =>
     request('/home/lock/status', { method: 'GET', params: { room } }),
   openDoor: (room = 'study'): Promise<DoorLockCommandResult> =>
@@ -167,6 +168,4 @@ export const homeApi = {
     request('/home/lock/deadbolt/engage', { method: 'POST', data: {}, params: { room } }),
   releaseDeadbolt: (room = 'study'): Promise<DoorLockCommandResult> =>
     request('/home/lock/deadbolt/release', { method: 'POST', data: { confirmed: true }, params: { room } }),
-  runScenario: (scenario: 'sleep' | 'away' | 'movie'): Promise<Record<string, unknown>> =>
-    request('/home/scenarios', { method: 'POST', data: { scenario } })
 }

@@ -166,7 +166,7 @@ class Neo4jManager:
 
         # 根据实体类型获取附加标签（安全：标签名来自硬编码的映射表）
         extra_label = entity_type_to_label(entity_type)
-        labels_clause = f":Entity"
+        labels_clause = ":Entity"
         if extra_label:
             labels_clause = f":Entity:{extra_label}"
 

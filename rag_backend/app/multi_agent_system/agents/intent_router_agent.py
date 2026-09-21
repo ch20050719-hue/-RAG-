@@ -11,7 +11,6 @@
 import re
 import json
 import logging
-import os
 from typing import Dict, List, Any, Optional, TYPE_CHECKING
 from enum import Enum
 from pydantic import BaseModel, Field, ConfigDict
@@ -25,7 +24,6 @@ from app.multi_agent_system.agents.base_agent_prompt import load_agent_prompt
 from app.multi_agent_system.clarification_service import (
     ClarificationService,
     ClarificationRequest,
-    ClarificationType
 )
 
 if TYPE_CHECKING:
@@ -134,8 +132,8 @@ class IntentRouterAgent(BaseAgent):
     SKILL_QUERY_FALLBACK = (
         "我具备以下智能家居能力：\n\n"
         "**设备控制**：查询设备状态、打开或关闭已注册设备、校验控制指令\n"
-        "**环境感知**：读取温度、湿度、光照和在线状态\n"
-        "**场景联动**：睡眠、离家和节能场景\n"
+        "**环境感知**：读取温度、湿度、烟雾、火焰和有人状态\n"
+        "**自动联动**：切换手动/自动模式并调整环境阈值\n"
         "**安全保障**：设备白名单、幂等请求、离线拒绝和 MQTT 回执校验\n\n"
         "请描述您要查询或控制的设备，我会先核对状态与安全规则。"
     )
@@ -340,11 +338,11 @@ confidence、needs_human_review、reasoning。"""
 - 按 request_id 保证重复请求不重复执行
 
 **🌡️ 环境感知**
-- 查询温度、湿度、光照和人体传感器
+- 查询温度、湿度、烟雾、火焰和有人传感器
 - 识别过期或异常读数
 
 **🌙 场景联动**
-- 睡眠模式、离家模式和节能建议
+- 手动/自动模式和阈值联动建议
 - MQTT 消息收发与设备回执
 
 **📚 知识库问答**
@@ -494,9 +492,8 @@ confidence、needs_human_review、reasoning。"""
             (("打开", "开启", "关闭", "关掉", "开灯", "关灯", "开风扇", "关风扇", "on", "off"),
              ("灯", "light", "风扇", "fan"), IntentCategory.DEVICE_SWITCH),
             (("状态", "列表", "在线", "离线"), ("设备", "灯", "风扇", "device", "light", "fan"), IntentCategory.DEVICE_STATUS),
-            (("温度", "湿度", "光照", "人体", "传感器", "环境"), (), IntentCategory.SENSOR_READING),
-            (("睡眠", "睡觉"), (), IntentCategory.SLEEP_MODE),
-            (("离家", "出门", "节能", "省电"), (), IntentCategory.ENERGY_SAVE),
+            (("温度", "湿度", "烟雾", "火焰", "有人", "传感器", "环境"), (), IntentCategory.SENSOR_READING),
+            (("手动", "自动", "阈值"), (), IntentCategory.HOME_CONTROL),
         )
         for action_words, object_words, home_intent in home_rules:
             if any(word in text_lower for word in action_words) and (

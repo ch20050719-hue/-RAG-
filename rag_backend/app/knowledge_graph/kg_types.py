@@ -18,13 +18,13 @@ class EntityType:
 
 ENTITY_TYPE_DESCRIPTIONS: Dict[str, str] = {
     EntityType.DEVICE: "可控制的设备，如灯、风扇、门锁和插座",
-    EntityType.SENSOR: "环境或状态传感器，如温度、湿度、光照和人体传感器",
+    EntityType.SENSOR: "环境或状态传感器，如温度、湿度、烟雾、火焰和有人传感器",
     EntityType.ROOM: "房间或区域，如书房、客厅和卧室",
-    EntityType.SCENARIO: "预定义家居场景，如睡眠、离家和节能",
+    EntityType.SCENARIO: "兼容的规则集合；版本三实际使用手动/自动控制模式",
     EntityType.SAFETY_RULE: "设备控制安全规则和限制",
     EntityType.ACTION: "设备动作，如打开、关闭和读取状态",
     EntityType.STATE: "设备状态或传感器读数",
-    EntityType.TECHNOLOGY: "通信或集成技术，如 MQTT、ESP32",
+    EntityType.TECHNOLOGY: "通信或集成技术，如 MQTT、ESP8266 和机智云",
     EntityType.LOCATION: "家庭位置或区域",
     EntityType.DATE_PERIOD: "时间或时间段",
 }

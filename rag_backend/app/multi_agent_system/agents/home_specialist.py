@@ -12,7 +12,6 @@ from app.home_automation.device_models import (
     AutomationMode,
     DeviceStateValue,
     DeviceType,
-    HomeModeName,
     HomeScenarioName,
     ThresholdName,
 )
@@ -87,11 +86,15 @@ class HomeSpecialistAgent(BaseSpecialistAgent):
 
         return self._set_state(device_id, state, request_id, DeviceType.FAN)
 
-    def run_sleep_mode(self) -> dict[str, Any]:
-        """执行睡眠模式。"""
+    def control_pump(self, state: str, request_id: str | None = None) -> dict[str, Any]:
+        """通过固定工具控制模拟喷淋水泵。"""
 
-        result = self.device_service.set_mode(HomeModeName.SLEEP)
-        return result.model_dump(mode="json")
+        return self._set_fixed_actuator("sprinkler_pump", DeviceType.WATER_PUMP, state, request_id)
+
+    def control_buzzer(self, state: str, request_id: str | None = None) -> dict[str, Any]:
+        """通过固定工具控制报警蜂鸣器。"""
+
+        return self._set_fixed_actuator("alarm_buzzer", DeviceType.BUZZER, state, request_id)
 
     async def run(self, user_input: str, history: List[dict] | None = None, **kwargs: Any) -> str:
         """执行家居请求；确定性设备动作经过固定工具，其他问题交给 LLM。"""
@@ -99,11 +102,10 @@ class HomeSpecialistAgent(BaseSpecialistAgent):
         self._reset_state()
         query = user_input.strip()
         state = _state_from_query(query)
-        if _contains_any(query, ("窗户", "window")):
-            if _contains_any(query, ("打开", "开启", "open")):
-                return await self._call_home_tool("set_window_state", state="open")
-            if _contains_any(query, ("关闭", "关上", "close")):
-                return await self._call_home_tool("set_window_state", state="closed")
+        if state and _contains_any(query, ("喷淋", "水泵", "pump")):
+            return await self._call_home_tool("set_sprinkler_pump_state", state=state)
+        if state and _contains_any(query, ("蜂鸣器", "buzzer")):
+            return await self._call_home_tool("set_alarm_buzzer_state", state=state)
         if state and _contains_any(query, ("灯", "light")):
             return await self._call_home_tool(
                 "set_light_state",
@@ -116,16 +118,16 @@ class HomeSpecialistAgent(BaseSpecialistAgent):
                 device_id="desk_fan",
                 state=state,
             )
-        if _contains_any(query, ("正常模式", "日常模式")):
-            return await self._call_home_tool("set_home_mode", mode="normal")
-        if _contains_any(query, ("睡眠模式", "睡觉")):
-            return await self._call_home_tool("set_home_mode", mode="sleep")
-        if _contains_any(query, ("离家", "出门", "节能")):
-            return await self._call_home_tool("set_home_mode", mode="away")
         if _contains_any(query, ("自动模式",)):
             return await self._call_home_tool("set_automation_mode", mode="automatic")
         if _contains_any(query, ("手动模式",)):
             return await self._call_home_tool("set_automation_mode", mode="manual")
+        if _contains_any(query, ("正常场景", "正常模式")):
+            return await self._call_home_tool("run_home_scenario", scenario="normal")
+        if _contains_any(query, ("睡眠场景", "睡眠模式")):
+            return await self._call_home_tool("run_home_scenario", scenario="sleep")
+        if _contains_any(query, ("离家场景", "离家模式")):
+            return await self._call_home_tool("run_home_scenario", scenario="away")
         if _contains_any(query, ("解除反锁", "释放反锁")):
             return await self._call_home_tool("release_deadbolt", authorized=False)
         if _contains_any(query, ("远程开锁", "远程开门")):
@@ -140,7 +142,7 @@ class HomeSpecialistAgent(BaseSpecialistAgent):
             return await self._call_home_tool("engage_deadbolt")
         if _contains_any(query, ("门锁状态", "门磁", "门锁")):
             return await self._call_home_tool("get_door_lock_status", room="study")
-        if _contains_any(query, ("温度", "湿度", "光照", "人体", "CO2", "二氧化碳", "环境")):
+        if _contains_any(query, ("温度", "湿度", "烟雾", "火焰", "有人", "环境")):
             return await self._call_home_tool("read_home_environment", room="study")
         if _contains_any(query, ("设备状态", "设备列表", "有哪些设备")):
             return await self._call_home_tool("list_home_devices")
@@ -188,29 +190,22 @@ class HomeSpecialistAgent(BaseSpecialistAgent):
             return json.dumps(self.control_light(**kwargs), ensure_ascii=False)
         if tool_name == "set_fan_state":
             return json.dumps(self.control_fan(**kwargs), ensure_ascii=False)
-        if tool_name == "run_home_scenario":
-            return json.dumps(
-                self.device_service.run_scenario(HomeScenarioName(kwargs["scenario"])).model_dump(mode="json"),
-                ensure_ascii=False,
-            )
-        if tool_name == "set_home_mode":
-            return json.dumps(
-                self.device_service.set_mode(
-                    HomeModeName(kwargs["mode"]),
-                    request_prefix=kwargs.get("request_prefix"),
-                ).model_dump(mode="json"),
-                ensure_ascii=False,
-            )
-        if tool_name == "set_window_state":
-            return json.dumps(
-                self.device_service.set_window_state(
-                    DeviceStateValue(kwargs["state"]), request_id=kwargs.get("request_id")
-                ).model_dump(mode="json"),
-                ensure_ascii=False,
-            )
+        if tool_name == "set_sprinkler_pump_state":
+            return json.dumps(self.control_pump(**kwargs), ensure_ascii=False)
+        if tool_name == "set_alarm_buzzer_state":
+            return json.dumps(self.control_buzzer(**kwargs), ensure_ascii=False)
         if tool_name == "set_automation_mode":
-            selected = self.device_service.set_automation_mode(AutomationMode(kwargs["mode"]))
+            try:
+                selected = self.device_service.set_automation_mode(AutomationMode(kwargs["mode"]))
+            except ValueError as exc:
+                return json.dumps({"accepted": False, "message": str(exc)}, ensure_ascii=False)
             return json.dumps({"accepted": True, "automation_mode": selected.value}, ensure_ascii=False)
+        if tool_name == "run_home_scenario":
+            result = self.device_service.run_scenario(
+                HomeScenarioName(kwargs["scenario"]),
+                request_id=kwargs.get("request_id"),
+            )
+            return result.model_dump_json()
         if tool_name == "get_automation_mode":
             return json.dumps(
                 {"automation_mode": self.device_service.get_automation_mode().value},
@@ -219,14 +214,13 @@ class HomeSpecialistAgent(BaseSpecialistAgent):
         if tool_name == "get_environment_thresholds":
             return self.device_service.get_thresholds().model_dump_json()
         if tool_name == "set_environment_threshold":
-            return self.device_service.set_threshold(
-                ThresholdName(kwargs["name"]), float(kwargs["value"])
-            ).model_dump_json()
-        if tool_name == "get_home_mode":
-            return json.dumps(
-                {"room": kwargs.get("room", "study"), "mode": self.device_service.get_mode().value},
-                ensure_ascii=False,
-            )
+            try:
+                thresholds = self.device_service.set_threshold(
+                    ThresholdName(kwargs["name"]), float(kwargs["value"])
+                )
+            except (TypeError, ValueError) as exc:
+                return json.dumps({"accepted": False, "message": str(exc)}, ensure_ascii=False)
+            return thresholds.model_dump_json()
         if tool_name == "get_door_lock_status":
             return json.dumps(self.device_service.get_door_lock().model_dump(mode="json"), ensure_ascii=False)
         if tool_name in {
@@ -291,6 +285,29 @@ class HomeSpecialistAgent(BaseSpecialistAgent):
         )
         return json.loads(result.model_dump_json())
 
+    def _set_fixed_actuator(
+        self,
+        device_id: str,
+        expected_type: DeviceType,
+        state: str,
+        request_id: str | None,
+    ) -> dict[str, Any]:
+        try:
+            target = DeviceStateValue(state)
+        except ValueError as exc:
+            return {
+                "accepted": False,
+                "blocked_reason": f"state must be on/off, got: {state}",
+                "error": str(exc),
+            }
+        result = self.device_service.set_device_state(
+            device_id=device_id,
+            state=target,
+            request_id=request_id,
+            expected_device_type=expected_type,
+        )
+        return json.loads(result.model_dump_json())
+
 
 def _contains_any(value: str, choices: tuple[str, ...]) -> bool:
     return any(choice.lower() in value.lower() for choice in choices)
@@ -314,9 +331,9 @@ def _default_prompt(specialty: str) -> str:
     )
     role = {
         "home_butler": "你是总管家，负责理解自然语言并协调环境与设备动作。",
-        "environment": "你是环境感知专家，负责读取温湿度、光照与人体状态并给出舒适判断。",
-        "device_control": "你是设备控制专家，负责安全地控制灯、风扇、模式、实验门锁和舵机门体，并回报设备状态。",
-        "comfort": "你是舒适度专家，负责睡眠、离家等场景建议与执行。",
+        "environment": "你是环境感知专家，负责读取温湿度、烟雾、火焰与有人状态并给出环境判断。",
+        "device_control": "你是设备控制专家，负责安全地控制 LED、风扇、喷淋水泵、蜂鸣器、实验门锁和舵机门体，并回报设备状态。",
+        "comfort": "你是舒适度专家，负责正常、睡眠、离家场景预设建议与执行。",
     }.get(specialty, "你是智能家居助手。")
     return f"{role}\n{shared}"
 

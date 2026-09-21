@@ -9,7 +9,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import re
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -22,7 +21,6 @@ from app.memory_system.memory_manager import MemoryManager
 from app.multi_agent_system.agents.home_specialist import HomeSpecialistAgent, create_home_specialist
 from app.multi_agent_system.agents.intent_router_agent import (
     IntentAnalysisResult,
-    IntentCategory,
     IntentRouterAgent,
 )
 from app.multi_agent_system.rag_retriever import TenantIsolatedRAGRetriever
@@ -326,10 +324,15 @@ class AgentOrchestrator:
             "read_home_environment",
             "get_environment_history",
             "get_home_alerts",
-            "get_home_mode",
-            "set_home_mode",
+            "get_automation_mode",
+            "set_automation_mode",
+            "get_environment_thresholds",
+            "set_environment_threshold",
             "set_light_state",
             "set_fan_state",
+            "set_sprinkler_pump_state",
+            "set_alarm_buzzer_state",
+            "run_home_scenario",
             "get_door_lock_status",
             "open_door",
             "close_door",

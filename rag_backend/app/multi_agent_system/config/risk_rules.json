@@ -12,7 +12,7 @@
     {"pattern": "未注册设备", "risk_score": 0.8, "risk_level": "high"}
   ],
   "comfort": [
-    {"pattern": "睡眠模式误开高功耗设备", "risk_score": 0.6, "risk_level": "medium"}
+    {"pattern": "自动联动条件不明确|忽略传感器故障", "risk_score": 0.6, "risk_level": "medium"}
   ],
   "general": [
     {"pattern": "缺少设备状态|缺少操作确认", "risk_score": 0.6, "risk_level": "medium"}

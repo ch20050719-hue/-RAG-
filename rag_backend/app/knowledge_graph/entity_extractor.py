@@ -25,12 +25,12 @@ class EntityExtractor:
     def _pre_extract_by_rules(self, text: str) -> List[Dict[str, Any]]:
         entities: list[dict[str, Any]] = []
         patterns = {
-            EntityType.DEVICE: r"(?:desk_light|desk_fan|灯|风扇|插座|门锁|空调|摄像头)",
-            EntityType.SENSOR: r"(?:温度|湿度|光照|人体|烟雾|传感器)",
+            EntityType.DEVICE: r"(?:desk_light|desk_fan|sprinkler_pump|alarm_buzzer|灯|风扇|水泵|蜂鸣器|门锁)",
+            EntityType.SENSOR: r"(?:温度|湿度|烟雾|火焰|有人|人体|传感器)",
             EntityType.ROOM: r"(?:书房|客厅|卧室|厨房|卫生间|study|living_room|bedroom)",
-            EntityType.SCENARIO: r"(?:睡眠模式|离家模式|节能模式|观影模式|sleep|away|energy|movie)",
+            EntityType.SCENARIO: r"(?:手动模式|自动模式|manual|automatic)",
             EntityType.ACTION: r"(?:打开|关闭|开启|关掉|读取|查询|控制|on|off)",
-            EntityType.TECHNOLOGY: r"(?:MQTT|ESP32|Wi-Fi|蓝牙)",
+            EntityType.TECHNOLOGY: r"(?:MQTT|ESP8266|Wi-Fi|机智云|蓝牙)",
         }
         for entity_type, pattern in patterns.items():
             for value in dict.fromkeys(re.findall(pattern, text, flags=re.IGNORECASE)):

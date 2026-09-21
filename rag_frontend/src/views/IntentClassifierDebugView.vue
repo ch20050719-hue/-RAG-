@@ -78,7 +78,7 @@ const sampleMessages = [
 
   { text: '读取书房温湿度', category: '环境感知', icon: '🌡️' },
 
-  { text: '执行睡眠模式', category: '场景执行', icon: '🌙' },
+  { text: '切换自动模式', category: '模式控制', icon: '⚙️' },
 
   { text: '今天吃什么', category: '闲聊', icon: '💬' },
 
@@ -984,7 +984,7 @@ async function copyJson(index: number) {
 
             <span class="px-2 py-0.5 bg-white/20 rounded text-xs">设备: 台灯/风扇/设备/状态</span>
 
-            <span class="px-2 py-0.5 bg-white/20 rounded text-xs">环境: 温度/湿度/光照/人体</span>
+            <span class="px-2 py-0.5 bg-white/20 rounded text-xs">环境: 温度/湿度/烟雾/火焰/有人</span>
 
             <span class="px-2 py-0.5 bg-white/20 rounded text-xs">场景: 睡眠/离家/节能/场景</span>
 

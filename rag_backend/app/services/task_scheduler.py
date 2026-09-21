@@ -1,6 +1,6 @@
 """
 定时任务调度器
-提供智能家居场景定时执行和设备状态检查功能
+提供智能家居设备定时控制和设备状态检查功能
 
 包含两个主要组件：
 1. TaskScheduler: 调度器核心，管理定时任务的创建、调度和执行
@@ -87,14 +87,10 @@ class ScheduledTask:
         }
 
 async def home_scenario_task(params: Dict[str, Any]):
-    """按计划执行受控的智能家居场景。"""
-    from app.home_automation.device_tools import get_device_service
-    from app.home_automation.device_models import HomeScenarioName
+    """拒绝已下线的旧场景任务，避免旧记录绕过版本三模式边界。"""
 
-    scenario = HomeScenarioName(str(params.get("scenario", "away")))
-    result = get_device_service().run_scenario(scenario)
-    logger.info("智能家居场景执行完成: %s", scenario.value)
-    return result.model_dump(mode="json")
+    del params
+    raise ValueError("home_scenario tasks are retired; use manual/automatic mode or device_control")
 
 
 async def device_status_check_task(params: Dict[str, Any]):
@@ -854,20 +850,10 @@ class TaskManager:
         scenario: str,
         run_at: datetime,
     ) -> str:
-        """设置智能家居场景任务。"""
-        task_id = f"home_scenario_{tenant_id}_{scenario}_{run_at.strftime('%Y%m%d%H%M')}"
-        task_scheduler.create_task(
-            task_id=task_id,
-            task_type=TaskType.HOME_SCENARIO,
-            name=f"智能家居场景 - {scenario}",
-            description=f"在指定时间执行租户 {tenant_id} 的场景 {scenario}",
-            frequency=TaskFrequency.ONCE,
-            next_run_time=run_at,
-            callback=home_scenario_task,
-            params={"tenant_id": tenant_id, "user_id": user_id, "scenario": scenario},
-            enabled=True,
-        )
-        return task_id
+        """拒绝创建已下线的旧场景任务。"""
+
+        del tenant_id, user_id, scenario, run_at
+        raise ValueError("home_scenario tasks are retired; use device_control")
 
     def setup_device_status_check(
         self,

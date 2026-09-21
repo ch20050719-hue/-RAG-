@@ -10,8 +10,6 @@ agents:
     enabled: true
     priority: 1
     allowed_tools:
-      - get_home_mode
-      - set_home_mode
       - read_home_environment
       - get_environment_history
       - get_home_alerts
@@ -19,6 +17,13 @@ agents:
       - get_device_status
       - set_light_state
       - set_fan_state
+      - set_sprinkler_pump_state
+      - set_alarm_buzzer_state
+      - get_automation_mode
+      - set_automation_mode
+      - get_environment_thresholds
+      - set_environment_threshold
+      - run_home_scenario
       - get_door_lock_status
       - open_door
       - close_door
@@ -32,8 +37,9 @@ agents:
         display_name: "家居总控"
         weight: 1.0
         examples:
-          - "开启睡眠模式"
-          - "我出门了，关闭设备"
+          - "切换自动模式"
+          - "查询家居状态"
+          - "执行睡眠场景"
 
       - name: "device_natural_language"
         display_name: "自然语言控制"
@@ -51,8 +57,9 @@ agents:
         - "关灯"
         - "开风扇"
         - "关风扇"
+        - "自动模式"
         - "睡眠模式"
-        - "离家"
+        - "离家模式"
       medium_weight:
         - "房间"
         - "空调"
@@ -63,12 +70,12 @@ agents:
     entities:
       - "房间"
       - "设备名"
-      - "场景"
+      - "控制模式"
+      - "阈值"
 
     patterns:
       - ".*(开|关).{0,4}(灯|风扇).*"
-      - ".*睡眠模式.*"
-      - ".*(出门|离家).*"
+      - ".*自动模式.*"
 
   # ==================== 环境感知 ====================
   environment:
@@ -82,6 +89,8 @@ agents:
       - get_environment_history
       - get_home_alerts
       - get_device_status
+      - get_environment_thresholds
+      - set_environment_threshold
 
     domains:
       - name: "sensor_reading"
@@ -96,24 +105,23 @@ agents:
         weight: 0.9
         examples:
           - "现在适合开窗吗"
-          - "房间是否太暗"
+          - "是否检测到烟雾或火焰"
 
     keywords:
       high_weight:
         - "温度"
         - "湿度"
-        - "光照"
-        - "人体"
+        - "烟雾"
+        - "火焰"
+        - "有人"
         - "传感器"
-        - "CO2"
-        - "二氧化碳"
       medium_weight:
         - "热不热"
         - "冷不冷"
-        - "亮度"
+        - "报警"
 
     patterns:
-      - ".*(温度|湿度|光照|人体).*"
+      - ".*(温度|湿度|烟雾|火焰|有人).*"
       - ".*(多少度|多热|多冷).*"
 
   # ==================== 设备控制 ====================
@@ -128,8 +136,8 @@ agents:
       - get_device_status
       - set_light_state
       - set_fan_state
-      - get_home_mode
-      - set_home_mode
+      - set_sprinkler_pump_state
+      - set_alarm_buzzer_state
       - get_door_lock_status
       - open_door
       - close_door
@@ -183,37 +191,35 @@ agents:
     enabled: true
     priority: 3
     allowed_tools:
-      - get_home_mode
-      - set_home_mode
       - read_home_environment
       - get_home_alerts
 
     domains:
-      - name: "sleep_comfort"
-        display_name: "睡眠舒适"
+      - name: "environment_safety"
+        display_name: "环境安全"
         weight: 1.0
         examples:
-          - "准备睡觉了怎么调"
-          - "睡觉前环境建议"
+          - "烟雾报警怎么办"
+          - "检测到火焰怎么办"
 
       - name: "energy_save"
         display_name: "节能建议"
         weight: 0.8
         examples:
-          - "如何更省电"
-          - "无人时如何关闭设备"
+          - "有人时自动开灯吗"
+          - "如何处理高温"
 
     keywords:
       high_weight:
-        - "睡眠"
+        - "有人"
         - "舒适"
-        - "节能"
+        - "火焰"
       medium_weight:
-        - "省电"
-        - "无人"
+        - "烟雾"
+        - "报警"
 
     patterns:
-      - ".*(睡眠|舒适|节能).*"
+      - ".*(有人|火焰|烟雾|报警).*"
 
   # ==================== 通用助手 ====================
   general:
@@ -251,6 +257,4 @@ routing:
     "device_status": "device_control"
     "sensor_reading": "environment"
     "comfort_assessment": "environment"
-    "sleep_mode": "comfort"
-    "energy_save": "comfort"
     "greeting": "general"

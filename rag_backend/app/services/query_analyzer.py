@@ -1,7 +1,7 @@
 """智能家居查询解析器。
 
 保留统一检索器需要的 ``analyze`` 与过滤器接口，但只识别设备、环境、
-场景和安全条件，不再暴露旧业务领域路由。
+    控制模式和安全条件，不再暴露旧业务领域路由。
 """
 
 from __future__ import annotations
@@ -19,8 +19,8 @@ class QueryAnalyzer:
     DOMAIN_KEYWORDS = {
         "smart_home": (
             "智能家居", "智能家庭", "设备", "灯", "风扇", "空调", "传感器",
-            "温度", "湿度", "光照", "人体", "环境", "mqtt", "esp32",
-            "场景", "睡眠模式", "离家模式", "节能模式", "安全规则",
+            "温度", "湿度", "烟雾", "火焰", "有人", "环境", "mqtt", "esp8266",
+            "手动模式", "自动模式", "阈值", "安全规则",
         ),
     }
     DEVICE_PATTERNS = {
@@ -33,11 +33,7 @@ class QueryAnalyzer:
         "传感器": "sensor", "sensor": "sensor",
     }
     ROOMS = ("书房", "客厅", "卧室", "厨房", "卫生间", "study", "living_room", "bedroom")
-    SCENARIOS = {
-        "睡眠": "sleep", "睡觉": "sleep", "睡眠模式": "sleep",
-        "离家": "away", "出门": "away", "离家模式": "away",
-        "节能": "energy_save", "节能模式": "energy_save",
-    }
+    MODES = {"手动模式": "manual", "自动模式": "automatic", "manual": "manual", "automatic": "automatic"}
     ACTIONS = {
         "打开": "on", "开启": "on", "开灯": "on", "开风扇": "on", "on": "on",
         "关闭": "off", "关掉": "off", "关上": "off", "off": "off",
@@ -86,9 +82,9 @@ class QueryAnalyzer:
             if room.lower() in lower_query:
                 filters["room"] = room
                 break
-        for name, scenario in self.SCENARIOS.items():
+        for name, mode in self.MODES.items():
             if name.lower() in lower_query:
-                filters["scenario"] = scenario
+                filters["mode"] = mode
                 break
         for name, action in self.ACTIONS.items():
             if name.lower() in lower_query:
@@ -98,11 +94,11 @@ class QueryAnalyzer:
 
     def _extract_entities(self, query: str, filters: Dict[str, str]) -> Dict[str, Any]:
         del query
-        return {key: filters[key] for key in ("device_id", "room", "scenario") if key in filters}
+        return {key: filters[key] for key in ("device_id", "room", "mode") if key in filters}
 
     def build_metadata_filter(self, query_meta: Dict[str, Any]) -> Optional[Dict[str, str]]:
         filters = query_meta.get("filters", {})
-        supported = ("device_id", "device_type", "room", "scenario", "doc_type", "year")
+        supported = ("device_id", "device_type", "room", "mode", "doc_type", "year")
         metadata_filter = {key: filters[key] for key in supported if filters.get(key) is not None}
         return metadata_filter or None
 

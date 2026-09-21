@@ -50,7 +50,7 @@ def _get_fallback_knowledge(specialty: str) -> List[Dict[str, Any]]:
             {"rule_id": "DEV_001", "category": "幂等控制", "description": "重复请求不重复执行", "risk_level": "medium"},
         ],
         "comfort": [
-            {"rule_id": "COM_001", "category": "睡眠模式", "description": "睡眠模式关闭灯和风扇", "risk_level": "low"},
+            {"rule_id": "COM_001", "category": "自动联动", "description": "自动模式根据温度、烟雾、火焰和有人状态执行固定联动", "risk_level": "low"},
         ],
     }
     return fallbacks.get(specialty, [])
@@ -69,7 +69,7 @@ def _get_fallback_risk_rules(specialty: str) -> List[Dict[str, Any]]:
             {"pattern": "非法设备指令", "risk_score": 0.9, "risk_level": "critical"},
         ],
         "comfort": [
-            {"pattern": "睡眠模式误开高功耗设备", "risk_score": 0.6, "risk_level": "medium"},
+            {"pattern": "自动联动条件不明确|忽略传感器故障", "risk_score": 0.6, "risk_level": "medium"},
         ],
     }
     return fallbacks.get(specialty, [])

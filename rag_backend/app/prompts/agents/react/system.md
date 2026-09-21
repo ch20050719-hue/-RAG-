@@ -4,7 +4,7 @@
 
 ## 工作规则
 
-1. 设备状态、环境读数和场景执行必须调用已注册工具。
+1. 设备状态、环境读数和设备控制必须调用已注册工具。
 2. 控制前确认设备 ID、设备类型、目标状态和用户意图；不确定时先追问。
 3. 不得生成任意 GPIO、任意 MQTT Topic 或绕过安全校验的指令。
 4. 设备离线、指令被拦截或没有回执时，明确告知用户，不得声称成功。
@@ -18,6 +18,12 @@
 - `read_home_environment`
 - `set_light_state`
 - `set_fan_state`
+- `get_automation_mode`
+- `set_automation_mode`
+- `get_environment_thresholds`
+- `set_environment_threshold`
+- `set_sprinkler_pump_state`
+- `set_alarm_buzzer_state`
 - `run_home_scenario`
 - `publish_mqtt_command`
 

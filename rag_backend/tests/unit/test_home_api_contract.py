@@ -23,13 +23,13 @@ def test_generic_state_endpoint_rejects_door_lock():
         set_device_service(None)
 
 
-def test_version_three_window_threshold_and_mode_endpoints():
+def test_version_three_pump_threshold_and_mode_endpoints():
     service = create_device_service(mode="simulated")
     set_device_service(service)
     try:
-        window = asyncio.run(
-            home_devices.set_window_state(
-                home_devices.WindowStateRequest(state=DeviceStateValue.OPEN),
+        pump = asyncio.run(
+            home_devices.set_pump_state(
+                home_devices.SetDeviceStateRequest(state=DeviceStateValue.ON),
                 current_user=None,
             )
         )
@@ -46,9 +46,43 @@ def test_version_three_window_threshold_and_mode_endpoints():
             )
         )
 
-        assert window["state"] == "open"
+        assert pump["state"] == "on"
         assert threshold["thresholds"]["smoke_max"] == 700
         assert mode["automation_mode"] == "automatic"
-        assert service.get_mode().value == "normal"
     finally:
         set_device_service(None)
+
+
+def test_scene_endpoint_executes_away_preset_without_old_mode_api():
+    service = create_device_service(mode="simulated")
+    set_device_service(service)
+    try:
+        payload = asyncio.run(
+            home_devices.run_home_scenario(
+                home_devices.ScenarioRequest(scenario="away"),
+                current_user=None,
+            )
+        )
+        assert payload["scene"] == "away"
+        assert payload["accepted"] is True
+        assert service.get_device("desk_light").state.value == "off"
+        assert service.get_door_lock().lock_state.value == "locked"
+    finally:
+        set_device_service(None)
+
+
+def test_scene_get_endpoint_returns_current_preset():
+    service = create_device_service(mode="simulated")
+    set_device_service(service)
+    try:
+        asyncio.run(
+            home_devices.run_home_scenario(
+                home_devices.ScenarioRequest(scenario="sleep"),
+                current_user=None,
+            )
+        )
+        payload = asyncio.run(home_devices.get_home_scenario(current_user=object()))
+    finally:
+        set_device_service(None)
+
+    assert payload == {"room": "study", "scene": "sleep"}

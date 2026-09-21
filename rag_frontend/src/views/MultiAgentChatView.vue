@@ -1867,7 +1867,7 @@ function renderMessageBody(content: string, index: number): string {
           </div>
           <div class="flex flex-wrap justify-center gap-2 mt-3">
             <button
-              v-for="example in ['打开书桌台灯', '查看当前设备状态', '读取书房温湿度', '执行睡眠模式']"
+              v-for="example in ['打开书桌台灯', '查看当前设备状态', '读取书房温湿度', '切换自动模式']"
               :key="example"
               @click="userInput = example"
               class="px-4 py-2 bg-white border-2 border-blue-200 rounded-full text-sm text-gray-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-all shadow-sm hover:shadow-md"

@@ -149,12 +149,12 @@ def get_specialist_tools_config(specialty: str = "general") -> dict:
         "list_home_devices", "get_device_status", "read_home_environment",
         "get_environment_thresholds", "get_automation_mode", "set_automation_mode",
         "set_environment_threshold", "set_light_state", "set_fan_state",
-        "set_window_state", "run_home_scenario",
+        "set_sprinkler_pump_state", "set_alarm_buzzer_state",
     ]
     mapping = {
         "home_butler": {"mcp_tools": [], "local_tools": home_tools},
         "environment": {"mcp_tools": [], "local_tools": ["list_home_devices", "get_device_status", "read_home_environment", "get_environment_thresholds"]},
-        "device_control": {"mcp_tools": [], "local_tools": ["get_device_status", "set_light_state", "set_fan_state", "set_window_state", "get_automation_mode", "set_automation_mode", "set_environment_threshold", "run_home_scenario"]},
+        "device_control": {"mcp_tools": [], "local_tools": ["get_device_status", "set_light_state", "set_fan_state", "set_sprinkler_pump_state", "set_alarm_buzzer_state", "get_automation_mode", "set_automation_mode", "set_environment_threshold"]},
         "comfort": {"mcp_tools": [], "local_tools": home_tools},
     }
 

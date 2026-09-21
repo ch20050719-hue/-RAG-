@@ -140,7 +140,7 @@ async function handleLogin() {
                 <span class="feature-ic"><Sparkles :size="16" /></span>
                 <div>
                   <p class="feature-title">场景联动</p>
-                  <p class="feature-sub">睡眠模式 · 离家模式 · MQTT 联动</p>
+                  <p class="feature-sub">手动/自动模式 · MQTT 联动</p>
                 </div>
               </div>
             </div>

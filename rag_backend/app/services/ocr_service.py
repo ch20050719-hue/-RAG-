@@ -209,9 +209,9 @@ class OCRService:
         """
         categories = (
             ('safety_rule', ('安全规则', '风险校验', '权限', '急停', '离线拒绝')),
-            ('scenario_definition', ('场景', '睡眠模式', '离家模式', '节能模式', '联动')),
-            ('sensor_guide', ('传感器', '温度', '湿度', '光照', '人体感应', '环境')),
-            ('device_manual', ('设备手册', '灯', '风扇', '空调', 'ESP32', 'MQTT')),
+            ('automation_rule', ('自动模式', '手动模式', '阈值', '联动')),
+            ('sensor_guide', ('传感器', '温度', '湿度', '烟雾', '火焰', '有人', '环境')),
+            ('device_manual', ('设备手册', '灯', '风扇', '水泵', '蜂鸣器', 'ESP8266', 'MQTT', '机智云')),
         )
         for category, keywords in categories:
             if any(keyword in text for keyword in keywords):
