@@ -206,7 +206,6 @@ class AgentNodeFactory:
                 
                 response = await agent.run(
                     user_input=state["user_query"],
-                    rag_context=state.get("rag_context"),
                     session_id=state["session_id"]
                 )
                 

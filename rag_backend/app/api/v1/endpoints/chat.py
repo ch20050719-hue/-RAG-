@@ -44,7 +44,8 @@ class OrchestratorChatRequest(BaseModel):
     query: str
     session_id: Optional[str] = None
     enable_reflection: bool = True
-    enable_rag: bool = True
+    # 保留历史字段以兼容客户端；家居编排器固定不启用运行时检索。
+    enable_rag: bool = False
 
 
 router = APIRouter()
@@ -338,7 +339,7 @@ async def execute_orchestrator_background(
     user_id: str,
     query: str,
     enable_reflection: bool = True,
-    enable_rag: bool = True
+    enable_rag: bool = False
 ):
     """后台执行编排器任务，使用独立短生命周期会话更新状态。"""
     from datetime import datetime
@@ -372,7 +373,7 @@ async def execute_orchestrator_background(
             tenant_id=tenant_id,
             user_id=user_id,
             enable_reflection=enable_reflection,
-            enable_rag=enable_rag
+            enable_rag=False
         )
         await orchestrator.initialize()
 
@@ -385,7 +386,6 @@ async def execute_orchestrator_background(
         node_progress = {
             "receptionist": 10,
             "intent_router": 30,
-            "rag_retrieval": 45,
             "home_specialist": 60,
             "reflection": 80,
             "final": 95,
@@ -393,7 +393,6 @@ async def execute_orchestrator_background(
         node_messages = {
             "receptionist": "正在接收问题...",
             "intent_router": "正在分析意图...",
-            "rag_retrieval": "正在检索知识库...",
             "home_specialist": "智能家居专家处理中...",
             "reflection": "正在进行质量审核...",
             "final": "正在生成最终回答...",
@@ -1635,7 +1634,7 @@ async def _legacy_execute_orchestrator_background(
     user_id: str,
     query: str,
     enable_reflection: bool = True,
-    enable_rag: bool = True
+    enable_rag: bool = False
 ):
     """后台执行编排器任务"""
     from app.models.agent_task import AgentTaskStatus, TaskStatus
@@ -1676,7 +1675,7 @@ async def _legacy_execute_orchestrator_background(
             tenant_id=tenant_id,
             user_id=user_id,
             enable_reflection=enable_reflection,
-            enable_rag=enable_rag
+            enable_rag=False
         )
         
         await orchestrator.initialize()
@@ -1795,7 +1794,7 @@ async def _legacy_execute_orchestrator_background(
     user_id: str,
     query: str,
     enable_reflection: bool = True,
-    enable_rag: bool = True
+    enable_rag: bool = False
 ):
     """Execute the orchestrator task with short-lived DB sessions for status updates."""
     from datetime import datetime
@@ -1829,7 +1828,7 @@ async def _legacy_execute_orchestrator_background(
             tenant_id=tenant_id,
             user_id=user_id,
             enable_reflection=enable_reflection,
-            enable_rag=enable_rag
+            enable_rag=False
         )
         await orchestrator.initialize()
 
@@ -1959,7 +1958,7 @@ async def chat_with_orchestrator(
             tenant_id=tenant_id,
             user_id=str(current_user.id),
             enable_reflection=request.enable_reflection,
-            enable_rag=request.enable_rag
+            enable_rag=False
         )
         
         await orchestrator.initialize()
@@ -1971,7 +1970,7 @@ async def chat_with_orchestrator(
             user_query=request.query,
             context={"history": []},
             enable_reflection=request.enable_reflection,
-            enable_rag=request.enable_rag
+            enable_rag=False
         )
         
         result = await orchestrator.process(context)
@@ -2003,7 +2002,7 @@ async def chat_with_orchestrator(
             "processing_time": 0,
             "metadata": {
                 "enable_reflection": request.enable_reflection,
-                "enable_rag": request.enable_rag
+                "enable_rag": False
             }
         }
         
@@ -2071,7 +2070,7 @@ async def chat_with_orchestrator_stream(
                 tenant_id=tenant_id,
                 user_id=str(current_user.id),
                 enable_reflection=request.enable_reflection,
-                enable_rag=request.enable_rag
+                enable_rag=False
             )
             
             await orchestrator.initialize()

@@ -197,7 +197,7 @@ async function handleRegister() {
                 <Sparkles :size="24" />
               </div>
               <div>
-                <p class="text-sm font-semibold tracking-wide text-slate-900">智能家居 RAG 平台</p>
+                <p class="text-sm font-semibold tracking-wide text-slate-900">单房间智能家居控制系统</p>
                 <p class="text-xs text-emerald-700/80">设备、环境与安全场景一体化</p>
               </div>
             </div>

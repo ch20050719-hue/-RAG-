@@ -1,5 +1,5 @@
 export default {
-  common: { version: '智能家居 RAG v1.0.0', ready: '就绪', newSession: '新会话', settings: '设置' },
+  common: { version: '单房间智能家居 v1.0.0', ready: '就绪', newSession: '新会话', settings: '设置' },
   auth: {
     username: '用户名', email: '邮箱', password: '密码', fullName: '姓名', login: '登录', logout: '退出', register: '注册',
     loggingIn: '登录中...', registering: '注册中...', usernamePlaceholder: '输入用户名', emailPlaceholder: '输入邮箱地址',
@@ -8,14 +8,14 @@ export default {
     errors: { required: '所有字段都是必填的', loginFailed: '登录失败，请检查用户名和密码', registerFailed: '注册失败，请稍后重试', passwordTooShort: '密码至少6个字符' },
   },
   sidebar: {
-    logo: '> 智能家居 RAG', newChat: '新会话', database: '数据库', connected: '已连接', disconnected: '已断开', model: '模型', latency: '延迟',
+    logo: '> 单房间智能家居', newChat: '新会话', database: '数据库', connected: '已连接', disconnected: '已断开', model: '模型', latency: '延迟',
     recentChats: '最近对话', knowledgeBase: '知识库', selectKnowledgeBase: '选择知识库', selectKnowledgeBases: '选择知识库', knowledgeBaseName: '知识库名称',
     description: '描述', createKnowledgeBase: '创建知识库', create: '创建', cancel: '取消', selectAll: '全选', deselectAll: '取消全选',
     knowledgeBasesSelected: '已选择 {count} 个知识库', close: '收起', noKnowledgeBases: '暂无知识库', documents: '文档', totalStorage: '总存储', chunks: '分块',
     vectorDB: '向量数据库', systemMetrics: '系统指标', uptime: '运行时间', sessionId: '会话 ID', waitingForInput: '等待输入', memoryUsage: '内存使用',
   },
   chat: {
-    emptyState: { title: '智能家居 RAG', subtitle: '可查询设备、读取环境或执行安全场景' },
+    emptyState: { title: '单房间智能家居', subtitle: '可查询设备、读取环境或执行安全场景' },
     input: { placeholder: '输入家居指令...', disclaimer: '设备控制将经过安全校验。', status: '系统就绪', pressEnter: '按 Enter 发送' },
     loading: { scanning: '扫描设备...', querying: '检索家居知识...', generating: '生成响应...' },
     messages: { user: '[用户指令]', assistant: '[智能家居助手]', sources: '【知识来源】', doc: '文档', confidence: '置信度' },

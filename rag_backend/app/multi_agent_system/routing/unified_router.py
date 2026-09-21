@@ -18,6 +18,18 @@ from enum import Enum
 
 logger = logging.getLogger(__name__)
 
+_HOME_INTENTS = frozenset(
+    {
+        "home_control",
+        "device_switch",
+        "device_status",
+        "sensor_reading",
+        "comfort_assessment",
+        "sleep_mode",
+        "energy_save",
+    }
+)
+
 
 class RoutingSource(str, Enum):
     """路由来源"""
@@ -112,6 +124,17 @@ def route_by_intent_result(
             reasoning=f"置信度过低 ({confidence:.2f})，需要人工审核",
         )
     
+    # 家居控制、状态和环境请求使用确定性的固定工具链；即使历史
+    # LLM/API 参数误标为 RAG_RETRIEVAL，也不能把设备动作交给检索分支。
+    if intent_value in _HOME_INTENTS:
+        if available_nodes is None or "home_specialist" in available_nodes:
+            return RoutingDecision(
+                target_nodes=["home_specialist"],
+                source=RoutingSource.INTENT_MAP,
+                confidence=confidence,
+                reasoning=f"单房间家居意图 {intent_value} -> home_specialist",
+            )
+
     if routing_strategy in ("DIRECT_ANSWER", "direct_answer"):
         return RoutingDecision(
             target_nodes=["direct_answer"],

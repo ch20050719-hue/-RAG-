@@ -279,10 +279,10 @@ class IntentRouterAgent(BaseAgent):
         """构建默认提示词"""
         return """# 智能家居意图路由智能体
 
-你负责识别用户的智能家居意图，并选择知识库检索、设备查询、设备控制或场景联动路径。
+你负责识别单房间智能家居意图，并选择设备查询、设备控制、环境读取或场景联动路径。
 
-意图类别包括：greeting、chit_chat、knowledge_query、document_search、home_control、
-device_switch、device_status、sensor_reading、comfort_assessment、sleep_mode、energy_save、
+意图类别包括：greeting、chit_chat、home_control、device_switch、device_status、
+sensor_reading、comfort_assessment、sleep_mode、energy_save、
 complex_task、multi_specialist 和 unknown。
 
 涉及设备控制时，必须保留设备标识、目标状态、请求幂等标识，并遵守设备白名单、在线状态、
@@ -344,9 +344,6 @@ confidence、needs_human_review、reasoning。"""
 **🌙 场景联动**
 - 手动/自动模式和阈值联动建议
 - MQTT 消息收发与设备回执
-
-**📚 知识库问答**
-- 检索智能家居设备说明和安全规则
 
 请直接输入您的问题，我会尽力为您解答！"""
 

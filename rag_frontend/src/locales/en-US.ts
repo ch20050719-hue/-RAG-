@@ -1,5 +1,5 @@
 export default {
-  common: { version: 'SMART HOME RAG v1.0.0', ready: 'READY', newSession: 'NEW SESSION', settings: 'Settings' },
+  common: { version: 'SINGLE-ROOM SMART HOME v1.0.0', ready: 'READY', newSession: 'NEW SESSION', settings: 'Settings' },
   auth: {
     username: 'Username', email: 'Email', password: 'Password', fullName: 'Full Name', login: 'Login', logout: 'Logout', register: 'Register',
     loggingIn: 'Logging in...', registering: 'Registering...', usernamePlaceholder: 'Enter username', emailPlaceholder: 'Enter email address',
@@ -8,11 +8,11 @@ export default {
     errors: { required: 'All fields are required', loginFailed: 'Login failed, please check your credentials', registerFailed: 'Registration failed, please try again later', passwordTooShort: 'Password must be at least 6 characters' },
   },
   sidebar: {
-    logo: '> SMART HOME RAG', newChat: 'NEW SESSION', database: 'DATABASE', connected: 'CONNECTED', disconnected: 'DISCONNECTED', model: 'MODEL', latency: 'LATENCY',
+    logo: '> SINGLE-ROOM SMART HOME', newChat: 'NEW SESSION', database: 'DATABASE', connected: 'CONNECTED', disconnected: 'DISCONNECTED', model: 'MODEL', latency: 'LATENCY',
     recentChats: 'Recent Chats', knowledgeBase: 'KNOWLEDGE BASE', selectKnowledgeBase: 'Select Knowledge Base', selectKnowledgeBases: 'Select Knowledge Bases', knowledgeBaseName: 'Knowledge Base Name', description: 'Description', createKnowledgeBase: 'Create Knowledge Base', create: 'Create', cancel: 'Cancel', selectAll: 'Select All', deselectAll: 'Deselect All', knowledgeBasesSelected: '{count} selected', close: 'Close', noKnowledgeBases: 'No knowledge bases', documents: 'DOCUMENTS', totalStorage: 'TOTAL STORAGE', chunks: 'CHUNKS', vectorDB: 'VECTOR DB', systemMetrics: 'SYSTEM METRICS', uptime: 'UPTIME', sessionId: 'SESSION ID', waitingForInput: 'WAITING_FOR_INPUT', memoryUsage: 'MEMORY USAGE',
   },
   chat: {
-    emptyState: { title: 'SMART HOME RAG', subtitle: 'READY TO QUERY DEVICES OR RUN SCENARIOS' },
+    emptyState: { title: 'SINGLE-ROOM SMART HOME', subtitle: 'READY TO QUERY DEVICES OR RUN SCENARIOS' },
     input: { placeholder: 'Enter a home command...', disclaimer: 'Device controls are safety-checked.', status: 'SYSTEM READY', pressEnter: 'PRESS ENTER TO SEND' },
     loading: { scanning: 'Scanning devices...', querying: 'Retrieving home knowledge...', generating: 'Generating response...' },
     messages: { user: '[USER DIRECTIVE]', assistant: '[SMART HOME ASSISTANT]', sources: '[KNOWLEDGE SOURCES]', doc: 'DOC', confidence: 'CONFIDENCE' },

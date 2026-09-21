@@ -10,7 +10,7 @@ import router from './router'
 import Vue3Toastify from 'vue3-toastify'
 import 'vue3-toastify/dist/index.css'
 
-console.log('🚀 Initializing RAG Terminal...')
+console.log('🚀 Initializing single-room smart home assistant...')
 
 const app = createApp(App)
 const pinia = createPinia()

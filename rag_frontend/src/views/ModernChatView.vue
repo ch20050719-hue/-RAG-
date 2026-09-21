@@ -860,7 +860,7 @@ function createNewChat() {
           <div class="w-20 h-20 bg-gradient-to-br from-emerald-600 to-teal-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
             <Sparkles :size="40" class="text-white" />
           </div>
-          <h2 class="text-2xl font-bold text-gray-900 mb-2">欢迎使用 RAG 知识库系统</h2>
+          <h2 class="text-2xl font-bold text-gray-900 mb-2">欢迎使用单房间智能家居控制系统</h2>
           <p class="text-gray-500 mb-8 max-w-md">
             请选择一个知识库，然后开始智能对话。我将根据知识库中的内容为你提供准确的答案。
           </p>

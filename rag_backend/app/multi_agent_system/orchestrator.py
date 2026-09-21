@@ -1,4 +1,4 @@
-"""智能家居多智能体编排器。
+"""单房间智能家居多智能体编排器。
 
 对外保留原有 ``AgentOrchestrator``、``OrchestrationContext`` 和流式接口，
 内部统一调度家居总管家、环境感知、设备控制和舒适度专家。
@@ -23,7 +23,6 @@ from app.multi_agent_system.agents.intent_router_agent import (
     IntentAnalysisResult,
     IntentRouterAgent,
 )
-from app.multi_agent_system.rag_retriever import TenantIsolatedRAGRetriever
 from app.prompts.llm_functions import review_quality
 
 logger = logging.getLogger(__name__)
@@ -39,7 +38,8 @@ class OrchestrationContext:
     user_query: Optional[str] = None
     context: Dict[str, Any] = field(default_factory=dict)
     enable_reflection: bool = True
-    enable_rag: bool = True
+    # 保留字段以兼容历史会话结构；单房间家居链路固定不启用运行时检索。
+    enable_rag: bool = False
     enable_report_generation: bool = False
     confidence_threshold: float = 0.7
     max_specialists: int = 3
@@ -55,7 +55,7 @@ class OrchestrationContext:
 
 
 class AgentOrchestrator:
-    """智能家居领域的 RAG + Agent + 多轮会话编排入口。"""
+    """单房间智能家居的意图理解、固定工具调用和结果编排入口。"""
 
     HOME_SPECIALTIES = ("home_butler", "environment", "device_control", "comfort")
 
@@ -64,7 +64,7 @@ class AgentOrchestrator:
         tenant_id: str = "default_tenant",
         user_id: str = "default",
         enable_reflection: bool = True,
-        enable_rag: bool = True,
+        enable_rag: bool = False,
         max_parallel_agents: int = 3,
         timeout: float = 120.0,
         context: Optional[OrchestrationContext] = None,
@@ -73,7 +73,8 @@ class AgentOrchestrator:
         self.tenant_id = source.tenant_id if source else tenant_id
         self.user_id = source.user_id if source else user_id
         self.enable_reflection = source.enable_reflection if source else enable_reflection
-        self.enable_rag = source.enable_rag if source else enable_rag
+        # 接受历史参数但不让它重新打开家居运行时检索。
+        self.enable_rag = False
         self.max_parallel_agents = source.max_specialists if source else max_parallel_agents
         self.timeout = timeout
         self.context = source
@@ -82,7 +83,6 @@ class AgentOrchestrator:
         self.tool_manager: Optional[ToolManager] = None
         self.intent_router: Optional[IntentRouterAgent] = None
         self.home_specialists: Dict[str, HomeSpecialistAgent] = {}
-        self.rag_retriever: Optional[TenantIsolatedRAGRetriever] = None
         self.memory_manager: Optional[MemoryManager] = None
         self._capability_config: Dict[str, Any] = {}
         self._specialist_descriptions = ""
@@ -123,25 +123,10 @@ class AgentOrchestrator:
             )
             specialist._orchestrator_ref = self
             self.home_specialists[specialty] = specialist
-        if self.enable_rag:
-            await self._initialize_rag()
         self.memory_manager = MemoryManager(
             session_id=f"home_{self.tenant_id}_{uuid.uuid4().hex[:8]}", user_id=self.user_id
         )
         self.initialized = True
-
-    async def _initialize_rag(self) -> None:
-        try:
-            from app.services.embedding_service import EmbeddingService
-            from app.services.search_service import SearchService
-            self.rag_retriever = TenantIsolatedRAGRetriever(
-                embedding_service=EmbeddingService(),
-                search_service=SearchService(),
-                enable_audit=True,
-            )
-        except Exception as exc:
-            logger.warning("智能家居 RAG 初始化失败，继续使用 Agent: %s", exc)
-            self.rag_retriever = None
 
     def _describe_capabilities(self) -> str:
         agents = self._capability_config.get("agents", {})
@@ -210,19 +195,17 @@ class AgentOrchestrator:
                 return context
 
             await self._progress(progress_callback, "intent_router", {"intent": context.intent_result.intent.value})
-            rag_context = await self._retrieve_home_knowledge(user_input) if self.enable_rag else []
-            await self._progress(progress_callback, "rag_retrieval", {"count": len(rag_context)})
             specialties = self._resolve_specialists(context.intent_result)
-            results = await self._run_specialists(user_input, history, rag_context, specialties)
+            results = await self._run_specialists(user_input, history, specialties)
             context.specialist_results = results
             await self._progress(progress_callback, "home_specialist", {"count": len(results), "specialists": specialties})
-            response = self._combine_results(results, rag_context)
+            response = self._combine_results(results)
             if context.enable_reflection and results:
                 context.reflection_result = await self._reflect(user_input, response)
                 context.needs_human_review = bool(context.reflection_result.get("needs_human_review"))
                 await self._progress(progress_callback, "reflection", context.reflection_result)
             context.final_response = response
-            context.metadata["execution_path"] = ["receptionist", "intent_router", "rag_retrieval", "home_specialist", "final"]
+            context.metadata["execution_path"] = ["receptionist", "intent_router", "home_specialist", "final"]
             return context
         except Exception as exc:
             logger.exception("智能家居编排失败")
@@ -242,22 +225,11 @@ class AgentOrchestrator:
         selected = [item for item in candidates if item in self.HOME_SPECIALTIES]
         return list(dict.fromkeys(selected))[: max(1, self.max_parallel_agents)] or ["home_butler"]
 
-    async def _retrieve_home_knowledge(self, query: str) -> List[Dict[str, Any]]:
-        if not self.rag_retriever:
-            return []
-        try:
-            tenant_id = self.tenant_id if len(self.tenant_id) >= 8 else "default_tenant"
-            result = await self.rag_retriever.retrieve(query=query, tenant_id=tenant_id, top_k=5)
-            return [{"content": item.content, "source": item.source, "score": item.relevance_score} for item in result.results]
-        except Exception as exc:
-            logger.warning("智能家居 RAG 检索失败: %s", exc)
-            return []
-
-    async def _run_specialists(self, query, history, rag_context, specialties) -> List[Dict[str, Any]]:
+    async def _run_specialists(self, query, history, specialties) -> List[Dict[str, Any]]:
         async def execute(name: str) -> Dict[str, Any]:
             specialist = self.home_specialists[name]
             response = await asyncio.wait_for(
-                specialist.run(user_input=query, history=history or [], context={"tenant_id": self.tenant_id}, rag_context={"documents": rag_context}),
+                specialist.run(user_input=query, history=history or [], context={"tenant_id": self.tenant_id}),
                 timeout=self.timeout,
             )
             content = response if isinstance(response, str) else json.dumps(response, ensure_ascii=False)
@@ -272,17 +244,15 @@ class AgentOrchestrator:
                 output.append(result)
         return output
 
-    def _combine_results(self, results: List[Dict[str, Any]], rag_context: List[Dict[str, Any]]) -> str:
+    def _combine_results(self, results: List[Dict[str, Any]]) -> str:
         successful = [item for item in results if item.get("success", True) and item.get("content")]
         if successful:
             return "\n\n".join(str(item["content"]) for item in successful)
-        if rag_context:
-            return "\n\n".join(str(item["content"]) for item in rag_context[:3])
-        return "未找到可用的智能家居设备或知识，请检查设备注册状态和问题描述。"
+        return "未找到可用的智能家居设备，请检查设备注册状态和问题描述。"
 
     async def _reflect(self, query: str, response: str) -> Dict[str, Any]:
         try:
-            result = await review_quality(user_question=query, ai_answer=response, data_source_info="智能家居设备工具与知识库")
+            result = await review_quality(user_question=query, ai_answer=response, data_source_info="智能家居固定工具与设备回执")
             score = float(result.get("scores", {}).get("overall", result.get("score", 0.8)))
             return {"score": score, "acceptable": score >= 0.7, "needs_human_review": score < 0.5, "issues": result.get("issues", [])}
         except Exception as exc:
@@ -312,7 +282,7 @@ class AgentOrchestrator:
     async def stream_process(self, user_input: str, session_id: Optional[str] = None, history: Optional[List[Dict[str, str]]] = None) -> AsyncGenerator[str, None]:
         context = OrchestrationContext(
             session_id=session_id or str(uuid.uuid4()), tenant_id=self.tenant_id, user_id=self.user_id,
-            user_query=user_input, context={"history": history or []}, enable_reflection=self.enable_reflection, enable_rag=self.enable_rag,
+            user_query=user_input, context={"history": history or []}, enable_reflection=self.enable_reflection, enable_rag=False,
         )
         async for event in self.stream_process_context(context):
             yield event
@@ -351,7 +321,7 @@ class AgentOrchestrator:
         return {"status": "success", "domain": "smart_home", "tasks": [{"id": "home_1", "type": "home_control", "description": user_input, "dependencies": []}]}
 
     async def summarize_final_report(self, user_input: str, results: Any = None, **kwargs: Any) -> Dict[str, Any]:
-        return {"status": "success", "domain": "smart_home", "summary": self._combine_results(results or [], [])}
+        return {"status": "success", "domain": "smart_home", "summary": self._combine_results(results or [])}
 
     @staticmethod
     def _home_greeting(query: str) -> str:

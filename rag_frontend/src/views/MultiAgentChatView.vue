@@ -149,7 +149,8 @@ const showSettings = ref(false)
 
 const enableReflection = ref(true)
 
-const enableRAG = ref(true)
+// 保留请求字段以兼容旧接口，但单房间家居主链路不再启用运行时检索。
+const enableRAG = ref(false)
 
 
 
@@ -569,7 +570,7 @@ function loadSettings() {
 
       enableReflection.value = settings.enableReflection ?? true
 
-      enableRAG.value = settings.enableRAG ?? true
+      enableRAG.value = false
 
     }
 
@@ -726,7 +727,7 @@ onMounted(async () => {
     processingTime.value = savedTask.processingTime
     currentResponse.value = savedTask.currentResponse
     enableReflection.value = savedTask.enableReflection
-    enableRAG.value = savedTask.enableRAG
+    enableRAG.value = false
     isLoading.value = true
     streamInterrupted.value = hasAsyncTask
     
@@ -1054,7 +1055,7 @@ async function submitAsyncQuery(query: string, assistantMsg: Message): Promise<b
         session_id: sessionId.value,
         enable_reflection: enableReflection.value,
         context: {
-          enable_rag: enableRAG.value,
+          enable_rag: false,
         },
       }),
     })
@@ -1108,7 +1109,7 @@ async function streamQuery(query: string, assistantMsg: Message, token: string |
       session_id: sessionId.value,
       enable_reflection: enableReflection.value,
       context: {
-        enable_rag: enableRAG.value,
+        enable_rag: false,
       },
     }),
     signal: controller.signal,
@@ -1827,22 +1828,6 @@ function renderMessageBody(content: string, index: number): string {
 
             </label>
 
-            <label class="flex items-center gap-2 cursor-pointer">
-
-              <input
-
-                type="checkbox"
-
-                v-model="enableRAG"
-
-                class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-
-              />
-
-              <span class="text-sm text-gray-700">启用知识检索</span>
-
-            </label>
-
           </div>
 
         </div>
@@ -2416,9 +2401,9 @@ function renderMessageBody(content: string, index: number): string {
           <div class="bg-white p-1.5 rounded border border-gray-200">
             <div class="flex items-center gap-1 mb-0.5">
               <FileSearch :size="10" class="text-blue-600" />
-              <span class="text-xs font-medium text-gray-700">RAG检索</span>
+              <span class="text-xs font-medium text-gray-700">固定工具链</span>
             </div>
-            <p class="text-xs text-gray-500">知识库检索</p>
+            <p class="text-xs text-gray-500">设备状态与安全校验</p>
           </div>
           <div class="bg-white p-1.5 rounded border border-gray-200">
             <div class="flex items-center gap-1 mb-0.5">

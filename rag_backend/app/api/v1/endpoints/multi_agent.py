@@ -189,7 +189,8 @@ async def process_multi_agent_query_stream(
 
     session_id = request.session_id or f"thread_{uuid_module.uuid4().hex[:16]}"
     enable_reflection = request.enable_reflection
-    enable_rag = request.context.get("enable_rag", True) if request.context else True
+    # 兼容历史请求字段，但单房间家居主链路固定不启用运行时检索。
+    enable_rag = False
     async with prepare_stream_interaction(
             session_id,
             str(current_user.id),
@@ -210,7 +211,6 @@ async def process_multi_agent_query_stream(
         )
         await orch.initialize()
         orch.enable_reflection = enable_reflection
-        orch.enable_rag = enable_rag
 
         # 使用队列在工作流回调与 SSE 事件流之间通信
         event_queue: asyncio.Queue = asyncio.Queue()
@@ -222,7 +222,6 @@ async def process_multi_agent_query_stream(
         stage_map = {
             "receptionist": "receptionist",
             "intent_router": "intent_router",
-            "rag_retrieval": "rag_retrieval",
             "home_specialist": "home_specialist",
             "reflection": "reflection",
             "final": "final",
@@ -286,7 +285,6 @@ async def process_multi_agent_query_stream(
                 history=None,
                 metadata={
                     "enable_reflection": enable_reflection,
-                    "enable_rag": enable_rag,
                     **(request.metadata or {}),
                 },
                 progress_callback=progress_callback,
@@ -784,7 +782,7 @@ async def execute_workflow_background(
 
         # 🆕 使用 LangGraph 工作流（process_user_request），带进度回调
         progress_map = {
-            "receptionist": 5, "intent_router": 10, "rag_retrieval": 20,
+            "receptionist": 5, "intent_router": 10,
             "home_specialist": 40,
             "reflection": 80, "final": 90,
         }
