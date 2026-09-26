@@ -1,0 +1,91 @@
+# STM32F103C6 MG90S 舵机集成记录
+
+## 2026-09-26 门锁控制增量与联调边界
+
+当前工作工程的 Keil 目标和只读原版 `USER/STM32_CGMCU.uvprojx` 均配置为 STM32F103C6。实物芯片丝印、舵机信号线和供电能力尚未核实，烧录前必须核对；只读原版工程不改动。
+
+现有 USART1 语音模块发送四字节帧，命令 `F4 06 09 FB`、`F4 06 0A FB` 分别调用 `MG90S_Open()`、`MG90S_Close()`。板上四键 PB6–PB9 沿用既有菜单：进入设备控制菜单后，KEY1 逐项选择并在第二页末跳到第三页；第三页第一项是 `DOOR OPEN`，第二项是 `DOOR CLOSE`，KEY2 执行，KEY3/KEY4 返回。第三行 `TARGET` 显示最近一次由驱动接受的开/关目标，含语音入口；它不是舵机角度或门体位置的实测值。三路控制如先后到达，以驱动最后接受的目标为准；同目标重复命令不会延长当前 1 秒动作期限。
+
+新增两个互斥的语音场景预设，统一由 `HomeScene_Apply()` 执行。`F4 06 0B FB` 进入睡眠模式：开启风扇、关闭灯光并调用 `MG90S_Close()`；`F4 06 0C FB` 进入离家模式：关闭灯光、关闭风扇并调用 `MG90S_Close()`。场景执行时退出原有自动模式，后收到的场景覆盖当前场景。语音模块还需把“开启睡眠模式”“开启离家模式”等词条分别配置为 `0x0B`、`0x0C` 命令字。
+
+机智云产品当前尚未新增门锁数据点，开发者平台需要登录，因而不能从平台获取真实的数据点 ID、P0 位偏移与生成的 MCU SDK。**不能将本地猜测的布尔位写入现有 P0 协议后称为云端同步。**建议先在既有产品中配置下列物模型，再下载该产品对应的自动生成 MCU 协议并核对字段，更新工作副本的 `Gizwits` 目录和门锁事件入口：
+
+| 显示名 | 标识符建议 | 类型和权限 | 值与显示含义 |
+|---|---|---|---|
+| 门锁目标 | `Door_Lock` | 布尔，可写 | `0` 关门目标，`1` 开门目标；设备接受命令后报告该值 |
+| 门锁命令状态 | `Door_Target` | 枚举，只读 | `0` 未知/未接收，`1` 已下发开门目标，`2` 已下发关门目标 |
+
+机智云[官方 MCU 代码生成说明](https://docs.gizwits.com/en-us/DeviceDev/MCUCodeAutoGenerator.html)指出数据点定义决定自动生成的协议封装与解析；[数据点说明](https://docs.gizwits.com/en-us/DeviceDev/MCUScheme.html)明确布尔型适合开关、可写数据点也可由设备上报。因此实际 ID、长度、编码、事件名和 APP 控件绑定必须以当前产品生成结果为准。已有 `gizwits_protocol.c` 的若干写入数据点解包分支错误地产生 `EVENT_Light`，同步新 SDK 时需优先用端到端帧测试核对这条路径，不能仅在 `gizwits_product.c` 中添加 case。
+
+角度调节和运动模式需要先确定锁具连杆行程、可接受的脉宽端点及具体模式语义。当前固件仅提供已校准起点范围内的两个预设脉宽 1400/1600 µs；不将其标称为真实角度，也不在未校准机构上开放任意角度下发。
+
+本地验证：Keil `UV4.exe -r` 全量构建日志 `USER/Objects/door_menu_rebuild.log` 显示 **0 errors / 0 warnings**。本机未找到可运行主机 C 测试的编译器；未烧录、未连接 MG90S，也未完成 APP 安装包生成与三路实物联调。实物联调时须先卸下连杆，核对实际芯片、PA0 信号线和低压供电，再分别触发板上两项与语音两帧，观察舵机动作和 OLED `TARGET`；完成机智云数据点配置后，再核对 APP 下发、设备接受后的目标回报和两个本地入口造成的 APP 状态更新。
+
+日期：2026-09-25  
+目标工程：`stm32/程序/USER/STM32_CGMCU.uvprojx`  
+器件：STM32F103C6；舵机：TowerPro MG90S
+
+硬件范围：沿用旧程序文档所列的 STM32 板卡和原有外设，只接入用户现有的这一只 MG90S；本次修改源码与 Keil 配置，不新增或更换开发板、传感器、通信模块或电源模块。
+
+## 调研结论与技术选型
+
+先检查了本地独立台架工程 [`servo_door`](../servo_door/README.md)。它在 HSI 8 MHz 下以 PA0/TIM2_CH1 输出 50 Hz PWM，并有独立 UART 协议状态机；待集成工程则使用外部时钟配置到 72 MHz、STM32 标准外设库，原 TIM2 中断还负责应用调度。直接复制台架工程的启动代码或板级初始化会覆盖原工程的时钟、串口与定时器资源，所以本次只复用舵机脉宽校准原则，在原工程的标准外设库架构里实现驱动。
+
+参考 ST 的 RM0008 确认 STM32F1 的 APB1 定时器时钟规则；当 APB1 分频不为 1 时，定时器时钟为 PCLK1 的两倍。项目 72 MHz 时钟配置下 TIM2 输入时钟为 72 MHz，`PSC=71` 得到 1 µs 计数单位，`ARR=19999` 得到 20 ms 周期（50 Hz）。[ST RM0008](https://www.st.com/resource/en/reference_manual/rm0008-stm32f101xx-stm32f102xx-stm32f103xx-stm32f105xx-stm32f107xx-advanced-arm-based-32-bit-mcus-stmicroelectronics.pdf)
+
+TowerPro 产品页和 MG90S 数据表副本作为供电与控制脉宽参考；常见 1–2 ms 区间只是起始校准范围，实际角度、端点和 3.3 V 信号识别能力仍须用具体舵机和连杆验证。[TowerPro MG90S 产品页](https://towerpro.com.tw/product/mg90s-3/) · [MG90S 数据表副本](https://components101.com/sites/default/files/component_datasheet/MG90S-Datasheet.pdf)
+
+Keil 命令行全量构建用于可重复地产生 AXF/HEX，之后用工具链 `fromelf` 生成原始 BIN；构建和烧录是分开的步骤。[Keil µVision 命令行参考](https://www.keil.com/support/man/docs/uv4/uv4_commandline.asp)
+
+## 架构与实现
+
+| 层 | 文件 / 接口 | 实现 |
+|---|---|---|
+| 应用入口 | `USER/main.c` | `SystemInit()` 后尽早将 MG90S 输出设为低；完成业务初始化后依次启动 IWDG、TIM3、TIM1 应用调度器，最后启用 USART1 命令接收。主循环仅在 TIM3 心跳前进后喂独立看门狗。 |
+| 舵机驱动 | `HARDWARE/Servo/MG90S.c/.h` | PA0/TIM2_CH1、50 Hz PWM；开门初值 1600 µs，关门初值 1400 µs；动作期限 1000 ms，到期在 PWM 低电平阶段关输出。时钟不是 72 MHz 且 APB1 分频不是 /2 时，不允许启动 PWM。 |
+| 动作状态 | `HARDWARE/Servo/MG90S_logic.c/.h` | 纯 C 状态结构 `MG90S_LogicState { remaining_ms, target }`，包含 OPEN/CLOSE/OFF 与 1 ms 动作倒计时；同一目标重复命令不会延长正在进行的动作期限，可在主机编译器上独立测试。 |
+| 应用调度 | `SYSTEM/TIM2/TIM2.c/.h` | 原来的 2 ms 应用调度器由 TIM2 迁至 TIM1 更新中断；原菜单、按键、自动阈值逻辑和其他设备命令继续使用该调度器。命令 `0x09`、`0x0A` 分别调用 `MG90S_Open()`、`MG90S_Close()`。目录和文件名保留 `TIM2` 是为减少工程路径变更，当前此文件实现的是 TIM1 应用调度。 |
+| 舵机计时与复位保护 | `SYSTEM/TIM3.c/.h`、`HARDWARE/IWDG.c` | TIM3 每 1 ms 更新舵机期限并递增心跳；当前 IWDG 名义配置约 10 s。若 TIM3 停止，主循环不再喂狗，芯片会经看门狗复位。 |
+| UART 命令入口 | `SYSTEM/usart/usart.c/.h` | 保留旧 USART1 帧解析，只把共享命令标志和值声明为 `volatile`，TIM1 应用调度中断取命令时在短临界区内快照并清除标志。新加的命令号仍走旧协议入口。 |
+
+### PWM 边界处理
+
+- 首次启动时先关闭 TIM2 通道并将 PA0 配成推挽低电平，再预装 CCR、清计数器并启动 PWM，避免复位后产生多余脉冲。
+- OPEN/CLOSE 方向切换只写入预装载 CCR，不重置计数器或强制更新事件，新脉宽在下一帧边界生效。
+- 1000 ms 动作期限到达后，驱动等待计数器越过当前允许的最大脉宽再禁用通道，不截断正在输出的高电平脉冲。
+- 上电复位期间 PA0 仍是高阻输入；固件启动后将其拉低并初始化 PWM。舵机信号接 PA0，地线与现有 STM32 板共地；舵机电源复用现有硬件中符合 MG90S 电压和峰值电流要求的稳压电源轨，不要求新增电源模块或下拉电阻。不得从 MCU 的 3.3 V/GPIO 给舵机供电，不接 220 V 市电。现有电源轨能力需按原板资料确认，代码无法弥补供电能力不足。
+- 看门狗复位是延迟复位，不能当作即时断电保护；TIM3 故障时 PWM 可能保持到 IWDG 超时。本固件不控制舵机电源开关。
+
+### 面向大模型与 RAG 的边界
+
+固件只暴露固定的 OPEN/CLOSE 命令号和驱动函数，不接收任意 GPIO、PWM 参数、Topic 或云端数据点。后续大模型/RAG 仍应由固定设备工具完成设备注册、类型、在线状态、命令状态和过期校验，再由受控协议桥发送舵机动作。
+
+本次没有把独立台架工程的文本协议直接移植进旧 USART1 接收路径，也没有新增 MCU 到桥接端的请求 ID、TTL 或 ACK 帧。旧 USART1 仍是单槽命令邮箱，串口帧本身没有与 `request_id` 关联的回执；因此当前固件是执行器驱动基础，不构成从大模型到门体的端到端安全闭环。后续桥接时必须有明确的命令期限、去重和执行回执契约，并避免旧帧在队列/转发环节过期后仍触发动作。不得把“下发目标”当作门已开/关：MG90S 没有位置反馈，本固件也没有门磁确认。
+
+仓库现有 MQTT 模拟闭环也不能替代这次固件桥接：接入前须确认同 `request_id` 重试不会重算并延长首次绝对过期点，且“目标已下发”不会被误记为门体实测到位。
+
+## 修改文件
+
+- 新增 `HARDWARE/Servo/MG90S.c/.h` 与纯逻辑模块 `MG90S_logic.c/.h`。
+- 新增主机测试 `tests/test_mg90s_logic.c`、`tests/run_mg90s_logic.cmd`；覆盖同目标重复命令不延长动作期限。
+- 在 `USER/STM32_CGMCU.uvprojx` 中按原硬件型号配置 STM32F103C6，并使用 32 KB Flash / 10 KB RAM 链接范围；加入舵机源文件和 include 路径，并启用 HEX 输出。本次没有更改硬件型号。
+- 把 `SYSTEM/TIM2` 中原 TIM2 应用调度迁到 TIM1 更新中断，新增两个固定舵机命令；在 `SYSTEM/TIM3` 增加舵机动作计时和心跳。
+- 更新 `USER/main.c` 初始化顺序和心跳看门狗条件；把 `HARDWARE/IWDG.c` 改为合法的 `/128` 与 `3124` 重装值（12 位计数范围内，LSI 40 kHz 时名义约 10 s）；修复 `gizTimerMs()` 的函数声明，消除原有隐式声明编译警告。
+- 更新 USART1 命令邮箱的 `volatile` 声明，并对命令快照/清除使用 PRIMASK 临界区。
+
+## 验证结果
+
+1. **测试先失败后通过**：实现前运行主机测试时因 `MG90S_logic.h/.c` 缺失而失败；增加“同目标重复命令不可续期”断言后先观察到失败，再修改状态机；MSVC Native Tools 下最终测试通过，覆盖开/关目标、1000 ms 期限、同目标重放、非法目标和 OFF 状态。
+2. **Keil 全量重建**：使用用户提供的 Keil 安装目录 `E:\tanbian\keli5\UV4`，Arm Compiler V5.06 update 5 (build 528)，目标 `SmartHome_STM32F103C6`。构建日志 `USER/Objects/STM32_CGMCU_C6_rebuild.log` 为 **0 errors / 0 warnings**。链接摘要：Code 24620、RO-data 2972、RW-data 160、ZI-data 1456 字节；工程链接区域为 Flash `0x08000000–0x08007FFF`（32 KB）、RAM `0x20000000–0x200027FF`（10 KB）。
+3. **固件文件**：Keil 生成 `USER/Objects/STM32_CGMCU.axf` 与 `.hex`；当前 BIN `USER/Objects/STM32_CGMCU.bin` 为 27,752 字节。BIN 头检查得到初始栈指针 `0x20000650`、复位向量 `0x08000101`，地址位于 STM32F103C6 的 RAM/Flash 范围内；SHA-256：`746C3D897E42BF7E554D9E780425AF05A77DC0CFB3841FEFEA410C30F3EA10DE`。
+4. **仓库回归**：智能家居与安全后端指定测试 120 passed、1 条既有 `asyncio_mode` 配置警告；`rag_frontend` 的 `npm run build` 通过，有既有 Browserslist 数据过旧及 chunk 大小提示。根仓库和 `stm32` 仓库 `git diff --check` 无输出。它们用于确认仓库基线，没有验证 MCU 实际执行。
+
+上述结果证明源码通过本机目标编译和映像结构检查，不代表已经连接 ST-Link 烧录或测得舵机波形。Keil 的命令行构建选项可参见[官方说明](https://www.keil.com/support/man/docs/uv4/uv4_commandline.asp)。
+
+## 烧录和实物验收
+
+使用原有烧录器和流程将 HEX 下载到 STM32F103C6；若原有流程烧录 BIN，目标起始地址设为 `0x08000000`。接线只涉及 PA0→舵机信号、现有合规电源轨→舵机电源、STM32/舵机共地，不增加电源模块或其他器件。首次校准先断开连杆和负载；如手边已有示波器，可检查周期约 20 ms、OPEN 约 1600 µs、CLOSE 约 1400 µs 及期限结束后停止 PWM，再按需要调整 `MG90S.c` 中的初始脉宽。没有示波器时不把波形和角度精度记为实测结论。实测连杆方向和端点后才可装回轻载机构；若现有供电无法满足舵机要求，不要继续带负载测试。
+
+## 研究结论边界
+
+本次可支持的论文论点是：在资源冲突的既有 STM32F103 工程中，通过定时器重分配、独立执行器驱动、限时动作和心跳看门狗，为固定工具链提供了一个可编译的舵机执行端。不能据此得出角度精度、门体开闭成功率、远程安全闭环或实际运行可靠性的结论；这些需要波形测量、连杆标定、设备状态/ACK 协议集成和真实硬件试验。

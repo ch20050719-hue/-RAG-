@@ -1,0 +1,32 @@
+flowchart TD
+    RESET["复位向量 / CORE/startup_stm32f10x_md.s"]
+    APP["USER/main.c 初始化与主循环"]
+    RESET --> APP
+
+    UI["HARDWARE/Menu.c 菜单与传感器采集"]
+    DHT["DHT11 温湿度"]
+    ADC["ADC 光照与烟雾"]
+    OLED["OLED 显示"]
+    APP --> UI
+    UI --> DHT
+    UI --> ADC
+    UI --> OLED
+
+    TIMER["SYSTEM/TIM2 定时中断"]
+    UART1["USART1 串口指令中断"]
+    OUTPUT["USB.c IO 输出通道"]
+    MOTOR["motor.c 步进电机窗帘"]
+    APP --> TIMER
+    UART1 --> TIMER
+    TIMER --> OUTPUT
+    TIMER --> MOTOR
+
+    UART2["USART2 机智云串口中断"]
+    PROTOCOL["Gizwits 协议解析与上报"]
+    PRODUCT["gizwits_product 数据点 / 事件回调"]
+    APP --> PRODUCT
+    APP --> PROTOCOL
+    UART2 --> PROTOCOL
+    PROTOCOL <--> PRODUCT
+    PRODUCT --> OUTPUT
+    PRODUCT --> MOTOR
