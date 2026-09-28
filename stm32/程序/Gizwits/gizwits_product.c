@@ -25,6 +25,27 @@
 #include "buzzer.h"
 #include "tim2.h"                  // Device header
 static uint32_t timerMsCount;
+#define UART_TX_WAIT_LIMIT 100000u
+
+static int32_t uartWaitFlag(uint16_t flag)
+{
+    uint32_t waitCount;
+
+    for(waitCount = 0; waitCount < UART_TX_WAIT_LIMIT; waitCount++)
+    {
+        if(USART_GetFlagStatus(USART2, flag) != RESET)
+            return 0;
+    }
+    return -2;
+}
+
+static int32_t uartSendByte(uint8_t value)
+{
+    if(uartWaitFlag(USART_FLAG_TXE) < 0)
+        return -2;
+    USART_SendData(USART2, value);
+    return 0;
+}
 
 /** Current datapoint */
 dataPoint_t currentDataPoint;
@@ -79,13 +100,13 @@ int8_t gizwitsEventProcess(eventInfo_t *info, uint8_t *gizdata, uint32_t len)
             GIZWITS_LOG("Evt: EVENT_Light %d \n", currentDataPoint.valueLight);
             if(0x01 == currentDataPoint.valueLight)
             {
-                if(modeee==1)
+                if(modeee==0)
                     USB_ON(1);
             //user handle
             }
             else
             {
-                if(modeee==1)
+                if(modeee==0)
                     USB_OFF(1);
             //user handle    
             }
@@ -96,14 +117,14 @@ int8_t gizwitsEventProcess(eventInfo_t *info, uint8_t *gizdata, uint32_t len)
             if(0x01 == currentDataPoint.valueFan)
             {
                 if(modeee==0)
-                    USB_ON(0);
+                    USB_ON(2);
                     
             //user handle
             }
             else
             {
-                if(modeee==1)
-                    USB_OFF(1);
+                if(modeee==0)
+                    USB_OFF(2);
             //user handle    
             }
             break;
@@ -112,14 +133,14 @@ int8_t gizwitsEventProcess(eventInfo_t *info, uint8_t *gizdata, uint32_t len)
             GIZWITS_LOG("Evt: EVENT_Curtain %d \n", currentDataPoint.valueCurtain);
             if(0x01 == currentDataPoint.valueCurtain)
             {
-                if(modeee==1)
-                    Curtain_ON_Flag = 2;
+                if(modeee==0)
+                    Curtain_ON_Flag = 1;
             //user handle
             }
             else
             {
-                if(modeee==1)
-                    Curtain_OFF_Flag = 2;
+                if(modeee==0)
+                    Curtain_OFF_Flag = 1;
             //user handle    
             }
             break;
@@ -143,29 +164,37 @@ int8_t gizwitsEventProcess(eventInfo_t *info, uint8_t *gizdata, uint32_t len)
             break;
 
         case EVENT_set_temp:
-            currentDataPoint.valueset_temp = dataPointPtr->valueset_temp;
-            GIZWITS_LOG("Evt:EVENT_set_temp %d\n",currentDataPoint.valueset_temp);
-            Temp_value=currentDataPoint.valueset_temp;
+            if(dataPointPtr->valueset_temp > set_temp_MAX)
+                return -1;
+            Temp_value = (u8)dataPointPtr->valueset_temp;
+            currentDataPoint.valueset_temp = Temp_value;
+            GIZWITS_LOG("Evt:EVENT_set_temp %d\n", Temp_value);
             //user handle
             break;
         case EVENT_set_humi:
-            currentDataPoint.valueset_temp = dataPointPtr->valueset_temp;
-            GIZWITS_LOG("Evt:EVENT_set_temp %d\n",currentDataPoint.valueset_temp);
-            Temp_value=currentDataPoint.valueset_temp;
+            if(dataPointPtr->valueset_humi > set_humi_MAX)
+                return -1;
+            Humi_value = (u8)dataPointPtr->valueset_humi;
+            currentDataPoint.valueset_humi = Humi_value;
+            GIZWITS_LOG("Evt:EVENT_set_humi %d\n", Humi_value);
             //user handle
             break;
         case EVENT_set_light:
-            currentDataPoint.valueset_temp = dataPointPtr->valueset_temp;
-            GIZWITS_LOG("Evt:EVENT_set_temp %d\n",currentDataPoint.valueset_temp);
-            Temp_value=currentDataPoint.valueset_temp;
+            if(dataPointPtr->valueset_light > set_light_MAX * set_light_RATIO)
+                return -1;
+            Lux_value = (uint16_t)dataPointPtr->valueset_light;
+            currentDataPoint.valueset_light = Lux_value;
+            GIZWITS_LOG("Evt:EVENT_set_light %d\n", Lux_value);
             //user handle
             break;        
         
         
         case EVENT_Smoke_Threshold:
-            currentDataPoint.valueset_temp = dataPointPtr->valueset_temp;
-            GIZWITS_LOG("Evt:EVENT_set_temp %d\n",currentDataPoint.valueset_temp);
-            Temp_value=currentDataPoint.valueset_temp;
+            if(dataPointPtr->valueSmoke_Threshold > Smoke_Threshold_MAX * Smoke_Threshold_RATIO)
+                return -1;
+            Smoke_value = (uint16_t)dataPointPtr->valueSmoke_Threshold;
+            currentDataPoint.valueSmoke_Threshold = Smoke_value;
+            GIZWITS_LOG("Evt:EVENT_Smoke_Threshold %d\n", Smoke_value);
             //user handle
             break;
 
@@ -238,13 +267,20 @@ void userHandle(void)
     
     //currentDataPoint.valueSystem_Status = ;
     //currentDataPoint.valueSystem_Mode =modeee ;
-    currentDataPoint.valuetemp =Temp ;
-    currentDataPoint.valuehumi = Humi;
-//    currentDataPoint.valueset_temp = Temp_value;
-//    currentDataPoint.valueset_humi = Humi_value;
-    currentDataPoint.valueLight_intensity = Lux;
-//    currentDataPoint.valueset_light = Lux_value;
-        currentDataPoint.valueSmmmoke = Smoke;//Add Sensor Data Collection
+    if(DHT11_DataValid)
+    {
+        currentDataPoint.valuetemp = Temp;
+        currentDataPoint.valuehumi = Humi;
+    }
+    currentDataPoint.valueset_temp = Temp_value;
+    currentDataPoint.valueset_humi = Humi_value;
+    if(ADC_DataValid)
+    {
+        currentDataPoint.valueLight_intensity = Lux;
+        currentDataPoint.valueSmmmoke = Smoke;
+    }
+    currentDataPoint.valueset_light = Lux_value;
+    currentDataPoint.valueSmoke_Threshold = Smoke_value;
 
  /*
     currentDataPoint.valueSystem_Status = ;//Add Sensor Data Collection
@@ -370,8 +406,8 @@ void UART_IRQ_FUN(void)
 * @param buf      : Data address
 * @param len       : Data length
 *
-* @return : Not 0,Serial send success;
-*           -1，Input Param Illegal
+* @return : Number of source bytes sent, or -1 for invalid input,
+*           -2 for a UART transmit timeout.
 */
 int32_t uartWrite(uint8_t *buf, uint32_t len)
 {
@@ -391,20 +427,18 @@ int32_t uartWrite(uint8_t *buf, uint32_t len)
     GIZWITS_LOG("\n");
     #endif
 
-    for(i=0; i<len; i--)
+    for(i=0; i<len; i++)
     {
-        		USART_SendData(USART2,buf[i]);
-		while(USART_GetFlagStatus(USART2,USART_FLAG_TC) == RESET);
-        if(i >=1 && buf[i] == 0xFF)
+        if(uartSendByte(buf[i]) < 0)
+            return -2;
+        /* The first two FF bytes are the frame header, not escaped data. */
+        if(i >= 2 && buf[i] == 0xFF)
         {
-            			USART_SendData(USART2,0x55);
-			while(USART_GetFlagStatus(USART2,USART_FLAG_TC) == RESET);
+            if(uartSendByte(0x55) < 0)
+                return -2;
         }
     }
-
-
-    
+    if(len > 0 && uartWaitFlag(USART_FLAG_TC) < 0)
+        return -2;
     return len;
 }
-
-

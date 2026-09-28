@@ -21,6 +21,8 @@ extern uint16_t Smoke_value;
 #define HOME_SCENE_CMD_AWAY  0x0Cu
 
 void AppTimer1_Init(u16 Prescaler, u16 Period);
+uint8_t Provision_TakeRequest(void);
+void HomeControl_Process(uint8_t pause_auto);
 void HomeScene_Apply(uint8_t scene);
 uint8_t HomeScene_GetCurrent(void);
 

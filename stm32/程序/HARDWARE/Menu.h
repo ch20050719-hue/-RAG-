@@ -11,7 +11,12 @@ extern u8 Temp;
 extern uint16_t Lux;
 extern u8 Menu;
 extern uint16_t Smoke;
+extern volatile u8 DHT11_DataValid;
+extern volatile uint32_t DHT11_LastSuccessMs;
+extern volatile u8 ADC_DataValid;
+extern volatile uint32_t ADC_LastSuccessMs;
 
+void Menu_UpdateSensors(uint32_t now_ms);
 void Menu1(void);
 void Menu11(void);
 

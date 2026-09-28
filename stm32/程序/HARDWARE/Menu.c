@@ -8,6 +8,39 @@
 uint16_t Smoke;
 u8 Humi,Temp;
 uint16_t Lux;	
+volatile u8 DHT11_DataValid = 0u;
+volatile uint32_t DHT11_LastSuccessMs = 0u;
+volatile u8 ADC_DataValid = 0u;
+volatile uint32_t ADC_LastSuccessMs = 0u;
+
+/* Sample independent of the selected OLED page. Keep the last good readings on failure. */
+void Menu_UpdateSensors(uint32_t now_ms)
+{
+    u8 humi;
+    u8 temp;
+    u16 lux_adc;
+    u16 smoke_adc;
+
+    if (DHT11_Read_Data(&humi, &temp) == DHT11_READ_OK) {
+        DHT11_DataValid = 0u;
+        Humi = humi;
+        Temp = temp;
+        DHT11_LastSuccessMs = now_ms;
+        DHT11_DataValid = 1u;
+    } else {
+        DHT11_DataValid = 0u;
+    }
+
+    if (ADCX_ReadValue(0x05, &lux_adc) && ADCX_ReadValue(0x04, &smoke_adc)) {
+        ADC_DataValid = 0u;
+        Lux = 4096u - lux_adc;
+        Smoke = smoke_adc;
+        ADC_LastSuccessMs = now_ms;
+        ADC_DataValid = 1u;
+    } else {
+        ADC_DataValid = 0u;
+    }
+}
 u8 aaabbb;
 extern    u8 Curtain_OFF_Flag;
 extern    u8 Curtain_ON_Flag;
@@ -41,35 +74,42 @@ void Menu1(void)
 	OLED_ShowChinese(2, 4, 22);
 	OLED_ShowChar(2, 9, ':');
 	OLED_ShowString(2, 14, "Lux"); 
-	//显示”烟雾浓度：  ppm“
+	//显示”烟雾浓度：  ADC“
 	OLED_ShowChinese(3, 1, 32);
 	OLED_ShowChinese(3, 2, 33);
 	OLED_ShowChinese(3, 3, 34);
 	OLED_ShowChinese(3, 4, 35);
 	OLED_ShowChar(3, 9, ':');
-	OLED_ShowString(3, 14, "ppm"); 
+	OLED_ShowString(3, 14, "ADC");
     
     
 	OLED_ShowChinese(4, 6, 24);
 	OLED_ShowChinese(4, 7, 26);
 	OLED_ShowChinese(4, 8, 27);
 	
-	DHT11_Read_Data(&Humi, &Temp);
-//	LDR_LuxData(&Lux);
-//    Smoke_LuxData(&Smoke);
-	Lux   = 4096 - get_Adc_Value(0x05);
-	
-	Smoke   = get_Adc_Value(0x04);
-
-
-	//显示 DHT11温湿度数据
-	OLED_ShowNum(1,6,Temp,2);
-	OLED_ShowNum(1,14,Humi,2);
+	if (DHT11_DataValid) {
+        OLED_ShowNum(1,6,Temp,2);
+    } else {
+        OLED_ShowString(1,6,"--");
+    }
+	if (DHT11_DataValid) {
+        OLED_ShowNum(1,14,Humi,2);
+    } else {
+        OLED_ShowString(1,14,"--");
+    }
 	
 	//显示光照强度数据
-	OLED_ShowNum(2, 10, Lux, 4);
+	if (ADC_DataValid) {
+        OLED_ShowNum(2, 10, Lux, 4);
+    } else {
+        OLED_ShowString(2, 10, "----");
+    }
 	//显示烟雾浓度数据
-	OLED_ShowNum(3, 10, Smoke, 4);
+	if (ADC_DataValid) {
+        OLED_ShowNum(3, 10, Smoke, 4);
+    } else {
+        OLED_ShowString(3, 10, "----");
+    }
 	
 	
 	

@@ -1,3 +1,9 @@
 .mcp/
 financial_rag/
 NUL
+
+# Keil generated build output and machine-specific UI state
+/stm32/程序/USER/Objects/
+/stm32/程序/USER/Listings/
+**/*.uvoptx
+**/*.uvguix.*

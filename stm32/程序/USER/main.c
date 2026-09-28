@@ -16,6 +16,7 @@
 #include "gizwits_product.h"
 #include "adcx.h"
 #include "MG90S.h"
+#include "threshold_step.h"
 
 
 u8 temp;
@@ -39,12 +40,17 @@ uint8_t devicePage = 1;    // Device control menu page 1..3
 uint8_t current_screen = 0; // 0:��ʾ�˵�1, 1:��ʾ�˵�11
 int main(void)
 {
-    uint32_t last_tim3_heartbeat = 0u; 
+    uint32_t last_tim3_heartbeat = 0u;
+    uint32_t last_sensor_sample_ms = 0u;
+    uint32_t provision_started_ms = 0u;
+    uint8_t sensor_sampled = 0u;
+    uint8_t provision_feedback_active = 0u;
 	
     SystemInit();//����ϵͳʱ��Ϊ72M	
 	
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
 	delay_init(72);
+	uart1_init(9600);
 	LED_Init();
     MOTOR_UserConfig();//�����ʼ���ɹ�
     DHT11_UserConfig();//dht11��ʼ���ɹ�
@@ -57,16 +63,45 @@ int main(void)
     
 	OLED_Init();//OLED��ʾ����ʼ���ɹ�
     
-    Adc1_Channe_Init();
+    if (Adc1_Channe_Init() == 0u)
+    {
+        printf("ADC calibration failed\r\n");
+    }
 	LED_On();
 	userInit();	//��ɳ�ʼ��ֵ
 	gizwitsInit();
     IWDG_Init();
     GENERAL_TIM_Init();
     AppTimer1_Init(9,14398);
-    uart1_init(9600);
   while (1)
   {
+		uint32_t now_ms = g_tim3_heartbeat;
+		if (!sensor_sampled || (uint32_t)(now_ms - last_sensor_sample_ms) >= 1000u)
+		{
+			last_sensor_sample_ms = now_ms;
+			sensor_sampled = 1u;
+			Menu_UpdateSensors(now_ms);
+		}
+		if (Provision_TakeRequest())
+		{
+			if (gizwitsSetMode(2u) >= 0)
+			{
+				Buzzer_ON();
+				provision_started_ms = g_tim3_heartbeat;
+				provision_feedback_active = 1u;
+			}
+			else
+			{
+				printf("WiFi config send failed\r\n");
+			}
+		}
+		if (provision_feedback_active &&
+			(uint32_t)(g_tim3_heartbeat - provision_started_ms) >= 300u)
+		{
+			Buzzer_OFF();
+			provision_feedback_active = 0u;
+		}
+		HomeControl_Process(provision_feedback_active);
       		if (g_tim3_heartbeat != last_tim3_heartbeat)
         {
             last_tim3_heartbeat = g_tim3_heartbeat;
@@ -131,20 +166,12 @@ int main(void)
 						if(KeyNum == 3)
 						{
 							KeyNum = 0;
-							Temp_value++;
-							if(Temp_value >= 100)
-							{
-								Temp_value = 100;
-							}
+							Temp_value = Threshold_Up8(Temp_value);
 						}
 						if(KeyNum == 4)
 						{
 							KeyNum = 0;
-							Temp_value--;
-							if(Temp_value <= 0)
-							{
-								Temp_value = 0;
-							}
+							Temp_value = Threshold_Down8(Temp_value);
 						}
 					}
 
@@ -154,20 +181,12 @@ int main(void)
 						if(KeyNum == 3)
 						{
 							KeyNum = 0;
-							Humi_value++;
-							if(Humi_value >= 100)
-							{
-								Humi_value = 100;
-							}
+							Humi_value = Threshold_Up8(Humi_value);
 						}
 						if(KeyNum == 4)
 						{
 							KeyNum = 0;
-							Humi_value--;
-							if(Humi_value <= 0)
-							{
-								Humi_value = 0;
-							}
+							Humi_value = Threshold_Down8(Humi_value);
 						}
 					}
 										
@@ -176,20 +195,12 @@ int main(void)
 						if(KeyNum == 3)
 						{
 							KeyNum = 0;
-							Lux_value+=10;
-							if(Lux_value >= 2000)
-							{
-								Lux_value = 2000;
-							}
+							Lux_value = Threshold_Up16(Lux_value);
 						}
 						if(KeyNum == 4)
 						{
 							KeyNum = 0;
-							Lux_value-=10;
-							if(Lux_value <= 0)
-							{
-								Lux_value = 0;
-							}
+							Lux_value = Threshold_Down16(Lux_value);
 						}
 					}
                     if(SetNum == 4)
@@ -197,20 +208,12 @@ int main(void)
 						if(KeyNum == 3)
 						{
 							KeyNum = 0;
-							Smoke_value+=10;
-							if(Smoke_value >= 3000)
-							{
-								Smoke_value = 3000;
-							}
+							Smoke_value = Threshold_Up16(Smoke_value);
 						}
 						if(KeyNum == 4)
 						{
 							KeyNum = 0;
-							Smoke_value-=10;
-							if(Smoke_value <= 0)
-							{
-								Smoke_value = 0;
-							}
+							Smoke_value = Threshold_Down16(Smoke_value);
 						}
 					}
 					/*������2����ʱ�ص����˵�*/

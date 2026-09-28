@@ -13,6 +13,18 @@ extern    u8 Curtain_ON_Flag;
 static uint8_t last_mode = 0;
 static uint8_t first_switch_to_manual = 0;
 static volatile uint8_t current_home_scene = HOME_SCENE_NORMAL;
+static volatile uint8_t provision_request = 0u;
+
+uint8_t Provision_TakeRequest(void)
+{
+    uint8_t requested;
+    uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    requested = provision_request;
+    provision_request = 0u;
+    __set_PRIMASK(primask);
+    return requested;
+}
 
 void HomeScene_Apply(uint8_t scene)
 {
@@ -83,6 +95,11 @@ void TIM1_UP_IRQHandler(void)	//2ms��ʱ�ж�
 	if (TIM_GetITStatus(TIM1, TIM_IT_Update) != RESET ) 
 	{
 		Key_scan();
+		if (KeyNum == 44u && Menu == 1u)
+		{
+			KeyNum = 0u;
+			provision_request = 1u;
+		}
 
 		if(KeyNum == 1 && Menu == 1)
 		{
@@ -245,6 +262,12 @@ void TIM1_UP_IRQHandler(void)	//2ms��ʱ�ж�
 //        }
 //    }
 
+		TIM_ClearITPendingBit(TIM1, TIM_IT_Update);
+	}
+}
+
+void HomeControl_Process(uint8_t pause_auto)
+{
 uint8_t has_command = 0u;
 uint8_t command = 0u;
 uint32_t primask = __get_PRIMASK();
@@ -319,6 +342,7 @@ __set_PRIMASK(primask);
             break;
     }
 }
+if (pause_auto) return;
 if(modeee) // �Զ�ģʽ mode == 1
 {
     // ��¼��ǰΪ�Զ�ģʽ
@@ -330,13 +354,13 @@ if(modeee) // �Զ�ģʽ mode == 1
     uint8_t smoke_alert = 0;
     
     // 3. �¶ȼ�������
-    if(Temp_value < Temp)
+    if(DHT11_DataValid && Temp_value < Temp)
     {
         temp_alert = 1;
     }
     
     // 4. ʪ�ȼ�������
-    if(Humi_value < Humi)
+    if(DHT11_DataValid && Humi_value < Humi)
     {
         humi_alert = 1;
         if(!CurtainFlag)  // �����ر�ʱ��
@@ -344,7 +368,7 @@ if(modeee) // �Զ�ģʽ mode == 1
             Curtain_ON_Flag = 1;
         }
     }
-    else
+    else if (DHT11_DataValid)
     {
         if(CurtainFlag)  // ������ʱ�ر�
         {
@@ -353,7 +377,7 @@ if(modeee) // �Զ�ģʽ mode == 1
     }
     
     // 5. ����Ũ�ȼ������ƣ��޸ģ��Ƴ��������ƣ�
-    if(Smoke > Smoke_value)  // ����Ũ�ȸ�����ֵ
+    if(ADC_DataValid && Smoke > Smoke_value)  // ����Ũ�ȸ�����ֵ
     {
         smoke_alert = 1;
         
@@ -366,7 +390,7 @@ if(modeee) // �Զ�ģʽ mode == 1
         // ����������
         Buzzer_ON();
     }
-    else
+    else if (ADC_DataValid && DHT11_DataValid)
     {
         // ����Ũ���������رշ��ȣ����������������Ŀ��ƣ�
         if(!temp_alert && !humi_alert)  // ֻ���¶Ⱥ�ʪ�ȶ�����Ҫ����ʱ�Źر�
@@ -395,7 +419,7 @@ if(modeee) // �Զ�ģʽ mode == 1
         Buzzer_ON();
         USB_ON(2);  // ����
     }
-    else
+    else if (DHT11_DataValid && ADC_DataValid)
     {
         // ���в�������
         Buzzer_OFF();
@@ -403,11 +427,11 @@ if(modeee) // �Զ�ģʽ mode == 1
     }
     
     // 7. �ƹ���ƣ������ڱ���ϵͳ��
-    if(Lux < Lux_value)
+    if(ADC_DataValid && Lux < Lux_value)
     {
         USB_ON(1);  // �򿪵ƹ�
     }
-    else
+    else if (ADC_DataValid)
     {
         USB_OFF(1); // �رյƹ�
     }
@@ -435,15 +459,5 @@ else // �ֶ�ģʽ
     // �ֶ�ģʽ�µ����������߼�
     // �����û�ͨ�����水ť�����豸��
 }
-		if(KeyNum == 44 && Menu == 1) //�����������������������½���������
-		{
-			gizwitsSetMode(2);
-			KeyNum = 0;
-			Buzzer_ON();
-			Delay_ms(300);
-			Buzzer_OFF();
-		}	
-		TIM_ClearITPendingBit(TIM1, TIM_IT_Update);		
-	}
 }
 

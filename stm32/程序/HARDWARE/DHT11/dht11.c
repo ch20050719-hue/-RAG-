@@ -1,6 +1,16 @@
 #include "dht11.h"
 
-u8 Time = 0;
+/* DHT11 pulses are shorter than 100 us. A missing edge ends this reading. */
+static u8 DHT11_WaitWhile(u8 level)
+{
+	u8 elapsed = 0;
+	while(GPIO_ReadInputDataBit(DHT11_PROT, DHT11) == level)
+	{
+		if (++elapsed >= 100u) return 0u;
+		Delay_us(1);
+	}
+	return 1u;
+}
 
 void DHT11_UserConfig(void)
 {
@@ -36,90 +46,48 @@ void DHT11_Sends_Start(void)
 	Delay_us(40);	//40us
 }
 
-void DHT11_Sends_Response(void)
+static u8 DHT11_Sends_Response(void)
 {
 	DHT11_Mode(INT);
-	
-	while(GPIO_ReadInputDataBit(DHT11_PROT,DHT11) == 0 && (Time < 100))	//Low 80us
-	{
-		Time++;
-		Delay_us(1);	//100us DHT11=0 80us
-	}
-	Time = 0;
-	
-	while(GPIO_ReadInputDataBit(DHT11_PROT,DHT11) == 1 && (Time < 100))	//High 80us
-	{
-		Time++;
-		Delay_us(1);	//100us DHT11=0 80us
-	}	
-	Time = 0;
+	if (!DHT11_WaitWhile(0u)) return 0u; // 80 us low response
+	return DHT11_WaitWhile(1u);           // 80 us high response
 }
 
-u8 DHT11_Read_Byte(void)
+static u8 DHT11_Read_Byte(u8 *value)
 {
 	u8 data = 0;
-	
-	for(u8 i = 0; i < 8; i++)
+	u8 i;
+	for(i = 0; i < 8u; i++)
 	{
-		DHT11_Mode(INT);
-		
-		while(GPIO_ReadInputDataBit(DHT11_PROT,DHT11) == 0 && (Time < 100))	
-		{
-			Time++;
-			Delay_us(1);	//100us DHT11=0 80us
-		}	
-		Time = 0;
-		
+		if (!DHT11_WaitWhile(0u)) return 0u;
 		data <<= 1;
-	
-		Delay_us(40);	//get hight 70us
-		
+		Delay_us(40); // The high pulse is about 26 us for 0, 70 us for 1.
 		if(GPIO_ReadInputDataBit(DHT11_PROT, DHT11) == 1)
 		{
 			data |= 0x01;
-		
 		}
-		
-		while(GPIO_ReadInputDataBit(DHT11_PROT,DHT11) == 1 && (Time < 100))	
-		{
-			Time++;
-			Delay_us(1);	//100us DHT11=0 80us
-		}	
-		Time = 0;
+		if (!DHT11_WaitWhile(1u)) return 0u;
 	}
-	return data;
+	*value = data;
+	return 1u;
 }
 
-void DHT11_Read_Data(u8 *humi, u8 *temp)
+u8 DHT11_Read_Data(u8 *humi, u8 *temp)
 {
-	u8 DATA[5] = {0,0,0,0,0,};
-	
+	u8 DATA[5] = {0,0,0,0,0};
+	u8 i;
 	DHT11_Sends_Start();
-	DHT11_Sends_Response();
-	
-	for(u8 i = 0; i < 5; i++)
+	if (!DHT11_Sends_Response()) return DHT11_READ_TIMEOUT;
+	for(i = 0; i < 5u; i++)
 	{
-		DATA[i] = DHT11_Read_Byte();
+		if (!DHT11_Read_Byte(&DATA[i])) return DHT11_READ_TIMEOUT;
 	}
-	Delay_ms(1);	//1ms 50us
-	
-	if(DATA[0] + DATA[1] + DATA[2] + DATA[3] == DATA[4])
+	if ((u8)(DATA[0] + DATA[1] + DATA[2] + DATA[3]) != DATA[4] ||
+	    DATA[0] >= 100u || DATA[2] >= 100u)
 	{
-        if(DATA[0]<100)
-        {
-            *humi = DATA[0]; 
-        }
-        if(DATA[2]<100)
-        {
-            *temp = DATA[2];
-        }
+		return DHT11_READ_CHECKSUM;
 	}
-	else
-	{
-		for(u8 i = 0; i < 5; i++)
-		{
-			DATA[i] = 0;
-		}
-	
-	}
+	*humi = DATA[0];
+	*temp = DATA[2];
+	return DHT11_READ_OK;
 }

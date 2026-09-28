@@ -14,6 +14,10 @@
 #define DHT11_High GPIO_SetBits(DHT11_PROT,DHT11)
 
 void DHT11_UserConfig(void);
-void DHT11_Read_Data(u8 *humi, u8 *temp);
+#define DHT11_READ_OK       0u
+#define DHT11_READ_TIMEOUT  1u
+#define DHT11_READ_CHECKSUM 2u
+
+u8 DHT11_Read_Data(u8 *humi, u8 *temp);
 
 #endif
