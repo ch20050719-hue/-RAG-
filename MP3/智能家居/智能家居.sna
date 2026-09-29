@@ -1,0 +1,279 @@
+{
+  "version": "1.0",
+  "project_info": {
+    "name": "智能家居",
+    "chip_model": "SNR9902VR",
+    "recognition_language": "中文",
+    "acoustic_model": "CN-1.3-V00969",
+    "board_level": "SNR99x_ASR-DVB",
+    "created_at": "2026-09-28T07:26:33.559Z",
+    "last_modified": "2026-09-29T15:16:34.951Z"
+  },
+  "wake_words": [
+    {
+      "id": "wake_001",
+      "text": "智能管家",
+      "confidence": 58,
+      "order": 0
+    },
+    {
+      "id": "wake_002",
+      "text": "小梦你好",
+      "confidence": 58,
+      "order": 1
+    }
+  ],
+  "wake_replies": [
+    {
+      "id": "reply_001",
+      "text": "你好，我是智能管家",
+      "audioSource": "tts",
+      "customAudioId": null,
+      "volume": 80,
+      "speed": "正常",
+      "order": 0
+    },
+    {
+      "id": "reply_002",
+      "text": "有什么可以帮助您的吗？",
+      "audioSource": "tts",
+      "customAudioId": null,
+      "volume": 80,
+      "speed": "正常",
+      "order": 1
+    }
+  ],
+  "command_words": [
+    {
+      "id": "cmd_003",
+      "text": "打开灯光|开灯",
+      "confidence": 58,
+      "reply": "灯已打开",
+      "audioSource": "tts",
+      "customAudioId": null,
+      "order": 0
+    },
+    {
+      "id": "cmd_004",
+      "text": "关闭灯光|关灯",
+      "confidence": 58,
+      "reply": "关闭灯光|关灯",
+      "audioSource": "tts",
+      "customAudioId": null,
+      "order": 1
+    },
+    {
+      "id": "cmd_005",
+      "text": "开风扇|打开风扇",
+      "confidence": 30,
+      "reply": "风扇已开启",
+      "audioSource": "tts",
+      "customAudioId": null,
+      "order": 2
+    },
+    {
+      "id": "cmd_006",
+      "text": "关风扇|关 风扇",
+      "confidence": 69,
+      "reply": "风扇已关闭",
+      "audioSource": "tts",
+      "customAudioId": null,
+      "order": 3
+    },
+    {
+      "id": "cmd_007",
+      "text": "开窗户|打开窗户",
+      "confidence": 30,
+      "reply": "窗户已打开",
+      "audioSource": "tts",
+      "customAudioId": null,
+      "order": 4
+    },
+    {
+      "id": "cmd_008",
+      "text": "关窗户|关上窗户",
+      "confidence": 69,
+      "reply": "窗户已关闭",
+      "audioSource": "tts",
+      "customAudioId": null,
+      "order": 5
+    },
+    {
+      "id": "cmd_009",
+      "text": "手动模式",
+      "confidence": 58,
+      "reply": "已切换手动模式",
+      "audioSource": "tts",
+      "customAudioId": null,
+      "order": 6
+    },
+    {
+      "id": "cmd_010",
+      "text": "自动模式",
+      "confidence": 58,
+      "reply": "已切换自动模式",
+      "audioSource": "tts",
+      "customAudioId": null,
+      "order": 7
+    },
+    {
+      "id": "cmd_011",
+      "text": "离家模式",
+      "confidence": 58,
+      "reply": "已切换离家模式",
+      "audioSource": "tts",
+      "customAudioId": null,
+      "order": 8
+    },
+    {
+      "id": "cmd_012",
+      "text": "睡眠模式",
+      "confidence": 58,
+      "reply": "已切换睡眠模式",
+      "audioSource": "tts",
+      "customAudioId": null,
+      "order": 9
+    },
+    {
+      "id": "cmd_013",
+      "text": "开门|请进",
+      "confidence": 70,
+      "reply": "门已开",
+      "audioSource": "tts",
+      "customAudioId": null,
+      "order": 10
+    },
+    {
+      "id": "cmd_014",
+      "text": "关上门|把门带上",
+      "confidence": 70,
+      "reply": "门已关",
+      "audioSource": "tts",
+      "customAudioId": null,
+      "order": 11
+    }
+  ],
+  "settings": {
+    "voice_settings": {
+      "selected_voice": "xiaoying-gentle",
+      "system_volume": 20,
+      "synthesis_volume": 20,
+      "synthesis_speed": 13
+    },
+    "timeout_settings": {
+      "timeout_seconds": 8,
+      "timeout_voices": [
+        {
+          "text": "我先退下了",
+          "audioSource": "tts",
+          "customAudioId": null
+        },
+        {
+          "text": "再见",
+          "audioSource": "tts",
+          "customAudioId": null
+        },
+        {
+          "text": "拜拜",
+          "audioSource": "tts",
+          "customAudioId": null
+        }
+      ]
+    },
+    "startup_prompt": {
+      "enabled": true,
+      "text": "欢迎回家，我会在这温馨的港湾等待您的归来",
+      "audioSource": "tts",
+      "customAudioId": null
+    },
+    "config_switches": {
+      "steady_noise_reduction": true,
+      "aec_noise_reduction": false,
+      "command_learning": false,
+      "production_optimization": false,
+      "vol_power_off_memory": false,
+      "dual_mic_ssl": false
+    }
+  },
+  "pin_config": [
+    {
+      "gpio": "PA0",
+      "function": "GPIO_PA0",
+      "param1": "关闭端口",
+      "param2": "",
+      "param3": ""
+    },
+    {
+      "gpio": "PA1",
+      "function": "GPIO_PA1",
+      "param1": "关闭端口",
+      "param2": "",
+      "param3": ""
+    },
+    {
+      "gpio": "PA2",
+      "function": "GPIO_PA2",
+      "param1": "关闭端口",
+      "param2": "",
+      "param3": ""
+    },
+    {
+      "gpio": "PA3",
+      "function": "GPIO_PA3",
+      "param1": "关闭端口",
+      "param2": "",
+      "param3": ""
+    },
+    {
+      "gpio": "PA5",
+      "function": "GPIO_PA5",
+      "param1": "关闭端口",
+      "param2": "",
+      "param3": ""
+    },
+    {
+      "gpio": "PA4",
+      "function": "GPIO_PA4",
+      "param1": "关闭端口",
+      "param2": "",
+      "param3": ""
+    },
+    {
+      "gpio": "PA6",
+      "function": "GPIO_PA6",
+      "param1": "关闭端口",
+      "param2": "",
+      "param3": ""
+    },
+    {
+      "gpio": "PC4",
+      "function": "GPIO_PC4",
+      "param1": "关闭端口",
+      "param2": "",
+      "param3": ""
+    }
+  ],
+  "serial_broadcasts": [
+    {
+      "id": "broadcast_001",
+      "reply": "我在的",
+      "audioSource": "tts",
+      "customAudioId": "",
+      "order": 0
+    },
+    {
+      "id": "broadcast_002",
+      "reply": "你好",
+      "audioSource": "tts",
+      "customAudioId": "",
+      "order": 1
+    }
+  ],
+  "uart_config": {
+    "port": "UART0",
+    "baudrate": "9600",
+    "header": "0xF4 0x06",
+    "trailer": "0xFB"
+  },
+  "custom_audios": []
+}
