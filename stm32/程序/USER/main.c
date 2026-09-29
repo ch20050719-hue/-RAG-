@@ -289,22 +289,16 @@ int main(void)
 		}
 		
 		/*�жϵ��������־λ�Ƿ�Ϊ1*/
-		if(Curtain_ON_Flag == 1 && CurtainFlag == 0)
+		if (Curtain_OFF_Flag == 1u)
 		{
-			CurtainFlag = 1;
-			MOTOR_Direction_Angle(1, 0, 180, 1);   //˳ʱ������ת 180��
-			MOTOR_STOP();   //���ֹͣ
+			MOTOR_RequestWindow(0u);
 		}
-		Curtain_ON_Flag = 0;
-
-		/*�жϵ���رձ�־λ�Ƿ�Ϊ1*/
-		if(Curtain_OFF_Flag == 1 && CurtainFlag == 1)
+		else if (Curtain_ON_Flag == 1u)
 		{
-			CurtainFlag = 0;
-			MOTOR_Direction_Angle(0, 0, 180, 1);   //��ʱ������ת 180��
-			MOTOR_STOP();   //���ֹͣ
+			MOTOR_RequestWindow(1u);
 		}
-		Curtain_OFF_Flag = 0; 
+		Curtain_ON_Flag = 0u;
+		Curtain_OFF_Flag = 0u;
 
 		userHandle();
 		gizwitsHandle((dataPoint_t *)&currentDataPoint);

@@ -1,6 +1,7 @@
 #include "tim3.h"
 #include "gizwits_product.h"
 #include "MG90S.h"
+#include "motor.h"
 volatile uint32_t g_tim3_heartbeat = 0u;
   
 static void GENERAL_TIM_NVIC_Config(void)
@@ -59,6 +60,7 @@ void TIM3_IRQHandler(void)
 				TIM_ClearITPendingBit(TIM3 , TIM_FLAG_Update);  	
 				gizTimerMs();
                 MG90S_Tick1ms();
+                MOTOR_Tick1ms();
                 g_tim3_heartbeat++;
 		}		 	
 }

@@ -268,19 +268,8 @@ void TIM1_UP_IRQHandler(void)	//2ms��ʱ�ж�
 
 void HomeControl_Process(uint8_t pause_auto)
 {
-uint8_t has_command = 0u;
 uint8_t command = 0u;
-uint32_t primask = __get_PRIMASK();
-__disable_irq();
-if (new_cmd == 1u)  // ����յ�������
-{
-    command = cmd_value;
-    new_cmd = 0u;
-    has_command = 1u;  // �����־
-    
-    // ��������ִֵ�в���
-}
-__set_PRIMASK(primask);
+uint8_t has_command = USART1_TakeCommand(&command);
     if (has_command)
     {
     if (command >= 0x01u && command <= MG90S_CMD_CLOSE)

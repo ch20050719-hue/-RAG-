@@ -1,7 +1,10 @@
 #include "motor.h"
+#include "window_motion.h"
 
 u8 FLAG = 0;
 u8 CurtainFlag;
+static volatile WindowMotionState window_motion = {0u, 0u};
+static u8 window_output_active = 0u;
 	
 void MOTOR_UserConfig(void)
 {
@@ -16,6 +19,10 @@ void MOTOR_UserConfig(void)
 	GPIO_Init(MOTOR_PROT,&GPIO_InitStructure);
 	
 	GPIO_ResetBits(GPIOA, MOTOR_A|MOTOR_B|MOTOR_C|MOTOR_D);
+	window_motion.position = 0u;
+	window_motion.target = 0u;
+	window_output_active = 0u;
+	CurtainFlag = 0u;
 }
 
 void MOTOR_Rhythm_4_1_4(u8 step,u8 dly)
@@ -74,7 +81,7 @@ void MOTOR_Rhythm_4_2_4(u8 step,u8 dly)
 	Delay_ms(dly);
 }
 
-void MOTOR_Rhythm_4_1_8(u8 step,u8 dly)
+static void MOTOR_ApplyPhase8(u8 step)
 {
 	switch(step)
 	{
@@ -115,6 +122,11 @@ void MOTOR_Rhythm_4_1_8(u8 step,u8 dly)
 		break;			
 	}
 	
+}
+
+void MOTOR_Rhythm_4_1_8(u8 step,u8 dly)
+{
+	MOTOR_ApplyPhase8(step);
 	Delay_ms(dly);
 }
 
@@ -163,3 +175,28 @@ void MOTOR_STOP(void)
 	GPIO_ResetBits(GPIOA, MOTOR_A|MOTOR_B|MOTOR_C|MOTOR_D);
 }
 
+
+/* CurtainFlag records the commanded target; position is only a step estimate. */
+void MOTOR_RequestWindow(u8 open)
+{
+    uint32_t primask;
+    if (open > 1u) return;
+    primask = __get_PRIMASK();
+    __disable_irq();
+    window_motion = WindowMotion_Request(window_motion, open);
+    CurtainFlag = open;
+    __set_PRIMASK(primask);
+}
+
+void MOTOR_Tick1ms(void)
+{
+    WindowMotionTick tick = WindowMotion_Next(window_motion);
+    window_motion = tick.state;
+    if (tick.phase != 0u) {
+        MOTOR_ApplyPhase8(tick.phase);
+        window_output_active = 1u;
+    } else if (window_output_active) {
+        MOTOR_STOP();
+        window_output_active = 0u;
+    }
+}

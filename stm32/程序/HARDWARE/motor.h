@@ -30,5 +30,7 @@ void MOTOR_Rhythm_4_1_4(u8 step,u8 dly);
 void MOTOR_Direction(u8 dir,u8 num,u8 dly);
 void MOTOR_Direction_Angle(u8 dir,u8 num,u16 angle,u8 dly);
 void MOTOR_STOP(void);
+void MOTOR_RequestWindow(u8 open);
+void MOTOR_Tick1ms(void);
 
 #endif

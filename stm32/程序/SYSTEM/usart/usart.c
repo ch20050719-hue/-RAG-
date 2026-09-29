@@ -1,15 +1,14 @@
 #include "sys.h"
-#include "usart.h"	
+#include "usart.h"
+#include "voice_command.h"
+#include "TIM3.h"
 #include "gizwits_product.h" 
 #include <stdio.h>
 
 
 
 // 定义几个变量来存数据
-uint8_t voice_data[50];  // 存4个字节：F4 06 命令 FB
-uint8_t data_count = 0; // 记录收到了第几个数据
-volatile uint8_t new_cmd = 0;    // 收到新命令的标志
-volatile uint8_t cmd_value = 0;  // 命令值
+static volatile VoiceCommandState voice_commands = {0};
 
 
 
@@ -131,97 +130,25 @@ void uart2_init(u32 bound){
 
 }
 ////串口中断
-//void USART1_IRQHandler(void)
-//{
-//    if(USART_GetITStatus(USART1, USART_IT_RXNE) != RESET)
-//    {
-//        // 1. 读取当前收到的这一个字节
-//        uint8_t one_byte = USART_ReceiveData(USART1);
-//        
-//        // 2. 安全写入：防止数组越界
-//        if(data_count < 4)  // 增加边界检查
-//        {
-//            voice_data[data_count] = one_byte;
-//            data_count++;
-//        }
-//        else
-//        {
-//            // 如果data_count异常，强制重置
-//            data_count = 0;
-//        }
-//        
-//        // 3. 如果收齐了4个字节
-//        if(data_count >= 4)
-//        {
-//            // 检查格式是否正确：F4开头，FB结尾
-//            if(voice_data[0] == 0xF4 && voice_data[3] == 0xFB)
-//            {
-//                cmd_value = voice_data[2];  // 第3个字节是命令
-//                new_cmd = 1;  // 设置新命令标志
-//            }
-//            
-//            // 重置计数，准备接收下一组数据
-//            data_count = 0;
-//            
-//            // 可选：清除缓冲区，防止残留数据干扰
-//            memset(voice_data, 0, sizeof(voice_data));
-//        }
-//        
-//        // 清除中断标志
-//        USART_ClearITPendingBit(USART1, USART_IT_RXNE);
-//    }
-//}
-// 改进的串口中断处理
 void USART1_IRQHandler(void)
 {
-    static uint8_t sync_state = 0;  // 同步状态：0=寻找帧头，1=接收数据
-    
-    if(USART_GetITStatus(USART1, USART_IT_RXNE) != RESET)
+    if (USART_GetITStatus(USART1, USART_IT_RXNE) != RESET)
     {
-        uint8_t one_byte = USART_ReceiveData(USART1);
-        
-        switch(sync_state)
-        {
-            case 0:  // 寻找帧头状态
-                if(one_byte == 0xF4)  // 找到帧头
-                {
-                    voice_data[0] = one_byte;
-                    data_count = 1;
-                    sync_state = 1;  // 切换到接收数据状态
-                }
-                // 不是0xF4就丢弃，继续寻找
-                break;
-                
-            case 1:  // 接收数据状态
-                if(data_count < 4)
-                {
-                    voice_data[data_count] = one_byte;
-                    data_count++;
-                }
-                
-                if(data_count >= 4)
-                {
-                    // 检查帧尾是否正确
-                    if(voice_data[3] == 0xFB)
-                    {
-                        cmd_value = voice_data[2];  // 有效命令
-                        new_cmd = 1;
-                    }
-                    
-                    // 无论帧尾是否正确，都重置状态
-                    data_count = 0;
-                    sync_state = 0;  // 返回寻找帧头状态
-                    
-                    // 可选：清空缓冲区
-                    memset(voice_data, 0, 4);
-                }
-                break;
-        }
-        
-        // 清除中断标志
-        USART_ClearITPendingBit(USART1, USART_IT_RXNE);
+        uint8_t byte = (uint8_t)USART_ReceiveData(USART1);
+        VoiceCommand_ReceiveByte(&voice_commands, byte, g_tim3_heartbeat);
     }
 }
+
+uint8_t USART1_TakeCommand(uint8_t *command)
+{
+    uint8_t found;
+    uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    found = VoiceCommand_Take(&voice_commands, g_tim3_heartbeat, command);
+    __set_PRIMASK(primask);
+    return found;
+}
+
 void USART2_IRQHandler(void)                	//串口2中断服务程序
 {
 		u8 Res;

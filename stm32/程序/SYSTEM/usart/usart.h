@@ -11,8 +11,7 @@ extern u16 USART_RX_STA;
        		//接收状态标记	
 //如果想串口中断接收，请不要注释以下宏定义
 
- extern   volatile uint8_t new_cmd ;    // 收到新命令的标志
- extern   volatile uint8_t cmd_value ;  // 命令值
+uint8_t USART1_TakeCommand(uint8_t *command);
 void uart1_init(u32 bound);
 void uart2_init(u32 bound);
 #endif

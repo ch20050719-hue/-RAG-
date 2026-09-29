@@ -421,6 +421,11 @@
               <FilePath>..\HARDWARE\motor.c</FilePath>
             </File>
             <File>
+              <FileName>window_motion.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\HARDWARE\window_motion.c</FilePath>
+            </File>
+            <File>
               <FileName>Buzzer.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\HARDWARE\Buzzer.c</FilePath>
@@ -474,6 +479,11 @@
               <FileName>usart.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\SYSTEM\usart\usart.c</FilePath>
+            </File>
+            <File>
+              <FileName>voice_command.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\SYSTEM\usart\voice_command.c</FilePath>
             </File>
             <File>
               <FileName>sys.c</FileName>
