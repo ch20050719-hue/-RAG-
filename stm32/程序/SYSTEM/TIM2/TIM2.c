@@ -4,6 +4,7 @@
 #include "usb.h"
 #include "motor.h"
 #include "usart.h"
+#include "auto_control_logic.h"
 #include "MG90S.h"	
 
 uint8_t modeee=0;
@@ -13,18 +14,7 @@ extern    u8 Curtain_ON_Flag;
 static uint8_t last_mode = 0;
 static uint8_t first_switch_to_manual = 0;
 static volatile uint8_t current_home_scene = HOME_SCENE_NORMAL;
-static volatile uint8_t provision_request = 0u;
-
-uint8_t Provision_TakeRequest(void)
-{
-    uint8_t requested;
-    uint32_t primask = __get_PRIMASK();
-    __disable_irq();
-    requested = provision_request;
-    provision_request = 0u;
-    __set_PRIMASK(primask);
-    return requested;
-}
+static AutoControlState auto_control_state = {0u, 0u, 0u, 0u};
 
 void HomeScene_Apply(uint8_t scene)
 {
@@ -95,17 +85,6 @@ void TIM1_UP_IRQHandler(void)	//2ms��ʱ�ж�
 	if (TIM_GetITStatus(TIM1, TIM_IT_Update) != RESET ) 
 	{
 		Key_scan();
-		if (KeyNum == 44u && Menu == 1u)
-		{
-			KeyNum = 0u;
-			provision_request = 1u;
-		}
-
-		if(KeyNum == 1 && Menu == 1)
-		{
-			KeyNum = 0;
-			Menu = 2;
-		}
 //        timer2_counter++;  // 2ms��������1
 //        if(timer2_counter >= 500)
 //        {
@@ -338,18 +317,33 @@ if(modeee) // �Զ�ģʽ mode == 1
     last_mode = 1;
     first_switch_to_manual = 1; // ���ñ�־��Ϊ�´��л���׼��
     // 2. ��ʼ�����豸���Ʊ�־
-    uint8_t temp_alert = 0;
-    uint8_t humi_alert = 0;
-    uint8_t smoke_alert = 0;
+    uint8_t temp_alert;
+    uint8_t humi_alert;
+    uint8_t smoke_alert;
+    AutoControlInputs input;
+    input.temperature = Temp;
+    input.humidity = Humi;
+    input.light = Lux;
+    input.smoke = Smoke;
+    input.temperature_threshold = Temp_value;
+    input.humidity_threshold = Humi_value;
+    input.light_threshold = Lux_value;
+    input.smoke_threshold = Smoke_value;
+    input.dht_valid = DHT11_DataValid;
+    input.adc_valid = ADC_DataValid;
+    auto_control_state = AutoControl_Evaluate(auto_control_state, input);
+    temp_alert = DHT11_DataValid && auto_control_state.temperature;
+    humi_alert = DHT11_DataValid && auto_control_state.humidity;
+    smoke_alert = ADC_DataValid && auto_control_state.smoke;
     
     // 3. �¶ȼ�������
-    if(DHT11_DataValid && Temp_value < Temp)
+    if(temp_alert)
     {
         temp_alert = 1;
     }
     
     // 4. ʪ�ȼ�������
-    if(DHT11_DataValid && Humi_value < Humi)
+    if(humi_alert)
     {
         humi_alert = 1;
         if(!CurtainFlag)  // �����ر�ʱ��
@@ -366,7 +360,7 @@ if(modeee) // �Զ�ģʽ mode == 1
     }
     
     // 5. ����Ũ�ȼ������ƣ��޸ģ��Ƴ��������ƣ�
-    if(ADC_DataValid && Smoke > Smoke_value)  // ����Ũ�ȸ�����ֵ
+    if(smoke_alert)  // ����Ũ�ȸ�����ֵ
     {
         smoke_alert = 1;
         
@@ -416,7 +410,7 @@ if(modeee) // �Զ�ģʽ mode == 1
     }
     
     // 7. �ƹ���ƣ������ڱ���ϵͳ��
-    if(ADC_DataValid && Lux < Lux_value)
+    if(ADC_DataValid && auto_control_state.light)
     {
         USB_ON(1);  // �򿪵ƹ�
     }
@@ -427,6 +421,9 @@ if(modeee) // �Զ�ģʽ mode == 1
 }
 else // �ֶ�ģʽ
 {
+    /* Manual mode starts the next automatic session without stale latches. */
+    const AutoControlState clear_state = {0u, 0u, 0u, 0u};
+    auto_control_state = clear_state;
     // ����Ƿ�մ��Զ�ģʽ�л��������״��л���
     if(last_mode == 1 && first_switch_to_manual) 
     {

@@ -16,9 +16,15 @@
 #include "ringBuffer.h"
 #include "gizwits_product.h"
 #include "dataPointTools.h"
+#include "gizwits_credentials.h"
 
 /** Protocol global variables **/
 gizwitsProtocol_t gizwitsProtocol;
+static uint32_t lastSensorReportTime;
+static uint32_t lastPeriodicReportTime;
+static uint8_t reportRetryPending;
+static uint8_t reportPaused;
+static uint32_t lastReportFailureTime;
 
 /**@name The serial port receives the ring buffer implementation
 * @{
@@ -118,7 +124,7 @@ uint32_t ICACHE_FLASH_ATTR calculateDynamicBitPartLen(dataPointFlags_t *aFlag)
     /* Processing only writable bool Enum type data */
     if(0x01 == aFlag->flagLight)
     {
-        bitFieldBitLen += Fan_LEN;
+        bitFieldBitLen += Light_LEN;
     }
     if(0x01 == aFlag->flagFan)
     {
@@ -126,11 +132,19 @@ uint32_t ICACHE_FLASH_ATTR calculateDynamicBitPartLen(dataPointFlags_t *aFlag)
     }
     if(0x01 == aFlag->flagCurtain)
     {
-        bitFieldBitLen += Fan_LEN;
+        bitFieldBitLen += Curtain_LEN;
     }
     if(0x01 == aFlag->flagSystem_Mode)
     {
-        bitFieldBitLen += Fan_LEN;
+        bitFieldBitLen += System_Mode_LEN;
+    }
+    if(0x01 == aFlag->flagDoor_Target)
+    {
+        bitFieldBitLen += Door_Target_LEN;
+    }
+    if(0x01 == aFlag->flagHome_Scene)
+    {
+        bitFieldBitLen += Home_Scene_LEN;
     }
 
     if(0 == bitFieldBitLen)
@@ -220,6 +234,20 @@ static int8_t ICACHE_FLASH_ATTR gizDataPoint2Event(uint8_t *issuedData, uint32_t
         dataPoints->valueSystem_Mode = gizVarlenDecompressionValue(bitFieldOffset,System_Mode_LEN,(uint8_t *)&issuedData[DATAPOINT_FLAG_LEN],bitFieldByteLen);
         bitFieldOffset += System_Mode_LEN;
     }
+    if(0x01 == elongateP0FormTmp.devDatapointFlag.flagDoor_Target)
+    {
+        info->event[info->num] = EVENT_Door_Target;
+        info->num++;
+        dataPoints->valueDoor_Target = gizVarlenDecompressionValue(bitFieldOffset,Door_Target_LEN,(uint8_t *)&issuedData[DATAPOINT_FLAG_LEN],bitFieldByteLen);
+        bitFieldOffset += Door_Target_LEN;
+    }
+    if(0x01 == elongateP0FormTmp.devDatapointFlag.flagHome_Scene)
+    {
+        info->event[info->num] = EVENT_Home_Scene;
+        info->num++;
+        dataPoints->valueHome_Scene = gizVarlenDecompressionValue(bitFieldOffset,Home_Scene_LEN,(uint8_t *)&issuedData[DATAPOINT_FLAG_LEN],bitFieldByteLen);
+        bitFieldOffset += Home_Scene_LEN;
+    }
 
 
     if(0x01 == elongateP0FormTmp.devDatapointFlag.flagset_temp)
@@ -273,7 +301,6 @@ static int8_t ICACHE_FLASH_ATTR gizDataPoint2Event(uint8_t *issuedData, uint32_t
 static int8_t ICACHE_FLASH_ATTR gizCheckReport(dataPoint_t *cur, dataPoint_t *last)
 {
     int8_t ret = 0;
-    static uint32_t lastReportTime = 0;
     uint32_t currentTime = 0;
 
     if((NULL == cur) || (NULL == last))
@@ -312,6 +339,18 @@ static int8_t ICACHE_FLASH_ATTR gizCheckReport(dataPoint_t *cur, dataPoint_t *la
         gizwitsProtocol.waitReportDatapointFlag.flagSystem_Mode = 1;
         ret = 1;
     }
+    if(last->valueDoor_Target != cur->valueDoor_Target)
+    {
+        GIZWITS_LOG("valueDoor_Target Changed\n");
+        gizwitsProtocol.waitReportDatapointFlag.flagDoor_Target = 1;
+        ret = 1;
+    }
+    if(last->valueHome_Scene != cur->valueHome_Scene)
+    {
+        GIZWITS_LOG("valueHome_Scene Changed\n");
+        gizwitsProtocol.waitReportDatapointFlag.flagHome_Scene = 1;
+        ret = 1;
+    }
     if(last->valueset_temp != cur->valueset_temp)
     {
         GIZWITS_LOG("valueset_temp Changed\n");
@@ -339,7 +378,7 @@ static int8_t ICACHE_FLASH_ATTR gizCheckReport(dataPoint_t *cur, dataPoint_t *la
 
     if(last->valuetemp != cur->valuetemp)
     {
-        if(currentTime - lastReportTime >= REPORT_TIME_MAX)
+        if(currentTime - lastSensorReportTime >= REPORT_TIME_MAX)
         {
             GIZWITS_LOG("valuetemp Changed\n");
             gizwitsProtocol.waitReportDatapointFlag.flagtemp = 1;
@@ -348,7 +387,7 @@ static int8_t ICACHE_FLASH_ATTR gizCheckReport(dataPoint_t *cur, dataPoint_t *la
     }
     if(last->valuehumi != cur->valuehumi)
     {
-        if(currentTime - lastReportTime >= REPORT_TIME_MAX)
+        if(currentTime - lastSensorReportTime >= REPORT_TIME_MAX)
         {
             GIZWITS_LOG("valuehumi Changed\n");
             gizwitsProtocol.waitReportDatapointFlag.flaghumi = 1;
@@ -357,7 +396,7 @@ static int8_t ICACHE_FLASH_ATTR gizCheckReport(dataPoint_t *cur, dataPoint_t *la
     }
     if(last->valueLight_intensity != cur->valueLight_intensity)
     {
-        if(currentTime - lastReportTime >= REPORT_TIME_MAX)
+        if(currentTime - lastSensorReportTime >= REPORT_TIME_MAX)
         {
             GIZWITS_LOG("valueLight_intensity Changed\n");
             gizwitsProtocol.waitReportDatapointFlag.flagLight_intensity = 1;
@@ -366,17 +405,12 @@ static int8_t ICACHE_FLASH_ATTR gizCheckReport(dataPoint_t *cur, dataPoint_t *la
     }
     if(last->valueSmmmoke != cur->valueSmmmoke)
     {
-        if(currentTime - lastReportTime >= REPORT_TIME_MAX)
+        if(currentTime - lastSensorReportTime >= REPORT_TIME_MAX)
         {
             GIZWITS_LOG("valueSmmmoke Changed\n");
             gizwitsProtocol.waitReportDatapointFlag.flagSmmmoke = 1;
             ret = 1;
         }
-    }
-
-    if(1 == ret)
-    {
-        lastReportTime = gizGetTimerCount();
     }
 
     return ret;
@@ -453,6 +487,26 @@ static int8_t ICACHE_FLASH_ATTR gizDataPoints2ReportData(dataPoint_t *dataPoints
                 gizVarlenCompressValue(bitFieldOffset,System_Mode_LEN,(uint8_t *)&allDatapointByteBuf[byteFieldOffset],dataPoints->valueSystem_Mode);
                 bitFieldOffset += System_Mode_LEN;
         }
+    }
+    if(gizwitsProtocol.waitReportDatapointFlag.flagDoor_Target)
+    {
+        if(dataPoints->valueDoor_Target >= Door_Target_VALUE_MAX)
+        {
+            GIZWITS_LOG("[ERROR] valueDoor_Target Error , Illegal Overstep\n");
+            return -1;
+        }
+        gizVarlenCompressValue(bitFieldOffset,Door_Target_LEN,(uint8_t *)&allDatapointByteBuf[byteFieldOffset],dataPoints->valueDoor_Target);
+        bitFieldOffset += Door_Target_LEN;
+    }
+    if(gizwitsProtocol.waitReportDatapointFlag.flagHome_Scene)
+    {
+        if(dataPoints->valueHome_Scene >= Home_Scene_VALUE_MAX)
+        {
+            GIZWITS_LOG("[ERROR] valueHome_Scene Error , Illegal Overstep\n");
+            return -1;
+        }
+        gizVarlenCompressValue(bitFieldOffset,Home_Scene_LEN,(uint8_t *)&allDatapointByteBuf[byteFieldOffset],dataPoints->valueHome_Scene);
+        bitFieldOffset += Home_Scene_LEN;
     }
 
     /* The bit segment is assembled and the offset of the value segment is calculated */
@@ -720,7 +774,7 @@ static int32_t gizReportData(uint8_t action, uint8_t *gizdata, uint32_t len)
     tx_buf[data_len + 4 - 1 ] = gizProtocolSum( tx_buf , (data_len+4));
     
     ret = uartWrite(tx_buf, data_len+4);
-    if(ret < 0)
+    if(ret != (int32_t)(data_len + 4))
     {
         GIZWITS_LOG("ERR: uart write error %d \n", ret);
         return -2;
@@ -739,33 +793,65 @@ static int32_t gizReportData(uint8_t action, uint8_t *gizdata, uint32_t len)
 *@param [in] currentData       : Current datapoints value
 * @return : NULL
 */
+/* Advance only fields actually serialized and accepted by uartWrite. */
+static void gizCommitReportedData(const dataPoint_t *current,
+                                  const dataPointFlags_t *sent)
+{
+    if(sent->flagLight) gizwitsProtocol.gizLastDataPoint.valueLight = current->valueLight;
+    if(sent->flagFan) gizwitsProtocol.gizLastDataPoint.valueFan = current->valueFan;
+    if(sent->flagCurtain) gizwitsProtocol.gizLastDataPoint.valueCurtain = current->valueCurtain;
+    if(sent->flagSystem_Status) gizwitsProtocol.gizLastDataPoint.valueSystem_Status = current->valueSystem_Status;
+    if(sent->flagSystem_Mode) gizwitsProtocol.gizLastDataPoint.valueSystem_Mode = current->valueSystem_Mode;
+    if(sent->flagDoor_Target) gizwitsProtocol.gizLastDataPoint.valueDoor_Target = current->valueDoor_Target;
+    if(sent->flagHome_Scene) gizwitsProtocol.gizLastDataPoint.valueHome_Scene = current->valueHome_Scene;
+    if(sent->flagset_temp) gizwitsProtocol.gizLastDataPoint.valueset_temp = current->valueset_temp;
+    if(sent->flagset_humi) gizwitsProtocol.gizLastDataPoint.valueset_humi = current->valueset_humi;
+    if(sent->flagset_light) gizwitsProtocol.gizLastDataPoint.valueset_light = current->valueset_light;
+    if(sent->flagSmoke_Threshold) gizwitsProtocol.gizLastDataPoint.valueSmoke_Threshold = current->valueSmoke_Threshold;
+    if(sent->flagtemp) gizwitsProtocol.gizLastDataPoint.valuetemp = current->valuetemp;
+    if(sent->flaghumi) gizwitsProtocol.gizLastDataPoint.valuehumi = current->valuehumi;
+    if(sent->flagLight_intensity) gizwitsProtocol.gizLastDataPoint.valueLight_intensity = current->valueLight_intensity;
+    if(sent->flagSmmmoke) gizwitsProtocol.gizLastDataPoint.valueSmmmoke = current->valueSmmmoke;
+    if(sent->flagtemp || sent->flaghumi || sent->flagLight_intensity || sent->flagSmmmoke)
+        lastSensorReportTime = gizGetTimerCount();
+}
+
 static void gizDevReportPolicy(dataPoint_t *currentData)
 {
-    static uint32_t lastRepTime = 0;
     uint32_t timeNow = gizGetTimerCount();
-    uint8_t *waitReportDataPtr = NULL;
+    uint8_t periodicDue = (uint32_t)(timeNow - lastPeriodicReportTime) >= 600000u;
+    uint8_t retryDue = reportRetryPending &&
+        (uint32_t)(timeNow - lastReportFailureTime) >= REPORT_TIME_MAX;
+    uint8_t fullDue = periodicDue || retryDue;
+    int8_t changed;
+    dataPointFlags_t sentFlags;
 
-    if((1 == gizCheckReport(currentData, (dataPoint_t *)&gizwitsProtocol.gizLastDataPoint)))
+    /* The SDK has one retransmission slot. Keep its packet until ACK/timeout. */
+    if(NULL == currentData || gizwitsProtocol.waitAck.flag || reportPaused)
+        return;
+
+    memset(&gizwitsProtocol.waitReportDatapointFlag, 0, DATAPOINT_FLAG_LEN);
+    changed = gizCheckReport(currentData, &gizwitsProtocol.gizLastDataPoint);
+    if(fullDue)
+        memset(&gizwitsProtocol.waitReportDatapointFlag, 0xFF, DATAPOINT_FLAG_LEN);
+    if(!fullDue && !changed)
+        return;
+
+    /* Serialization clears the flags, so preserve the fields in this packet. */
+    sentFlags = gizwitsProtocol.waitReportDatapointFlag;
+    if(0 != gizDataPoints2ReportData(currentData, gizwitsProtocol.reportData,
+                                    &gizwitsProtocol.reportDataLen))
+        return;
+    if(0 != gizReportData(ACTION_REPORT_DEV_STATUS, gizwitsProtocol.reportData,
+                          gizwitsProtocol.reportDataLen))
+        return;
+
+    gizCommitReportedData(currentData, &sentFlags);
+    if(fullDue)
     {
-        GIZWITS_LOG("changed, report data\n");
-        if(0 == gizDataPoints2ReportData(currentData,gizwitsProtocol.reportData,(uint32_t *)&gizwitsProtocol.reportDataLen))
-        {
-            gizReportData(ACTION_REPORT_DEV_STATUS, gizwitsProtocol.reportData, gizwitsProtocol.reportDataLen);        }
-        memcpy((uint8_t *)&gizwitsProtocol.gizLastDataPoint, (uint8_t *)currentData, sizeof(dataPoint_t));
+        lastPeriodicReportTime = timeNow;
+        reportRetryPending = 0u;
     }
-
-    if((0 == (timeNow % (600000))) && (lastRepTime != timeNow))
-    {
-        GIZWITS_LOG("Info: 600S report data\n");
-        memset((uint8_t *)&gizwitsProtocol.waitReportDatapointFlag,0xFF,DATAPOINT_FLAG_LEN);
-        if(0 == gizDataPoints2ReportData(currentData,gizwitsProtocol.reportData,(uint32_t *)&gizwitsProtocol.reportDataLen))
-        {
-            gizReportData(ACTION_REPORT_DEV_STATUS, gizwitsProtocol.reportData, gizwitsProtocol.reportDataLen);        }
-        memcpy((uint8_t *)&gizwitsProtocol.gizLastDataPoint, (uint8_t *)currentData, sizeof(dataPoint_t));
-
-        lastRepTime = timeNow;
-    }
-    free(waitReportDataPtr);
 }
 
 /**
@@ -998,8 +1084,13 @@ static void gizProtocolAckHandle(void)
                 gizwitsProtocol.waitAck.num++;
             }
         }
-        else
+        else if(SEND_MAX_TIME < (uint32_t)(gizGetTimerCount() - gizwitsProtocol.waitAck.sendTime))
         {
+            if(gizwitsProtocol.waitAck.buf[4] == CMD_REPORT_P0)
+            {
+                reportRetryPending = 1u;
+                lastReportFailureTime = gizGetTimerCount();
+            }
             memset((uint8_t *)&gizwitsProtocol.waitAck, 0, sizeof(protocolWaitAck_t));
         }
     }
@@ -1316,6 +1407,11 @@ void gizwitsInit(void)
 	}
     
     memset((uint8_t *)&gizwitsProtocol, 0, sizeof(gizwitsProtocol_t));
+    lastSensorReportTime = gizGetTimerCount();
+    lastPeriodicReportTime = lastSensorReportTime;
+    reportRetryPending = 0u;
+    reportPaused = 0u;
+    lastReportFailureTime = lastSensorReportTime;
 }
 
 /**
@@ -1327,11 +1423,20 @@ void gizwitsInit(void)
 
 * @return Error command code
 */
+void gizwitsPauseReporting(uint8_t paused)
+{
+    reportPaused = paused != 0u;
+}
+
 int32_t gizwitsSetMode(uint8_t mode)
 {
     int32_t ret = 0;
     protocolCfgMode_t cfgMode;
     protocolCommon_t setDefault;
+
+    /* Keep the single retransmission slot until its current request completes. */
+    if(gizwitsProtocol.waitAck.flag)
+        return -3;
 
     switch(mode)
     {

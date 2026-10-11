@@ -1,4 +1,5 @@
 #include "key.h"
+#include "key_events.h"
 
 u8 key1_long_flag,key2_long_flag,key3_long_flag,key4_long_flag;
 u8 key1_lock_flag,key2_lock_flag,key3_lock_flag,key4_lock_flag;
@@ -9,7 +10,18 @@ u8 key2_long_flag;
 
 
 
-u8 KeyNum = 0;
+/* Only Key_scan produces; foreground takes events with IRQs masked. */
+static volatile KeyEventQueue key_events = {{0}, 0};
+
+u8 Key_TakeEvent(void)
+{
+    u8 event;
+    uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    event = KeyEvent_Take(&key_events);
+    __set_PRIMASK(primask);
+    return event;
+}
 /**
   * @brief  Key初始化
   * @param  无
@@ -42,7 +54,7 @@ void Key_scan(void)
 		if(key1_long_flag)
 		{
 			key1_long_flag = 0;	//清零长按标志位
-			KeyNum = 11; //赋键值编码 长按键值编码
+			(void)KeyEvent_Push(&key_events, 11); //赋键值编码 长按键值编码
 		}
 	}
 	else if(!key1_lock_flag)
@@ -51,7 +63,7 @@ void Key_scan(void)
 		if(key1_cnt > KEY_DELAY_TIME)
 		{
 			key1_cnt = 0; //清零计数标志
-			KeyNum = 1; //赋键值编码 短按键值编码
+			(void)KeyEvent_Push(&key_events, 1); //赋键值编码 短按键值编码
 			key1_lock_flag = 1; //自锁标志置1 防止多次触发
 		}
 	}
@@ -66,7 +78,7 @@ void Key_scan(void)
 		if(key1_cnt2 > KEY_Continue_Trigger_TIME)
 		{
 			key1_cnt2 = 0;	//清零连击延迟时间
-			KeyNum = 1;	//赋连击编码键值
+			(void)KeyEvent_Push(&key_events, 1);	//赋连击编码键值
 		}
 		if(key1_cnt > KEY_LONG_TIME)
 		{
@@ -82,7 +94,7 @@ void Key_scan(void)
 		if(key2_long_flag)
 		{
 			key2_long_flag = 0;	//清零长按标志位
-			KeyNum = 22; //赋键值编码 长按键值编码
+			(void)KeyEvent_Push(&key_events, 22); //赋键值编码 长按键值编码
 		}
 	}
 	else if(!key2_lock_flag)
@@ -91,7 +103,7 @@ void Key_scan(void)
 		if(key2_cnt > KEY_DELAY_TIME)
 		{
 			key2_cnt = 0; //清零计数标志
-			KeyNum = 2; //赋键值编码 短按键值编码
+			(void)KeyEvent_Push(&key_events, 2); //赋键值编码 短按键值编码
 			key2_lock_flag = 1; //自锁标志置1 防止多次触发
 		}
 	}
@@ -106,7 +118,7 @@ void Key_scan(void)
 		if(key2_cnt2 > KEY_Continue_Trigger_TIME)
 		{
 			key2_cnt2 = 0;	//清零连击延迟时间
-			KeyNum = 2;	//赋连击编码键值
+			(void)KeyEvent_Push(&key_events, 2);	//赋连击编码键值
 		}
 		if(key2_cnt > KEY_LONG_TIME)
 		{
@@ -121,7 +133,7 @@ void Key_scan(void)
 		if(key3_long_flag)
 		{
 			key3_long_flag = 0;	//清零长按标志位
-			KeyNum = 33; //赋键值编码 长按键值编码
+			(void)KeyEvent_Push(&key_events, 33); //赋键值编码 长按键值编码
 		}
 	}
 	else if(!key3_lock_flag)
@@ -130,7 +142,7 @@ void Key_scan(void)
 		if(key3_cnt > KEY_DELAY_TIME)
 		{
 			key3_cnt = 0; //清零计数标志
-			KeyNum = 3; //赋键值编码 短按键值编码
+			(void)KeyEvent_Push(&key_events, 3); //赋键值编码 短按键值编码
 			key3_lock_flag = 1; //自锁标志置1 防止多次触发
 		}
 	}
@@ -145,7 +157,7 @@ void Key_scan(void)
 		if(key3_cnt2 > KEY_Continue_Trigger_TIME)
 		{
 			key3_cnt2 = 0;	//清零连击延迟时间
-			KeyNum = 3;	//赋连击编码键值
+			(void)KeyEvent_Push(&key_events, 3);	//赋连击编码键值
 		}
 		if(key3_cnt > KEY_LONG_TIME)
 		{
@@ -161,7 +173,7 @@ void Key_scan(void)
 		if(key4_long_flag)
 		{
 			key4_long_flag = 0;	//清零长按标志位
-			KeyNum = 44; //赋键值编码 长按键值编码
+			(void)KeyEvent_Push(&key_events, 44); //赋键值编码 长按键值编码
 		}
 	}
 	else if(!key4_lock_flag)
@@ -170,7 +182,7 @@ void Key_scan(void)
 		if(key4_cnt > KEY_DELAY_TIME)
 		{
 			key4_cnt = 0; //清零计数标志
-			KeyNum = 4; //赋键值编码 短按键值编码
+			(void)KeyEvent_Push(&key_events, 4); //赋键值编码 短按键值编码
 			key4_lock_flag = 1; //自锁标志置1 防止多次触发
 		}
 	}
@@ -185,7 +197,7 @@ void Key_scan(void)
 		if(key4_cnt2 > KEY_Continue_Trigger_TIME)
 		{
 			key4_cnt2 = 0;	//清零连击延迟时间
-			KeyNum = 4;	//赋连击编码键值
+			(void)KeyEvent_Push(&key_events, 4);	//赋连击编码键值
 		}
 		if(key4_cnt > KEY_LONG_TIME)
 		{

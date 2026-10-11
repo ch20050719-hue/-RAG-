@@ -200,3 +200,14 @@ void MOTOR_Tick1ms(void)
         window_output_active = 0u;
     }
 }
+
+/* Snapshot both values together because TIM3 advances the step estimate. */
+u8 MOTOR_GetMotionStatus(void)
+{
+    WindowMotionState snapshot;
+    uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    snapshot = window_motion;
+    __set_PRIMASK(primask);
+    return WindowMotion_GetStatus(snapshot);
+}

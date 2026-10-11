@@ -67,13 +67,6 @@ void Menu1(void)
 	OLED_ShowChar(2, 9, ':');
 	OLED_ShowString(2, 14, "Lux"); 
 
-	//显示”光照强度：  Lux“
-	OLED_ShowChinese(2, 1, 5);
-	OLED_ShowChinese(2, 2, 20);
-	OLED_ShowChinese(2, 3, 21);
-	OLED_ShowChinese(2, 4, 22);
-	OLED_ShowChar(2, 9, ':');
-	OLED_ShowString(2, 14, "Lux"); 
 	//显示”烟雾浓度：  ADC“
 	OLED_ShowChinese(3, 1, 32);
 	OLED_ShowChinese(3, 2, 33);
@@ -168,6 +161,44 @@ void Menu11(void)
 		OLED_ShowChineseOffset(2, 3, 18);
 	}
 	
+    /* Clear the whole row before drawing four 16x16 characters. */
+    OLED_ShowString(3, 1, "                ");
+    switch (HomeScene_GetCurrent()) {
+        case HOME_SCENE_SLEEP:
+            OLED_ShowChinese(3, 3, 37); /* sleep */
+            OLED_ShowChinese(3, 4, 38);
+            break;
+        case HOME_SCENE_AWAY:
+            OLED_ShowChinese(3, 3, 39); /* away */
+            OLED_ShowChinese(3, 4, 40);
+            break;
+        default:
+            OLED_ShowChinese(3, 3, modeee ? 25 : 23);
+            OLED_ShowChinese(3, 4, 24);
+            break;
+    }
+    OLED_ShowChinese(3, 5, 26);
+    OLED_ShowChinese(3, 6, 27);
+
+    OLED_ShowString(4, 1, "                ");
+    switch (MOTOR_GetMotionStatus()) {
+        case WINDOW_MOTION_OPENING:
+            OLED_ShowChinese(4, 3, 41);
+            OLED_ShowChinese(4, 4, 42);
+            OLED_ShowChinese(4, 5, 28);
+            OLED_ShowChinese(4, 6, 29);
+            break;
+        case WINDOW_MOTION_CLOSING:
+            OLED_ShowChinese(4, 3, 41);
+            OLED_ShowChinese(4, 4, 42);
+            OLED_ShowChinese(4, 5, 30);
+            OLED_ShowChinese(4, 6, 31);
+            break;
+        default:
+            OLED_ShowChinese(4, 4, 43);
+            OLED_ShowChinese(4, 5, 44);
+            break;
+    }
 }
 void Menu2(void)
 {
@@ -289,8 +320,19 @@ void OLED_Option_open(u8 num)
 	}
 }
 
+/* ASCII and Chinese menus use different columns; erase the previous layout once. */
+static void OLED_BeginControlPage(uint8_t page)
+{
+    static uint8_t displayed_page = 0u;
+    if (displayed_page != page) {
+        OLED_Clear();
+        displayed_page = page;
+    }
+}
+
 void OLED_controlDevicePage1(void)
 {
+    OLED_BeginControlPage(1u);
                 OLED_ShowChinese(1, 3, 28);  // 开
                 OLED_ShowChinese(1, 4, 29);  // 打
                 OLED_ShowChinese(1, 5, 4);   // 灯
@@ -313,6 +355,7 @@ void OLED_controlDevicePage1(void)
 }
 void OLED_controlDevicePage2(void)
 {
+    OLED_BeginControlPage(2u);
                 OLED_ShowChinese(1, 3, 28);  // 开
                 OLED_ShowChinese(1, 4, 29);  // 打
                 OLED_ShowChinese(1, 5, 8);   // 窗
@@ -340,20 +383,38 @@ void OLED_controlDevicePage2(void)
 /* Door commands share the existing device-control menu and four keys. */
 void OLED_controlDoorPage(void)
 {
-    OLED_ShowString(1, 3, "DOOR OPEN    ");
-    OLED_ShowString(2, 3, "DOOR CLOSE   ");
+    OLED_BeginControlPage(3u);
+    /* Four Chinese cells per row, aligned with the other control pages. */
+    OLED_ShowChinese(1, 3, 28);
+    OLED_ShowChinese(1, 4, 29);
+    OLED_ShowChinese(1, 5, 45);
+    OLED_ShowChinese(1, 6, 46);
+    OLED_ShowChinese(2, 3, 30);
+    OLED_ShowChinese(2, 4, 31);
+    OLED_ShowChinese(2, 5, 45);
+    OLED_ShowChinese(2, 6, 46);
+    OLED_ShowChinese(3, 3, 47);
+    OLED_ShowChinese(3, 4, 48);
     if (MG90S_GetCommandedTarget() == MG90S_COMMAND_OPEN) {
-        OLED_ShowString(3, 3, "TARGET: OPEN  ");
+        OLED_ShowChinese(3, 5, 18);
+        OLED_ShowChinese(3, 6, 45);
     } else if (MG90S_GetCommandedTarget() == MG90S_COMMAND_CLOSE) {
-        OLED_ShowString(3, 3, "TARGET: CLOSE ");
+        OLED_ShowChinese(3, 5, 19);
+        OLED_ShowChinese(3, 6, 45);
     } else {
-        OLED_ShowString(3, 3, "TARGET: NONE  ");
+        OLED_ShowChinese(3, 5, 49);
+        OLED_ShowChinese(3, 6, 50);
     }
-    OLED_ShowString(4, 3, "             ");
+    OLED_ShowString(4, 1, "                ");
 }
 
 void ControlDeviceSwitch(uint8_t selection, uint8_t page)
 {
+    /* Valid local commands supersede the displayed sleep/away scene. */
+    if (((page == 1u || page == 2u) && selection >= 1u && selection <= 4u) ||
+        (page == 3u && selection >= 1u && selection <= 2u)) {
+        HomeScene_Apply(HOME_SCENE_NORMAL);
+    }
     if(page == 1) {
         // 页面1：灯光和风扇控制
         switch(selection) {

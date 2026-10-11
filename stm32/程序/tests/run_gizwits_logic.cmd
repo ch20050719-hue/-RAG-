@@ -10,7 +10,7 @@ set "OUT_DIR=%TEMP%\gizwits_logic_test"
 if not exist "%OUT_DIR%" mkdir "%OUT_DIR%"
 pushd "%OUT_DIR%"
 
-cl /nologo /std:c11 /utf-8 /W3 /wd4005 /wd4389 /wd4127 /wd4047 /wd4024 /wd4244 /wd4100 /Gy /I"%~dp0stubs" /I"%~dp0..\Gizwits" /I"%~dp0..\Utils" "%~dp0test_gizwits_product.c" /Fe:gizwits_product_test.exe /link /OPT:REF
+cl /nologo /std:c11 /utf-8 /W3 /wd4005 /wd4389 /wd4127 /wd4047 /wd4024 /wd4244 /wd4100 /Gy /I"%~dp0stubs" /I"%~dp0..\Gizwits" /I"%~dp0..\Utils" /I"%~dp0..\HARDWARE\Servo" "%~dp0test_gizwits_product.c" /Fe:gizwits_product_test.exe /link /OPT:REF
 if errorlevel 1 goto fail
 gizwits_product_test.exe
 if errorlevel 1 goto fail

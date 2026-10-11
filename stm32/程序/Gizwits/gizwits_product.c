@@ -24,7 +24,8 @@
 #include "menu.h"
 #include "buzzer.h"
 #include "tim2.h"                  // Device header
-static uint32_t timerMsCount;
+#include "MG90S.h"
+static volatile uint32_t timerMsCount;
 #define UART_TX_WAIT_LIMIT 100000u
 
 static int32_t uartWaitFlag(uint16_t flag)
@@ -101,13 +102,19 @@ int8_t gizwitsEventProcess(eventInfo_t *info, uint8_t *gizdata, uint32_t len)
             if(0x01 == currentDataPoint.valueLight)
             {
                 if(modeee==0)
+                {
+                    HomeScene_Apply(HOME_SCENE_NORMAL);
                     USB_ON(1);
+                }
             //user handle
             }
             else
             {
                 if(modeee==0)
+                {
+                    HomeScene_Apply(HOME_SCENE_NORMAL);
                     USB_OFF(1);
+                }
             //user handle    
             }
             break;
@@ -117,14 +124,20 @@ int8_t gizwitsEventProcess(eventInfo_t *info, uint8_t *gizdata, uint32_t len)
             if(0x01 == currentDataPoint.valueFan)
             {
                 if(modeee==0)
+                {
+                    HomeScene_Apply(HOME_SCENE_NORMAL);
                     USB_ON(2);
+                }
                     
             //user handle
             }
             else
             {
                 if(modeee==0)
+                {
+                    HomeScene_Apply(HOME_SCENE_NORMAL);
                     USB_OFF(2);
+                }
             //user handle    
             }
             break;
@@ -134,15 +147,44 @@ int8_t gizwitsEventProcess(eventInfo_t *info, uint8_t *gizdata, uint32_t len)
             if(0x01 == currentDataPoint.valueCurtain)
             {
                 if(modeee==0)
+                {
+                    HomeScene_Apply(HOME_SCENE_NORMAL);
                     Curtain_ON_Flag = 1;
+                }
             //user handle
             }
             else
             {
                 if(modeee==0)
+                {
+                    HomeScene_Apply(HOME_SCENE_NORMAL);
                     Curtain_OFF_Flag = 1;
+                }
             //user handle    
             }
+            break;
+
+        case EVENT_Door_Target:
+            if(dataPointPtr->valueDoor_Target >= Door_Target_VALUE_MAX)
+                return -1;
+            if(dataPointPtr->valueDoor_Target == Door_Target_VALUE1)
+            {
+                HomeScene_Apply(HOME_SCENE_NORMAL);
+                MG90S_Open();
+            }
+            else if(dataPointPtr->valueDoor_Target == Door_Target_VALUE2)
+            {
+                HomeScene_Apply(HOME_SCENE_NORMAL);
+                MG90S_Close();
+            }
+            currentDataPoint.valueDoor_Target = MG90S_GetCommandedTarget();
+            break;
+
+        case EVENT_Home_Scene:
+            if(dataPointPtr->valueHome_Scene >= Home_Scene_VALUE_MAX)
+                return -1;
+            HomeScene_Apply((uint8_t)dataPointPtr->valueHome_Scene);
+            currentDataPoint.valueHome_Scene = HomeScene_GetCurrent();
             break;
 
         case EVENT_System_Mode:
@@ -155,6 +197,7 @@ int8_t gizwitsEventProcess(eventInfo_t *info, uint8_t *gizdata, uint32_t len)
                 //user handle
                 break;
             case System_Mode_VALUE1://自动
+                HomeScene_Apply(HOME_SCENE_NORMAL);
                 modeee=1;
                 //user handle
                 break;
@@ -263,6 +306,8 @@ void userHandle(void)
     currentDataPoint.valueFan =FanFlag ;
     currentDataPoint.valueCurtain =CurtainFlag ;
     currentDataPoint.valueSystem_Mode=modeee;
+    currentDataPoint.valueDoor_Target = MG90S_GetCommandedTarget();
+    currentDataPoint.valueHome_Scene = HomeScene_GetCurrent();
     
     
     //currentDataPoint.valueSystem_Status = ;

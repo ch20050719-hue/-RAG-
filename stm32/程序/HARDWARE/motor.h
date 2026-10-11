@@ -3,6 +3,7 @@
 
 #include "stm32f10x.h"                  // Device header
 #include "delay.h"
+#include "window_motion.h"
 
 #define MOTOR_A GPIO_Pin_15
 #define MOTOR_B GPIO_Pin_12
@@ -32,5 +33,6 @@ void MOTOR_Direction_Angle(u8 dir,u8 num,u16 angle,u8 dly);
 void MOTOR_STOP(void);
 void MOTOR_RequestWindow(u8 open);
 void MOTOR_Tick1ms(void);
+u8 MOTOR_GetMotionStatus(void);
 
 #endif

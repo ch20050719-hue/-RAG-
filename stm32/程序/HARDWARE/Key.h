@@ -21,7 +21,8 @@
 #define KEY_Continue_TIME			500
 #define KEY_Continue_Trigger_TIME	25
 
-extern u8 KeyNum;
+/* Returns 0 if no key event is pending. Call from foreground only. */
+u8 Key_TakeEvent(void);
 
 void Key_Init(void);
 void Key_scan(void);

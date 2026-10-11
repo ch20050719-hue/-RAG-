@@ -14,6 +14,7 @@ extern u16 USART_RX_STA;
 uint8_t USART1_TakeCommand(uint8_t *command);
 void uart1_init(u32 bound);
 void uart2_init(u32 bound);
+void uart3_init(u32 bound);
 #endif
 
 
