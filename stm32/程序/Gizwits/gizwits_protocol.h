@@ -35,15 +35,7 @@ extern "C" {
 #define protocol_VERSION    "00000004"              ///< protocol version
 #define P0_VERSION          "00000002"              ///< P0 protocol version
 
-/**@name Product Key  
-* @{
-*/
-#define PRODUCT_KEY "a24a21134a20400wsd421a214a003154"
-/**@} */
-/**@name Product Secret  
-* @{
-*/
-#define PRODUCT_SECRET "5f135cb145131a2104a20453520058b0338e1c8"
+/* Product credentials are private to gizwits_protocol.c. */
 
 /**@name Device status data reporting interval
 * @{
@@ -84,6 +76,8 @@ extern "C" {
 #define Curtain_LEN                           1
 #define System_Status_LEN                           1
 #define System_Mode_LEN                           1
+#define Door_Target_LEN                          2
+#define Home_Scene_LEN                           2
 
 #define temp_RATIO                         1
 #define temp_ADDITION                      0
@@ -130,7 +124,7 @@ extern "C" {
 
 
 /** Writable data points Boolean and enumerated variables occupy byte size */
-#define COUNT_BIT 1
+#define COUNT_BIT 2
 
 
 /** Writable data points Boolean and enumerated variables occupy byte size */
@@ -152,6 +146,20 @@ typedef enum
     System_Mode_VALUE1 = 1,//自动
     System_Mode_VALUE_MAX,
 } System_Mode_ENUM_T;
+typedef enum
+{
+    Door_Target_VALUE0 = 0, // 未下发
+    Door_Target_VALUE1 = 1, // 开门
+    Door_Target_VALUE2 = 2, // 关门
+    Door_Target_VALUE_MAX,
+} Door_Target_ENUM_T;
+typedef enum
+{
+    Home_Scene_VALUE0 = 0, // 正常
+    Home_Scene_VALUE1 = 1, // 睡眠
+    Home_Scene_VALUE2 = 2, // 离家
+    Home_Scene_VALUE_MAX,
+} Home_Scene_ENUM_T;
 
 /** Event enumeration */
 typedef enum
@@ -181,6 +189,8 @@ typedef enum
     EVENT_set_humi,
     EVENT_set_light,
     EVENT_Smoke_Threshold,
+    EVENT_Door_Target,
+    EVENT_Home_Scene,
     EVENT_TYPE_MAX                                    ///< Enumerate the number of members to calculate (user accidentally deleted)
 } EVENT_TYPE_T;
 
@@ -346,6 +356,8 @@ typedef struct {
     bool valueCurtain;
     uint32_t valueSystem_Status;
     uint32_t valueSystem_Mode;
+    uint32_t valueDoor_Target;
+    uint32_t valueHome_Scene;
     uint32_t valuetemp;
     uint32_t valuehumi;
     uint32_t valueset_temp;
@@ -363,6 +375,8 @@ typedef struct {
     uint8_t flagCurtain:1;
     uint8_t flagSystem_Status:1;
     uint8_t flagSystem_Mode:1;
+    uint8_t flagDoor_Target:1;
+    uint8_t flagHome_Scene:1;
     uint8_t flagtemp:1;
     uint8_t flaghumi:1;
     uint8_t flagset_temp:1;
@@ -627,6 +641,8 @@ typedef struct
 extern uint32_t gizGetTimerCount(void);
 
 void gizwitsInit(void);
+/* Pause new reports while a foreground mode request waits for the ACK slot. */
+void gizwitsPauseReporting(uint8_t paused);
 int32_t gizwitsSetMode(uint8_t mode);
 void gizwitsGetNTP(void);
 int32_t gizwitsHandle(dataPoint_t *currentData);

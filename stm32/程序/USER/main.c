@@ -17,6 +17,7 @@
 #include "adcx.h"
 #include "MG90S.h"
 #include "threshold_step.h"
+#include "ui_refresh.h"
 
 
 u8 temp;
@@ -38,8 +39,47 @@ uint8_t deviceSelection = 1;    // ��ǰѡ����豸�� (1-4)
 uint8_t devicePage = 1;    // Device control menu page 1..3
 
 uint8_t current_screen = 0; // 0:��ʾ�˵�1, 1:��ʾ�˵�11
+static UiRefresh ui_refresh;
+
+static void UI_Clear(void)
+{
+    OLED_Clear();
+    UiRefresh_Invalidate(&ui_refresh);
+}
+
+static uint8_t UI_NeedsRefresh(uint32_t now, uint8_t event)
+{
+    UiState state;
+    state.value[UI_MENU] = Menu;
+    state.value[UI_SCREEN] = current_screen;
+    state.value[UI_SELECTION] = deviceSelection;
+    state.value[UI_PAGE] = devicePage;
+    state.value[UI_SETTING] = SetNum;
+    state.value[UI_TEMP] = Temp;
+    state.value[UI_HUMI] = Humi;
+    state.value[UI_LUX] = Lux;
+    state.value[UI_SMOKE] = Smoke;
+    state.value[UI_DHT_VALID] = DHT11_DataValid;
+    state.value[UI_ADC_VALID] = ADC_DataValid;
+    state.value[UI_TEMP_LIMIT] = Temp_value;
+    state.value[UI_HUMI_LIMIT] = Humi_value;
+    state.value[UI_LUX_LIMIT] = Lux_value;
+    state.value[UI_SMOKE_LIMIT] = Smoke_value;
+    state.value[UI_LIGHT] = LEDFlag;
+    state.value[UI_FAN] = FanFlag;
+    state.value[UI_WINDOW] = CurtainFlag;
+    state.value[UI_DOOR] = MG90S_GetCommandedTarget();
+    state.value[UI_SCENE] = HomeScene_GetCurrent();
+    state.value[UI_MODE] = modeee;
+    state.value[UI_MOTION] = MOTOR_GetMotionStatus();
+    return UiRefresh_Need(&ui_refresh, &state, now, event);
+}
+
 int main(void)
 {
+    uint8_t KeyNum = 0u;
+    uint8_t draw_ui;
+    uint8_t provision_pending = 0u;
     uint32_t last_tim3_heartbeat = 0u;
     uint32_t last_sensor_sample_ms = 0u;
     uint32_t provision_started_ms = 0u;
@@ -51,6 +91,7 @@ int main(void)
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
 	delay_init(72);
 	uart1_init(9600);
+    uart3_init(9600); /* ESP32 control on PB10/PB11. */
 	LED_Init();
     MOTOR_UserConfig();//�����ʼ���ɹ�
     DHT11_UserConfig();//dht11��ʼ���ɹ�
@@ -76,25 +117,57 @@ int main(void)
   while (1)
   {
 		uint32_t now_ms = g_tim3_heartbeat;
+        KeyNum = Key_TakeEvent();
+        if (KeyNum == 1u && Menu == 1u)
+        {
+            Menu = 2u;
+            KeyNum = 0u;
+        }
 		if (!sensor_sampled || (uint32_t)(now_ms - last_sensor_sample_ms) >= 1000u)
 		{
 			last_sensor_sample_ms = now_ms;
 			sensor_sampled = 1u;
 			Menu_UpdateSensors(now_ms);
+            {
+                EnvironmentSnapshot environment;
+                uint32_t sampled_ms = g_tim3_heartbeat;
+                environment.dht_valid = DHT11_DataValid;
+                environment.adc_valid = ADC_DataValid;
+                environment.temperature_c = Temp;
+                environment.humidity_percent = Humi;
+                environment.light_raw = Lux;
+                environment.dht_age_ms = sampled_ms - DHT11_LastSuccessMs;
+                environment.adc_age_ms = sampled_ms - ADC_LastSuccessMs;
+                /* If TX is busy, skip this sample; never delay controls. */
+                USART3_PublishEnvironment(&environment);
+            }
 		}
-		if (Provision_TakeRequest())
+		if (KeyNum == 44u && Menu == 1u)
 		{
-			if (gizwitsSetMode(2u) >= 0)
-			{
-				Buzzer_ON();
-				provision_started_ms = g_tim3_heartbeat;
-				provision_feedback_active = 1u;
-			}
-			else
-			{
-				printf("WiFi config send failed\r\n");
-			}
-		}
+			KeyNum = 0u;
+            provision_pending = 1u;
+        }
+        if (provision_pending)
+        {
+            int32_t mode_result;
+            gizwitsPauseReporting(1u);
+            mode_result = gizwitsSetMode(2u);
+            if (mode_result != -3)
+            {
+                provision_pending = 0u;
+                gizwitsPauseReporting(0u);
+                if (mode_result >= 0)
+                {
+                    Buzzer_ON();
+                    provision_started_ms = g_tim3_heartbeat;
+                    provision_feedback_active = 1u;
+                }
+                else
+                {
+                    printf("WiFi config send failed\r\n");
+                }
+            }
+        }
 		if (provision_feedback_active &&
 			(uint32_t)(g_tim3_heartbeat - provision_started_ms) >= 300u)
 		{
@@ -108,6 +181,7 @@ int main(void)
             IWDG_ReloadCounter();
         } //���¼��ؼ���ֵ ι��
 
+        draw_ui = UI_NeedsRefresh(g_tim3_heartbeat, KeyNum != 0u);
 		switch(Menu)
 			{
 				case 1:
@@ -115,39 +189,35 @@ int main(void)
                  // ���ݵ�ǰ״̬������ʾ��Ӧ����Ļ
                     if(current_screen == 0)
                     {
-                        Menu1();    // ������ʾ�˵�1
+                        if (draw_ui) Menu1();    // ������ʾ�˵�1
                     }
                     else
                     {
-                        Menu11();   // ������ʾ�˵�11
+                        if (draw_ui) Menu11();   // ������ʾ�˵�11
                     }
                     // ��ⰴ���л�
                     if(KeyNum == 2)
                     {
                         KeyNum = 0;
-                        OLED_Clear();
+                        UI_Clear();
                         current_screen = !current_screen; // �л���Ļ״̬
                     }                    
                     
 					if(KeyNum == 3)    //�ж��û��Ƿ����˳�����
 					{
 						KeyNum = 0;
-						OLED_Clear();   //����
+						UI_Clear();   //����
 						Menu = 4;
 					}
 				break;
 					
 				case 2:
-					OLED_Clear();	//����
+					UI_Clear();	//����
 					Menu2();	//��ʾ�˵�2
 					Menu = 3;	
                     break;
 				case 3:
-					OLED_Option(SetNum);	//��ʾ��ǰѡ���λ��
-					OLED_ShowNum(1,9,Temp_value,3);	//��ʾ�¶���ֵ����
-					OLED_ShowNum(2,9,Humi_value,3);	//��ʾʪ����ֵ����
-					OLED_ShowNum(3,13,Lux_value, 4);
-					OLED_ShowNum(4,13,Smoke_value, 4);
+
 				
 					/*�ۼư���1���µĴ���*/
 					if(KeyNum == 1)
@@ -221,9 +291,16 @@ int main(void)
 					{
 						KeyNum = 0;
 						
-						OLED_Clear();	//����
+						UI_Clear();	//����
 						Menu = 1;	//��ʾ�˵�1
 					}
+                    if (draw_ui && Menu == 3u) {
+					OLED_Option(SetNum);	//��ʾ��ǰѡ���λ��
+					OLED_ShowNum(1,9,Temp_value,3);	//��ʾ�¶���ֵ����
+					OLED_ShowNum(2,9,Humi_value,3);	//��ʾʪ����ֵ����
+					OLED_ShowNum(3,13,Lux_value, 4);
+					OLED_ShowNum(4,13,Smoke_value, 4);
+                    }
 					break;
 				case 4:
 //					ControlDeviceSwitch(ControlDeviceSetSelection());  //���ڴ�������ֵ
@@ -264,6 +341,7 @@ int main(void)
                 }
                 
                         // ������ʾ
+                        if (draw_ui) {
                         if(devicePage == 1) {
                             OLED_controlDevicePage1();   // ��ʾ�豸����ҳ��1
                         } else if (devicePage == 2) {
@@ -274,12 +352,13 @@ int main(void)
                         
                         // ��ʾѡ���ͷ
             OLED_Option_open(deviceSelection);
+                        }
             
     
 					if (KeyNum == 3 || KeyNum == 4)    //�ж��û��Ƿ����˳�����
 					{
 						KeyNum = 0;
-						OLED_Clear();   //����
+						UI_Clear();   //����
 						Menu = 1;   //�ص���ҳ��1
 					}	
     KeyNum = 0;
@@ -302,7 +381,7 @@ int main(void)
 
 		userHandle();
 		gizwitsHandle((dataPoint_t *)&currentDataPoint);
-        Delay_ms(120);
+        /* Communications and commands run without a fixed foreground delay. */
 	}
 }
 

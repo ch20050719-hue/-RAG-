@@ -8,7 +8,12 @@
 
 
 // 定义几个变量来存数据
-static volatile VoiceCommandState voice_commands = {0};
+/* Each UART owns its parser and FIFO; bytes from different links never mix. */
+static volatile VoiceCommandState voice_commands[2] = {{0}};
+static uint8_t next_command_source = 0u;
+static uint8_t environment_tx[ENVIRONMENT_FRAME_SIZE];
+static volatile uint8_t environment_tx_position = 0u;
+static volatile uint8_t environment_tx_busy = 0u;
 
 
 
@@ -135,16 +140,102 @@ void USART1_IRQHandler(void)
     if (USART_GetITStatus(USART1, USART_IT_RXNE) != RESET)
     {
         uint8_t byte = (uint8_t)USART_ReceiveData(USART1);
-        VoiceCommand_ReceiveByte(&voice_commands, byte, g_tim3_heartbeat);
+        VoiceCommand_ReceiveByte(&voice_commands[0], byte, g_tim3_heartbeat);
     }
 }
 
+void uart3_init(u32 bound)
+{
+    GPIO_InitTypeDef gpio;
+    USART_InitTypeDef usart;
+    NVIC_InitTypeDef nvic;
+
+    RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART3, ENABLE);
+    RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
+    /* Default USART3 mapping: PB10 TX, PB11 RX (ESP32 IO18/IO17). */
+    gpio.GPIO_Pin = GPIO_Pin_10;
+    gpio.GPIO_Speed = GPIO_Speed_50MHz;
+    gpio.GPIO_Mode = GPIO_Mode_AF_PP;
+    GPIO_Init(GPIOB, &gpio);
+    gpio.GPIO_Pin = GPIO_Pin_11;
+    gpio.GPIO_Mode = GPIO_Mode_IN_FLOATING;
+    GPIO_Init(GPIOB, &gpio);
+
+    nvic.NVIC_IRQChannel = USART3_IRQn;
+    nvic.NVIC_IRQChannelPreemptionPriority = 0;
+    nvic.NVIC_IRQChannelSubPriority = 3;
+    nvic.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_Init(&nvic);
+
+    usart.USART_BaudRate = bound;
+    usart.USART_WordLength = USART_WordLength_8b;
+    usart.USART_StopBits = USART_StopBits_1;
+    usart.USART_Parity = USART_Parity_No;
+    usart.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
+    usart.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
+    USART_Init(USART3, &usart);
+    environment_tx_busy = 0u;
+    environment_tx_position = 0u;
+    USART_ITConfig(USART3, USART_IT_TXE, DISABLE);
+    USART_ITConfig(USART3, USART_IT_RXNE, ENABLE);
+    USART_Cmd(USART3, ENABLE);
+}
+
+/* One owned frame at a time; TXE drains it without foreground waiting. */
+uint8_t USART3_PublishEnvironment(const EnvironmentSnapshot *snapshot)
+{
+    uint8_t encoded[ENVIRONMENT_FRAME_SIZE];
+    uint8_t i;
+    uint32_t primask;
+    if (!Environment_Encode(snapshot, encoded)) return 0u;
+    primask = __get_PRIMASK();
+    __disable_irq();
+    if (environment_tx_busy) {
+        __set_PRIMASK(primask);
+        return 0u;
+    }
+    for (i = 0u; i < ENVIRONMENT_FRAME_SIZE; ++i) environment_tx[i] = encoded[i];
+    environment_tx_position = 0u;
+    environment_tx_busy = 1u;
+    USART_ITConfig(USART3, USART_IT_TXE, ENABLE);
+    __set_PRIMASK(primask);
+    return 1u;
+}
+void USART3_IRQHandler(void)
+{
+    if (USART_GetITStatus(USART3, USART_IT_RXNE) != RESET)
+    {
+        uint8_t byte = (uint8_t)USART_ReceiveData(USART3);
+        VoiceCommand_ReceiveByte(&voice_commands[1], byte, g_tim3_heartbeat);
+    }
+    if (USART_GetITStatus(USART3, USART_IT_TXE) != RESET)
+    {
+        if (environment_tx_busy) {
+            USART_SendData(USART3, environment_tx[environment_tx_position++]);
+            if (environment_tx_position == ENVIRONMENT_FRAME_SIZE) {
+                USART_ITConfig(USART3, USART_IT_TXE, DISABLE);
+                environment_tx_busy = 0u;
+            }
+        } else {
+            USART_ITConfig(USART3, USART_IT_TXE, DISABLE);
+        }
+    }
+}
+
+/* Compatibility entry point for HomeControl_Process: fairly poll both UARTs. */
 uint8_t USART1_TakeCommand(uint8_t *command)
 {
     uint8_t found;
+    uint8_t source;
     uint32_t primask = __get_PRIMASK();
     __disable_irq();
-    found = VoiceCommand_Take(&voice_commands, g_tim3_heartbeat, command);
+    source = next_command_source;
+    found = VoiceCommand_Take(&voice_commands[source], g_tim3_heartbeat, command);
+    if (!found) {
+        source ^= 1u;
+        found = VoiceCommand_Take(&voice_commands[source], g_tim3_heartbeat, command);
+    }
+    if (found) next_command_source = (uint8_t)(source ^ 1u);
     __set_PRIMASK(primask);
     return found;
 }

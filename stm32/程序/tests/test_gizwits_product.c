@@ -6,6 +6,7 @@
 #include "usb.h"
 #include "motor.h"
 #include "tim2.h"
+#include "MG90S.h"
 
 u8 Humi, Temp, modeee;
 volatile u8 DHT11_DataValid, ADC_DataValid;
@@ -20,6 +21,10 @@ static int timeoutAfter;
 static int timeoutFlag;
 static unsigned int lastChannel;
 static unsigned int lastAction;
+static uint8_t currentScene;
+static uint8_t commandedDoor;
+static unsigned int doorOpenCount;
+static unsigned int doorCloseCount;
 
 void USB_ON(u8 num) { lastChannel = num; lastAction = 1; }
 void USB_OFF(u8 num) { lastChannel = num; lastAction = 0; }
@@ -38,6 +43,11 @@ int USART_GetFlagStatus(void *port, uint16_t flag)
 void __set_FAULTMASK(int mask) { (void)mask; }
 void NVIC_SystemReset(void) { }
 int32_t gizPutData(uint8_t *buf, uint32_t len) { (void)buf; (void)len; return 0; }
+void HomeScene_Apply(uint8_t scene) { currentScene = scene; }
+uint8_t HomeScene_GetCurrent(void) { return currentScene; }
+void MG90S_Open(void) { commandedDoor = MG90S_COMMAND_OPEN; doorOpenCount++; }
+void MG90S_Close(void) { commandedDoor = MG90S_COMMAND_CLOSE; doorCloseCount++; }
+uint8_t MG90S_GetCommandedTarget(void) { return commandedDoor; }
 
 #include "../Gizwits/gizwits_product.c"
 
@@ -71,6 +81,11 @@ int main(void)
     assert(uartWrite(frame, 1) == -2);
     assert(uartWrite(NULL, 1) == -1);
 
+    currentScene = HOME_SCENE_AWAY;
+    incoming.valueSystem_Mode = System_Mode_VALUE1;
+    assert(event(EVENT_System_Mode, &incoming) == 0);
+    assert(modeee == 1 && currentScene == HOME_SCENE_NORMAL);
+
     modeee = 0;
     incoming.valueFan = 1;
     assert(event(EVENT_Fan, &incoming) == 0);
@@ -78,6 +93,38 @@ int main(void)
     incoming.valueFan = 0;
     assert(event(EVENT_Fan, &incoming) == 0);
     assert(lastChannel == 2 && lastAction == 0);
+
+    currentScene = HOME_SCENE_AWAY;
+    incoming.valueDoor_Target = Door_Target_VALUE0;
+    assert(event(EVENT_Door_Target, &incoming) == 0);
+    assert(doorOpenCount == 0 && doorCloseCount == 0);
+    assert(currentScene == HOME_SCENE_AWAY);
+    incoming.valueDoor_Target = Door_Target_VALUE1;
+    assert(event(EVENT_Door_Target, &incoming) == 0);
+    assert(doorOpenCount == 1 && commandedDoor == MG90S_COMMAND_OPEN);
+    assert(currentScene == HOME_SCENE_NORMAL);
+    incoming.valueDoor_Target = Door_Target_VALUE2;
+    assert(event(EVENT_Door_Target, &incoming) == 0);
+    assert(doorCloseCount == 1 && commandedDoor == MG90S_COMMAND_CLOSE);
+    incoming.valueDoor_Target = Door_Target_VALUE_MAX;
+    assert(event(EVENT_Door_Target, &incoming) == -1);
+    assert(doorOpenCount == 1 && doorCloseCount == 1);
+
+    incoming.valueHome_Scene = Home_Scene_VALUE1;
+    assert(event(EVENT_Home_Scene, &incoming) == 0);
+    assert(currentScene == HOME_SCENE_SLEEP);
+    incoming.valueHome_Scene = Home_Scene_VALUE2;
+    assert(event(EVENT_Home_Scene, &incoming) == 0);
+    assert(currentScene == HOME_SCENE_AWAY);
+    incoming.valueLight = 1;
+    assert(event(EVENT_Light, &incoming) == 0);
+    assert(currentScene == HOME_SCENE_NORMAL);
+    incoming.valueHome_Scene = Home_Scene_VALUE0;
+    assert(event(EVENT_Home_Scene, &incoming) == 0);
+    assert(currentScene == HOME_SCENE_NORMAL);
+    incoming.valueHome_Scene = Home_Scene_VALUE_MAX;
+    assert(event(EVENT_Home_Scene, &incoming) == -1);
+    assert(currentScene == HOME_SCENE_NORMAL);
     incoming.valueCurtain = 1;
     assert(event(EVENT_Curtain, &incoming) == 0);
     assert(Curtain_ON_Flag == 1);
@@ -111,6 +158,8 @@ int main(void)
     assert(currentDataPoint.valueset_humi == 90);
     assert(currentDataPoint.valueset_light == 2000);
     assert(currentDataPoint.valueSmoke_Threshold == 2000);
+    assert(currentDataPoint.valueDoor_Target == MG90S_COMMAND_CLOSE);
+    assert(currentDataPoint.valueHome_Scene == HOME_SCENE_NORMAL);
     Temp = 25;
     Humi = 50;
     Lux = 300;

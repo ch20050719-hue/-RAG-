@@ -1,19 +1,8 @@
 #include "MG90S.h"
 #include "MG90S_logic.h"
+#include "MG90S_calibration.h"
 #include "stm32f10x.h"
 #include "system_stm32f10x.h"
-
-#define MG90S_OPEN_PULSE_US 1600u
-#define MG90S_CLOSE_PULSE_US 1400u
-#define MG90S_MAX_PULSE_US \
-    ((MG90S_OPEN_PULSE_US > MG90S_CLOSE_PULSE_US) ? \
-        MG90S_OPEN_PULSE_US : MG90S_CLOSE_PULSE_US)
-
-#if MG90S_OPEN_PULSE_US < 1000u || MG90S_OPEN_PULSE_US > 2000u || \
-    MG90S_CLOSE_PULSE_US < 1000u || MG90S_CLOSE_PULSE_US > 2000u || \
-    MG90S_OPEN_PULSE_US == MG90S_CLOSE_PULSE_US
-#error MG90S pulse values must be distinct and within 1000..2000 us
-#endif
 
 static MG90S_LogicState servo_state = {0u, MG90S_TARGET_OFF};
 static uint8_t servo_clock_valid = 0u;
