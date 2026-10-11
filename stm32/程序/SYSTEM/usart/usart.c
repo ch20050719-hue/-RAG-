@@ -11,6 +11,9 @@
 /* Each UART owns its parser and FIFO; bytes from different links never mix. */
 static volatile VoiceCommandState voice_commands[2] = {{0}};
 static uint8_t next_command_source = 0u;
+static uint8_t environment_tx[ENVIRONMENT_FRAME_SIZE];
+static volatile uint8_t environment_tx_position = 0u;
+static volatile uint8_t environment_tx_busy = 0u;
 
 
 
@@ -171,16 +174,51 @@ void uart3_init(u32 bound)
     usart.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
     usart.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
     USART_Init(USART3, &usart);
+    environment_tx_busy = 0u;
+    environment_tx_position = 0u;
+    USART_ITConfig(USART3, USART_IT_TXE, DISABLE);
     USART_ITConfig(USART3, USART_IT_RXNE, ENABLE);
     USART_Cmd(USART3, ENABLE);
 }
 
+/* One owned frame at a time; TXE drains it without foreground waiting. */
+uint8_t USART3_PublishEnvironment(const EnvironmentSnapshot *snapshot)
+{
+    uint8_t encoded[ENVIRONMENT_FRAME_SIZE];
+    uint8_t i;
+    uint32_t primask;
+    if (!Environment_Encode(snapshot, encoded)) return 0u;
+    primask = __get_PRIMASK();
+    __disable_irq();
+    if (environment_tx_busy) {
+        __set_PRIMASK(primask);
+        return 0u;
+    }
+    for (i = 0u; i < ENVIRONMENT_FRAME_SIZE; ++i) environment_tx[i] = encoded[i];
+    environment_tx_position = 0u;
+    environment_tx_busy = 1u;
+    USART_ITConfig(USART3, USART_IT_TXE, ENABLE);
+    __set_PRIMASK(primask);
+    return 1u;
+}
 void USART3_IRQHandler(void)
 {
     if (USART_GetITStatus(USART3, USART_IT_RXNE) != RESET)
     {
         uint8_t byte = (uint8_t)USART_ReceiveData(USART3);
         VoiceCommand_ReceiveByte(&voice_commands[1], byte, g_tim3_heartbeat);
+    }
+    if (USART_GetITStatus(USART3, USART_IT_TXE) != RESET)
+    {
+        if (environment_tx_busy) {
+            USART_SendData(USART3, environment_tx[environment_tx_position++]);
+            if (environment_tx_position == ENVIRONMENT_FRAME_SIZE) {
+                USART_ITConfig(USART3, USART_IT_TXE, DISABLE);
+                environment_tx_busy = 0u;
+            }
+        } else {
+            USART_ITConfig(USART3, USART_IT_TXE, DISABLE);
+        }
     }
 }
 

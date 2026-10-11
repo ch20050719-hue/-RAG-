@@ -1,6 +1,7 @@
 #ifndef __USART_H
 #define __USART_H
 #include "stdio.h"	
+#include "environment_protocol.h"
 #include "sys.h" 
 
 #define USART_REC_LEN  			200  	//定义最大接收字节数 200
@@ -15,6 +16,7 @@ uint8_t USART1_TakeCommand(uint8_t *command);
 void uart1_init(u32 bound);
 void uart2_init(u32 bound);
 void uart3_init(u32 bound);
+uint8_t USART3_PublishEnvironment(const EnvironmentSnapshot *snapshot);
 #endif
 
 

@@ -1,5 +1,6 @@
 #include "usart.h"
 #include <string.h>
+#include "environment_protocol.h"
 
 /* Exercise production usart.c and voice_command.c, replacing only hardware. */
 void uart3_init(u32 bound);
@@ -13,7 +14,9 @@ static uint32_t apb1, apb2, primask, disable_count, restore_count;
 static GPIO_InitTypeDef pins[2][16];
 static USART_InitTypeDef uart_configs[3];
 static NVIC_InitTypeDef irq_configs[4];
-static int rx_enabled[3], uart_enabled[3], rx_pending[3];
+static int rx_enabled[3], uart_enabled[3], rx_pending[3], tx_enabled[3];
+static uint8_t transmitted[64];
+static unsigned transmitted_count;
 static uint8_t giz_bytes[8];
 static uint32_t giz_count;
 static int failures;
@@ -30,14 +33,20 @@ void GPIO_Init(GPIO_TypeDef *port, GPIO_InitTypeDef *config) {
 void NVIC_Init(NVIC_InitTypeDef *config) { irq_configs[config->NVIC_IRQChannel] = *config; }
 void USART_Init(USART_TypeDef *uart, USART_InitTypeDef *config) { uart_configs[uart - test_usarts] = *config; }
 void USART_ITConfig(USART_TypeDef *uart, int interrupt, int enable) {
-    CHECK(interrupt == USART_IT_RXNE); rx_enabled[uart - test_usarts] = enable;
+    if (interrupt == USART_IT_RXNE) rx_enabled[uart - test_usarts] = enable;
+    else { CHECK(interrupt == USART_IT_TXE); tx_enabled[uart - test_usarts] = enable; }
 }
 void USART_Cmd(USART_TypeDef *uart, int enable) { uart_enabled[uart - test_usarts] = enable; }
 int USART_GetITStatus(USART_TypeDef *uart, int interrupt) {
-    CHECK(interrupt == USART_IT_RXNE); return rx_pending[uart - test_usarts];
+    if (interrupt == USART_IT_RXNE) return rx_pending[uart - test_usarts];
+    CHECK(interrupt == USART_IT_TXE); return tx_enabled[uart - test_usarts];
 }
 uint8_t USART_ReceiveData(USART_TypeDef *uart) {
     rx_pending[uart - test_usarts] = 0; return (uint8_t)uart->DR;
+}
+void USART_SendData(USART_TypeDef *uart, uint16_t value) {
+    CHECK(uart == USART3); CHECK(transmitted_count < sizeof transmitted);
+    if (transmitted_count < sizeof transmitted) transmitted[transmitted_count++] = (uint8_t)value;
 }
 uint32_t __get_PRIMASK(void) { return primask; }
 void __disable_irq(void) { primask = 1; ++disable_count; }
@@ -71,6 +80,7 @@ static void test_configuration(void) {
     CHECK(uart_configs[2].USART_Parity == USART_Parity_No);
     CHECK(uart_configs[2].USART_HardwareFlowControl == USART_HardwareFlowControl_None);
     CHECK(uart_configs[2].USART_Mode == (USART_Mode_Rx | USART_Mode_Tx));
+    CHECK(!tx_enabled[0] && !tx_enabled[1] && !tx_enabled[2]);
     CHECK(rx_enabled[0] && rx_enabled[1] && rx_enabled[2]);
     CHECK(uart_enabled[0] && uart_enabled[1] && uart_enabled[2]);
     CHECK(irq_configs[3].NVIC_IRQChannelCmd == ENABLE);
@@ -117,8 +127,62 @@ static void test_cloud_unchanged(void) {
     CHECK(!USART1_TakeCommand(&command));
     USART3_IRQHandler(); CHECK(!USART1_TakeCommand(&command));
 }
+static void test_environment(void) {
+    EnvironmentSnapshot snapshot = {1, 1, 25, 60, 2048, 100, 200};
+    uint8_t expected[18], command;
+    unsigned i;
+    CHECK(Environment_Encode(&snapshot, expected));
+    CHECK(expected[0] == 0xF4 && expected[1] == 8 && expected[2] == 1);
+    CHECK(expected[3] == 3 && expected[4] == 25 && expected[5] == 60);
+    CHECK(expected[6] == 0 && expected[7] == 8 && expected[8] == 100);
+    CHECK(expected[12] == 200 && expected[17] == 0xFB);
+    { uint8_t checksum = 0; for (i = 1; i <= 15; ++i) checksum ^= expected[i];
+      CHECK(expected[16] == checksum); }
+    CHECK(!Environment_Encode(0, expected)); CHECK(!Environment_Encode(&snapshot, 0));
+    CHECK(!USART3_PublishEnvironment(0));
+    primask = 1;
+    CHECK(USART3_PublishEnvironment(&snapshot)); CHECK(primask == 1);
+    CHECK(tx_enabled[2] && transmitted_count == 0);
+    CHECK(!USART3_PublishEnvironment(&snapshot));
+    primask = 0;
+    for (i = 0; i < 18; ++i) {
+        if (i == 3) { frame(0, 1); frame(2, 10); }
+        USART3_IRQHandler();
+    }
+    CHECK(!tx_enabled[2] && transmitted_count == 18);
+    CHECK(memcmp(expected, transmitted, 18) == 0);
+    CHECK(USART1_TakeCommand(&command) && command == 1);
+    CHECK(USART1_TakeCommand(&command) && command == 10);
+    CHECK(!USART1_TakeCommand(&command));
+    USART3_IRQHandler(); CHECK(transmitted_count == 18);
+    snapshot.adc_valid = 0;
+    CHECK(Environment_Encode(&snapshot, expected) && expected[3] == 1);
+    snapshot.adc_valid = 1; snapshot.dht_age_ms = 3001;
+    CHECK(Environment_Encode(&snapshot, expected) && expected[3] == 2);
+    snapshot.dht_valid = 0; snapshot.adc_age_ms = 3001;
+    CHECK(Environment_Encode(&snapshot, expected) && expected[3] == 0);
+    snapshot.dht_valid = 1; snapshot.dht_age_ms = 3000; snapshot.adc_age_ms = 3000;
+    snapshot.temperature_c = 50; snapshot.humidity_percent = 100; snapshot.light_raw = 4096;
+    CHECK(Environment_Encode(&snapshot, expected) && expected[3] == 3);
+    snapshot.temperature_c = 51;
+    CHECK(Environment_Encode(&snapshot, expected) && expected[3] == 2);
+    snapshot.temperature_c = 25; snapshot.humidity_percent = 101;
+    CHECK(Environment_Encode(&snapshot, expected) && expected[3] == 2);
+    snapshot.humidity_percent = 60; snapshot.light_raw = 4097;
+    CHECK(Environment_Encode(&snapshot, expected) && expected[3] == 1);
+    snapshot.light_raw = 0;
+    CHECK(Environment_Encode(&snapshot, expected) && expected[3] == 1);
+    snapshot.light_raw = 1; snapshot.dht_age_ms = 0xFFFFFFFFu;
+    snapshot.adc_age_ms = 0x12345678u;
+    CHECK(Environment_Encode(&snapshot, expected) && expected[3] == 0);
+    CHECK(expected[8] == 255 && expected[11] == 255);
+    CHECK(expected[12] == 0x78 && expected[15] == 0x12);
+    CHECK(USART3_PublishEnvironment(&snapshot));
+    for (i = 0; i < 18; ++i) USART3_IRQHandler();
+    CHECK(transmitted_count == 36 && memcmp(expected, transmitted + 18, 18) == 0);
+}
 int main(void) {
-    test_configuration(); test_independent_streams(); test_fairness_and_modes(); test_cloud_unchanged();
+    test_configuration(); test_independent_streams(); test_fairness_and_modes(); test_cloud_unchanged(); test_environment();
     if (!failures) puts("USART1/USART3 isolation, fairness, configuration and USART2 regression passed");
     return failures ? 1 : 0;
 }
