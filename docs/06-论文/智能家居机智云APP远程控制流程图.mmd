@@ -1,0 +1,82 @@
+---
+config:
+  theme: base
+  themeVariables:
+    primaryColor: "#EAF3FF"
+    primaryTextColor: "#17324D"
+    primaryBorderColor: "#4D7FB8"
+    lineColor: "#586B7C"
+    secondaryColor: "#EDF8F3"
+    tertiaryColor: "#FFF5E8"
+    fontFamily: "Microsoft YaHei, Noto Sans CJK SC, sans-serif"
+    fontSize: "16px"
+---
+flowchart TB
+    subgraph SYSTEM["机智云 APP 智能家居模型远程控制流程"]
+        direction TB
+
+        subgraph REMOTE["手机端与云端通信"]
+            direction LR
+            APP["机智云 APP<br/>固定设备控件"]
+            CLOUD["机智云云端<br/>设备绑定 / 数据点路由"]
+            ESP["ESP8266 Wi-Fi<br/>USART2：9600，8N1"]
+            APP -->|控制数据点| CLOUD
+            CLOUD -->|云端下发| ESP
+        end
+
+        RX["STM32F103C8T6<br/>机智云 MCU SDK 接收并解析"]
+        CHECK{"数据点白名单与<br/>取值范围校验"}
+        SAFE["安全控制判断<br/>固定动作映射 / 重复命令幂等 / 动作限时"]
+        DRIVER["调用对应设备驱动"]
+        REJECT["拒绝执行无效命令<br/>反馈命令未确认"]
+
+        ESP -->|UART 串口| RX
+        RX --> CHECK
+        CHECK -->|有效| SAFE
+        CHECK -->|无效| REJECT
+        SAFE --> DRIVER
+
+        subgraph DEVICES["低压桌面模型执行器"]
+            direction LR
+            LED["LED"]
+            FAN["5V 风扇"]
+            WINDOW["28BYJ 窗户机构"]
+            LOCK["MG90S 舵机锁门装置"]
+        end
+        DRIVER --> LED
+        DRIVER --> FAN
+        DRIVER --> WINDOW
+        DRIVER --> LOCK
+
+        subgraph SENSORS["环境采集"]
+            direction LR
+            DHT["DHT11<br/>温度 / 湿度"]
+            SMOKE["MQ-2<br/>烟雾原始 ADC"]
+            SAMPLE["周期采样"]
+            DHT --> SAMPLE
+            SMOKE --> SAMPLE
+        end
+
+        STATE["汇总命令结果与环境数据"]
+        REPORT["通过 ESP8266 与机智云云端回传"]
+        APP_RESULT["机智云 APP 刷新状态<br/>显示目标状态与环境读数"]
+        DRIVER --> STATE
+        REJECT --> STATE
+        SAMPLE --> STATE
+        STATE --> REPORT --> APP_RESULT
+    end
+
+    INNOVATION["项目创新设计<br/>APP 直接控制实体模型；STM32 校验数据点并安全映射动作；命令结果和环境读数回传，形成端云闭环"]
+    INNOVATION -.-> CHECK
+
+    classDef app fill:#EAF3FF,stroke:#4D7FB8,color:#17324D,stroke-width:2px;
+    classDef cloud fill:#EDF8F3,stroke:#4B9276,color:#163E30,stroke-width:2px;
+    classDef mcu fill:#FFF5E8,stroke:#C28A3D,color:#4A3215,stroke-width:2px;
+    classDef device fill:#F3F0FF,stroke:#7A69AF,color:#332A54,stroke-width:2px;
+    classDef innovation fill:#FFF7D6,stroke:#B38B1F,color:#4B3A05,stroke-width:2px;
+    class APP,APP_RESULT app;
+    class CLOUD cloud;
+    class ESP,RX,CHECK,SAFE,DRIVER,REJECT,STATE,REPORT mcu;
+    class LED,FAN,WINDOW,LOCK,DHT,SMOKE,SAMPLE device;
+    class INNOVATION innovation;
+    style SYSTEM fill:#FFFFFF,stroke:#9AAABA,stroke-width:1px;
