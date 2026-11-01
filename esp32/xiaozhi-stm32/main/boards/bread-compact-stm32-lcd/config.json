@@ -1,0 +1,13 @@
+{
+  "type": "bread-compact-stm32-lcd",
+  "target": "esp32s3",
+  "builds": [
+    {
+      "name": "bread-compact-stm32-lcd",
+      "sdkconfig_append": [
+        "CONFIG_BOARD_TYPE_BREAD_COMPACT_STM32_LCD=y",
+        "CONFIG_LCD_ST7735_128X160=y"
+      ]
+    }
+  ]
+}

@@ -75,3 +75,14 @@ NUL
 *.m4v
 *.3gp
 /docs/06-论文/ppt/
+
+# 通用构建与 IDE 输出（来自 Gitee 历史）
+bin-debug/
+bin-release/
+[Oo]bj/
+[Bb]in/
+.settings/
+*.swf
+*.air
+*.ipa
+*.apk
