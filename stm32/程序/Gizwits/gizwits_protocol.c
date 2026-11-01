@@ -16,7 +16,9 @@
 #include "ringBuffer.h"
 #include "gizwits_product.h"
 #include "dataPointTools.h"
+#ifndef GIZWITS_CREDENTIALS_H
 #include "gizwits_credentials.h"
+#endif
 
 /** Protocol global variables **/
 gizwitsProtocol_t gizwitsProtocol;
@@ -603,11 +605,11 @@ static int8_t ICACHE_FLASH_ATTR gizDataPoints2ReportData(dataPoint_t *dataPoints
 * @param [out] outLen The length of the output data
 * @return 0, the implementation of success, non-0, failed
 */
-static int8_t gizProtocolIssuedProcess(char *did, uint8_t *inData, uint32_t inLen, uint8_t *outData, uint32_t *outLen)
+static int8_t gizProtocolIssuedProcess(char *did, uint8_t *inData, uint32_t inLen, uint8_t *outData, uint32_t *outLen, dataPoint_t *currentData)
 {
     uint8_t issuedAction;
 
-    if((NULL == inData)||(NULL == outData)||(NULL == outLen) || inLen == 0)
+    if((NULL == inData)||(NULL == outData)||(NULL == outLen) || (NULL == currentData) || inLen == 0)
     {
         GIZWITS_LOG("gizProtocolIssuedProcess Error , Illegal Param\n");
         return -1;
@@ -629,6 +631,7 @@ static int8_t gizProtocolIssuedProcess(char *did, uint8_t *inData, uint32_t inLe
             break;
         
         case ACTION_READ_DEV_STATUS:
+            if(inLen < DATAPOINT_FLAG_LEN + 1u) return -1;
             GIZWITS_LOG("ACTION_ELONGATE_READ_DEV_STATUS \n");          
             memcpy((uint8_t *)&gizwitsProtocol.waitReportDatapointFlag,&inData[1],DATAPOINT_FLAG_LEN);//拷贝查询FLAG               
             if(DATAPOINT_FLAG_LEN > 1)
@@ -636,11 +639,11 @@ static int8_t gizProtocolIssuedProcess(char *did, uint8_t *inData, uint32_t inLe
                     gizByteOrderExchange((uint8_t *)&gizwitsProtocol.waitReportDatapointFlag,DATAPOINT_FLAG_LEN);
             }
                         
-            if(0 == gizDataPoints2ReportData(&gizwitsProtocol.gizLastDataPoint,gizwitsProtocol.reportData,(uint32_t *)&gizwitsProtocol.reportDataLen))
+            if(0 == gizDataPoints2ReportData(currentData,gizwitsProtocol.reportData,(uint32_t *)&gizwitsProtocol.reportDataLen))
             {  
                 memcpy(outData+1, (uint8_t *)&gizwitsProtocol.reportData, gizwitsProtocol.reportDataLen);
                 outData[0] = ACTION_READ_DEV_STATUS_ACK;
-                *outLen = DATAPOINT_FLAG_LEN + sizeof(gizwitsReport_t)+1;
+                *outLen = gizwitsProtocol.reportDataLen + 1u;
             }
             else
             {
@@ -928,7 +931,7 @@ static int8_t gizProtocolGetOnePacket(rb_t *rb, uint8_t *gizdata, uint16_t *len)
                     {
                         head = (protocolHead_t *)protocolBuff;
                         tmpCount = exchangeBytes(head->len)+4;
-                        if (tmpCount >= MAX_PACKAGE_LEN || tmpCount <= 4)
+                        if (tmpCount >= MAX_PACKAGE_LEN || tmpCount < sizeof(protocolCommon_t))
                         {
                             protocolFlag = 0;
                             protocolCount = 0;
@@ -1022,7 +1025,8 @@ static int8_t gizProtocolWaitAckCheck(protocolHead_t *head)
         return -1;
     }
 
-    if(waitAckHead->cmd+1 == head->cmd)
+    if(gizwitsProtocol.waitAck.flag && waitAckHead->cmd+1 == head->cmd &&
+       waitAckHead->sn == head->sn)
     {
         memset((uint8_t *)&gizwitsProtocol.waitAck, 0, sizeof(protocolWaitAck_t));
     }
@@ -1680,7 +1684,7 @@ int32_t gizwitsHandle(dataPoint_t *currentData)
                 GIZWITS_LOG("flag %x %x \n", recvHead->flags[0], recvHead->flags[1]);
                 //offset = 1;
                
-                if(0 == gizProtocolIssuedProcess(didPtr, gizwitsProtocol.protocolBuf+sizeof(protocolHead_t)+offset, protocolLen-(sizeof(protocolHead_t)+offset+1), ackData, &ackLen))
+                if(0 == gizProtocolIssuedProcess(didPtr, gizwitsProtocol.protocolBuf+sizeof(protocolHead_t)+offset, protocolLen-(sizeof(protocolHead_t)+offset+1), ackData, &ackLen, currentData))
                 {
                     gizProtocolIssuedDataAck(recvHead, ackData, ackLen,recvHead->flags[1]);
                     GIZWITS_LOG("AckData : \n");

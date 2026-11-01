@@ -11,6 +11,8 @@ int main(void)
     uint16_t i;
 
     assert(WindowMotion_GetStatus(state) == WINDOW_MOTION_IDLE);
+    state = WindowMotion_Request(state, 0u);
+    assert(WindowMotion_Next(state).phase == 0u);
     state = WindowMotion_Request(state, 1u);
     assert(WindowMotion_GetStatus(state) == WINDOW_MOTION_OPENING);
     assert(state.target == WINDOW_MOTION_STEPS);
@@ -32,6 +34,8 @@ int main(void)
     }
     assert(state.position == 0u);
     assert(WindowMotion_GetStatus(state) == WINDOW_MOTION_IDLE);
+    assert(WindowMotion_Next(state).phase == 0u);
+    state = WindowMotion_Request(state, 0u);
     assert(WindowMotion_Next(state).phase == 0u);
 
     state = WindowMotion_Request(state, 1u);

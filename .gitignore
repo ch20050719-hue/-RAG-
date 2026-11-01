@@ -18,3 +18,34 @@ NUL
 
 # Read-only firmware baseline includes legacy product credentials.
 /stm32/程序原版，不要i修改/
+
+# 本机个人资料、大体积素材与第三方资料包，不入库
+/2025届毕业论文（设计）选题一览表-最终定稿(1).xls
+/26-27-1通识选修课选课名单.xlsx
+/temp_check.xlsx
+/~$*
+/智能家居智能元控制系统.docx
+/stm32接入DeepSeek.zip
+/视频里面使用到的一些参考资料2/
+/视频里面使用到的一些参考资料2.7z
+/设计仿真/
+/esp32/
+/docs/09-stm32ziliao/
+/docs/08--pcb/
+
+# 编译与构建产物
+*.o
+*.obj
+*.axf
+*.hex
+*.map
+*.crf
+*.dep
+*.lnp
+*.lst
+*.bak
+/stm32/servo_door/build/
+/MP3/**/Firmware_2.0.0.bin
+/test_gizwits_product.obj
+/test_gizwits_protocol.obj
+.tmp_untracked.txt

@@ -92,75 +92,55 @@ int8_t gizwitsEventProcess(eventInfo_t *info, uint8_t *gizdata, uint32_t len)
         return -1;
     }
 
+    /* Apply mode and its cleanup before any actions in the same cloud packet. */
+    for(i=0; i<info->num; i++)
+    {
+        if(info->event[i] == EVENT_System_Mode)
+        {
+            currentDataPoint.valueSystem_Mode = dataPointPtr->valueSystem_Mode;
+            if(dataPointPtr->valueSystem_Mode == System_Mode_VALUE0)
+                modeee = 0;
+            else if(dataPointPtr->valueSystem_Mode == System_Mode_VALUE1)
+            {
+                HomeScene_Apply(HOME_SCENE_NORMAL);
+                modeee = 1;
+            }
+            HomeControl_SyncMode();
+            break;
+        }
+    }
+
     for(i=0; i<info->num; i++)
     {
         switch(info->event[i])
         {
-            case EVENT_Light:
+        case EVENT_Light:
             currentDataPoint.valueLight = dataPointPtr->valueLight;
-            GIZWITS_LOG("Evt: EVENT_Light %d \n", currentDataPoint.valueLight);
-            if(0x01 == currentDataPoint.valueLight)
+            if(modeee == 0)
             {
-                if(modeee==0)
-                {
-                    HomeScene_Apply(HOME_SCENE_NORMAL);
-                    USB_ON(1);
-                }
-            //user handle
-            }
-            else
-            {
-                if(modeee==0)
-                {
-                    HomeScene_Apply(HOME_SCENE_NORMAL);
-                    USB_OFF(1);
-                }
-            //user handle    
+                HomeScene_Apply(HOME_SCENE_NORMAL);
+                if(currentDataPoint.valueLight == 1) USB_ON(1);
+                else USB_OFF(1);
             }
             break;
+
         case EVENT_Fan:
             currentDataPoint.valueFan = dataPointPtr->valueFan;
-            GIZWITS_LOG("Evt: EVENT_Fan %d \n", currentDataPoint.valueFan);
-            if(0x01 == currentDataPoint.valueFan)
+            if(modeee == 0)
             {
-                if(modeee==0)
-                {
-                    HomeScene_Apply(HOME_SCENE_NORMAL);
-                    USB_ON(2);
-                }
-                    
-            //user handle
-            }
-            else
-            {
-                if(modeee==0)
-                {
-                    HomeScene_Apply(HOME_SCENE_NORMAL);
-                    USB_OFF(2);
-                }
-            //user handle    
+                HomeScene_Apply(HOME_SCENE_NORMAL);
+                if(currentDataPoint.valueFan == 1) USB_ON(2);
+                else USB_OFF(2);
             }
             break;
+
         case EVENT_Curtain:
             currentDataPoint.valueCurtain = dataPointPtr->valueCurtain;
-            GIZWITS_LOG("Evt: EVENT_Curtain %d \n", currentDataPoint.valueCurtain);
-            if(0x01 == currentDataPoint.valueCurtain)
+            if(modeee == 0)
             {
-                if(modeee==0)
-                {
-                    HomeScene_Apply(HOME_SCENE_NORMAL);
-                    Curtain_ON_Flag = 1;
-                }
-            //user handle
-            }
-            else
-            {
-                if(modeee==0)
-                {
-                    HomeScene_Apply(HOME_SCENE_NORMAL);
-                    Curtain_OFF_Flag = 1;
-                }
-            //user handle    
+                HomeScene_Apply(HOME_SCENE_NORMAL);
+                Curtain_ON_Flag = currentDataPoint.valueCurtain == 1;
+                Curtain_OFF_Flag = !Curtain_ON_Flag;
             }
             break;
 
@@ -185,25 +165,6 @@ int8_t gizwitsEventProcess(eventInfo_t *info, uint8_t *gizdata, uint32_t len)
                 return -1;
             HomeScene_Apply((uint8_t)dataPointPtr->valueHome_Scene);
             currentDataPoint.valueHome_Scene = HomeScene_GetCurrent();
-            break;
-
-        case EVENT_System_Mode:
-            currentDataPoint.valueSystem_Mode = dataPointPtr->valueSystem_Mode;
-            GIZWITS_LOG("Evt: EVENT_System_Mode %d\n", currentDataPoint.valueSystem_Mode);
-            switch(currentDataPoint.valueSystem_Mode)
-            {
-            case System_Mode_VALUE0://手动
-                modeee=0;
-                //user handle
-                break;
-            case System_Mode_VALUE1://自动
-                HomeScene_Apply(HOME_SCENE_NORMAL);
-                modeee=1;
-                //user handle
-                break;
-            default:
-                break;
-            }
             break;
 
         case EVENT_set_temp:

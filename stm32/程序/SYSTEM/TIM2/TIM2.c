@@ -12,7 +12,6 @@ extern    u8 Curtain_OFF_Flag;
 extern    u8 Curtain_ON_Flag;
 // ����ȫ�ֱ�������¼��һ�ε�ģʽ״̬
 static uint8_t last_mode = 0;
-static uint8_t first_switch_to_manual = 0;
 static volatile uint8_t current_home_scene = HOME_SCENE_NORMAL;
 static AutoControlState auto_control_state = {0u, 0u, 0u, 0u};
 
@@ -22,27 +21,24 @@ void HomeScene_Apply(uint8_t scene)
     {
         current_home_scene = HOME_SCENE_NORMAL;
     }
-    else if (scene == HOME_SCENE_SLEEP)
+    else if (scene == HOME_SCENE_SLEEP || scene == HOME_SCENE_AWAY)
     {
-        /* Sleep: fan on, light off, door close/lock target. */
+        /* Both presets use manual control, light off and a closed door target. */
         modeee = 0u;
         last_mode = 0u;
-        first_switch_to_manual = 0u;
-        USB_ON(2);
         USB_OFF(1);
         MG90S_Close();
-        current_home_scene = HOME_SCENE_SLEEP;
-    }
-    else if (scene == HOME_SCENE_AWAY)
-    {
-        /* Away: light off, fan off, door close target. */
-        modeee = 0u;
-        last_mode = 0u;
-        first_switch_to_manual = 0u;
-        USB_OFF(1);
-        USB_OFF(2);
-        MG90S_Close();
-        current_home_scene = HOME_SCENE_AWAY;
+        if (scene == HOME_SCENE_SLEEP)
+        {
+            USB_ON(2);
+            Curtain_ON_Flag = 0u;
+            Curtain_OFF_Flag = 1u;
+        }
+        else
+        {
+            USB_OFF(2);
+        }
+        current_home_scene = scene;
     }
 }
 
@@ -245,10 +241,30 @@ void TIM1_UP_IRQHandler(void)	//2ms��ʱ�ж�
 	}
 }
 
+/* Apply mode cleanup before device commands, even during provisioning feedback. */
+void HomeControl_SyncMode(void)
+{
+    if (!modeee)
+    {
+        const AutoControlState clear_state = {0u, 0u, 0u, 0u};
+        auto_control_state = clear_state;
+        if (last_mode)
+        {
+            Buzzer_OFF();
+            USB_OFF(1);
+            USB_OFF(2);
+            Curtain_ON_Flag = 0u;
+            Curtain_OFF_Flag = 1u;
+        }
+    }
+    last_mode = modeee ? 1u : 0u;
+}
 void HomeControl_Process(uint8_t pause_auto)
 {
 uint8_t command = 0u;
-uint8_t has_command = USART1_TakeCommand(&command);
+uint8_t has_command;
+HomeControl_SyncMode();
+has_command = USART1_TakeCommand(&command);
     if (has_command)
     {
     if (command >= 0x01u && command <= MG90S_CMD_CLOSE)
@@ -275,10 +291,12 @@ uint8_t has_command = USART1_TakeCommand(&command);
             break;
             
         case 0x05:  // ������
+                Curtain_OFF_Flag = 0u;
                 Curtain_ON_Flag = 1;
             break;
             
         case 0x06:  // �ش���
+                Curtain_ON_Flag = 0u;
                 Curtain_OFF_Flag = 1;
             break;
             
@@ -302,6 +320,17 @@ uint8_t has_command = USART1_TakeCommand(&command);
             HomeScene_Apply(HOME_SCENE_SLEEP);
             break;
 
+        case HOME_SCENE_CMD_WAKEUP:
+            /* Keep the window target and prevent later mode cleanup. */
+            modeee = 0u;
+            last_mode = 0u;
+            Buzzer_OFF();
+            USB_ON(1);
+            USB_OFF(2);
+            MG90S_Open();
+            current_home_scene = HOME_SCENE_NORMAL;
+            break;
+
         case HOME_SCENE_CMD_AWAY:
             HomeScene_Apply(HOME_SCENE_AWAY);
             break;
@@ -310,12 +339,10 @@ uint8_t has_command = USART1_TakeCommand(&command);
             break;
     }
 }
+HomeControl_SyncMode();
 if (pause_auto) return;
 if(modeee) // �Զ�ģʽ mode == 1
 {
-    // ��¼��ǰΪ�Զ�ģʽ
-    last_mode = 1;
-    first_switch_to_manual = 1; // ���ñ�־��Ϊ�´��л���׼��
     // 2. ��ʼ�����豸���Ʊ�־
     uint8_t temp_alert;
     uint8_t humi_alert;
@@ -419,31 +446,4 @@ if(modeee) // �Զ�ģʽ mode == 1
         USB_OFF(1); // �رյƹ�
     }
 }
-else // �ֶ�ģʽ
-{
-    /* Manual mode starts the next automatic session without stale latches. */
-    const AutoControlState clear_state = {0u, 0u, 0u, 0u};
-    auto_control_state = clear_state;
-    // ����Ƿ�մ��Զ�ģʽ�л��������״��л���
-    if(last_mode == 1 && first_switch_to_manual) 
-    {
-        // ִֻ��һ�Σ��ر�����������
-        Buzzer_OFF();      // �رշ�����
-        USB_OFF(1);        // �رյƹ�
-        USB_OFF(2);        // �رշ���
-        Curtain_OFF_Flag = 1;
-        // ���ñ�־��ȷ��ִֻ��һ��
-        first_switch_to_manual = 0;
-        
-        // ��������������Ҫ�رյ��豸
-        // USB_OFF(3);  // ����������豸
-    }
-    
-    // ��¼��ǰΪ�ֶ�ģʽ
-    last_mode = 0;
-    
-    // �ֶ�ģʽ�µ����������߼�
-    // �����û�ͨ�����水ť�����豸��
 }
-}
-

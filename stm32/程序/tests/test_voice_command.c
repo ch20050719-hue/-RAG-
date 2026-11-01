@@ -19,7 +19,13 @@ int main(void)
     uint8_t command = 0u;
     uint8_t i;
 
-    send_frame(&state, 0x05u, 10u);
+    send_frame(&state, 0x0Bu, 0u);
+    send_frame(&state, 0x0Du, 5u);
+    assert(VoiceCommand_Take(&state, 9u, &command) && command == 0x0Bu);
+    assert(VoiceCommand_Take(&state, 9u, &command) && command == 0x0Du);
+    send_frame(&state, 0x0Eu, 10u);
+    assert(!VoiceCommand_Take(&state, 14u, &command));
+    send_frame(&state, 0x05u, 20u);
     send_frame(&state, 0x06u, 20u);
     assert(VoiceCommand_Take(&state, 30u, &command) && command == 0x05u);
     assert(VoiceCommand_Take(&state, 30u, &command) && command == 0x06u);

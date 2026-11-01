@@ -4,15 +4,25 @@
 
 #include "stubs/gizwits_credentials.h"
 #include "../Gizwits/gizwits_protocol.c"
+#include "../Utils/ringBuffer.c"
+#include "../Utils/common.c"
 
 static uint32_t fakeTime;
 static int32_t fakeUartResult;
 static unsigned uartCalls;
+static uint8_t lastTx[RB_MAX_LEN];
+static uint32_t lastTxLen;
+static unsigned lightEvents;
+static uint8_t hardwareLight;
 uint32_t gizGetTimerCount(void) { return fakeTime; }
-int32_t uartWrite(uint8_t *buf, uint32_t len) { (void)buf; uartCalls++; return fakeUartResult ? fakeUartResult : (int32_t)len; }
-uint8_t gizProtocolSum(uint8_t *buf, uint32_t len) { (void)buf; (void)len; return 0; }
-uint16_t exchangeBytes(uint16_t value) { return (uint16_t)((value << 8) | (value >> 8)); }
-uint32_t exchangeWord(uint32_t value) { return value; }
+int32_t uartWrite(uint8_t *buf, uint32_t len)
+{
+    assert(len <= sizeof(lastTx));
+    memcpy(lastTx, buf, len);
+    lastTxLen = len;
+    uartCalls++;
+    return fakeUartResult ? fakeUartResult : (int32_t)len;
+}
 uint32_t gizY2X(uint32_t ratio, int32_t addition, int32_t value)
 {
     return (uint32_t)((value - addition) / (int32_t)ratio);
@@ -27,15 +37,19 @@ int32_t gizVarlenCompressValue(uint32_t offset, uint32_t bits, uint8_t *buf, uin
     }
     return 0;
 }
-int8_t rbCreate(rb_t *rb) { (void)rb; return 0; }
-int32_t rbCanRead(rb_t *rb) { (void)rb; return 0; }
-int32_t rbRead(rb_t *rb, void *data, size_t count)
-{ (void)rb; (void)data; (void)count; return 0; }
-int32_t rbWrite(rb_t *rb, const void *data, size_t count)
-{ (void)rb; (void)data; return (int32_t)count; }
 void mcuRestart(void) { }
 int8_t gizwitsEventProcess(eventInfo_t *info, uint8_t *data, uint32_t len)
-{ (void)info; (void)data; (void)len; return 0; }
+{
+    unsigned i;
+    (void)len;
+    for(i = 0; i < info->num; i++)
+        if(info->event[i] == EVENT_Light)
+        {
+            lightEvents++;
+            hardwareLight = ((dataPoint_t *)data)->valueLight;
+        }
+    return 0;
+}
 
 /* Exercise the production decoder with the same bit and ratio rules as the utility layer. */
 int8_t gizByteOrderExchange(uint8_t *buf, uint32_t len)
@@ -225,6 +239,154 @@ static void testProvisionPriority(void)
     assert(gizwitsProtocol.gizLastDataPoint.valueFan == 1u);
 }
 
+static unsigned remoteFailures;
+#define CHECK_REMOTE(condition, message) do { \
+    if(!(condition)) { printf("FAIL: %s\n", message); remoteFailures++; } \
+} while(0)
+
+/* Feed the actual UART entry point, including FF escaping and the real checksum. */
+static void feedWire(const uint8_t *packet, size_t length)
+{
+    size_t i;
+    for(i = 0; i < length; i++)
+    {
+        uint8_t byte = packet[i];
+        assert(gizPutData(&byte, 1u) == 1);
+        if(i >= 2u && byte == 0xFFu)
+        {
+            byte = 0x55u;
+            assert(gizPutData(&byte, 1u) == 1);
+        }
+    }
+}
+
+static void feedPacket(uint8_t command, uint8_t sn, const uint8_t *payload, size_t length)
+{
+    uint8_t packet[MAX_PACKAGE_LEN] = {0xFFu, 0xFFu};
+    size_t total = sizeof(protocolHead_t) + length + 1u;
+    assert(total < sizeof(packet));
+    packet[3] = (uint8_t)(total - 4u);
+    packet[4] = command;
+    packet[5] = sn;
+    if(length) memcpy(packet + sizeof(protocolHead_t), payload, length);
+    packet[total - 1u] = gizProtocolSum(packet, (uint32_t)total);
+    feedWire(packet, total);
+}
+
+static void resetRemote(void)
+{
+    fakeTime = 0u;
+    fakeUartResult = 0;
+    uartCalls = lightEvents = 0u;
+    hardwareLight = 0u;
+    lastTxLen = 0u;
+    gizwitsInit();
+    gizwitsPauseReporting(1u);
+}
+
+static void testShortPackets(void)
+{
+    const uint8_t control[] = {ACTION_CONTROL_DEVICE, 0u, 1u, 1u};
+    const uint8_t readShort[] = {ACTION_READ_DEV_STATUS, 0u};
+    dataPoint_t current = {0};
+    unsigned total;
+    resetRemote();
+    for(total = 5u; total < sizeof(protocolCommon_t); total++)
+    {
+        uint8_t shortPacket[8] = {0xFFu, 0xFFu, 0u, 0u, CMD_ISSUED_P0};
+        unsigned before;
+        feedPacket(CMD_ISSUED_P0, 0x10u, control, sizeof(control));
+        gizwitsHandle(&current);
+        hardwareLight = 0u; /* Local operation occurs after the valid remote command. */
+        before = lightEvents;
+        shortPacket[3] = (uint8_t)(total - 4u);
+        shortPacket[total - 1u] = gizProtocolSum(shortPacket, total);
+        feedWire(shortPacket, total);
+        gizwitsHandle(&current);
+        CHECK_REMOTE(lightEvents == before && hardwareLight == 0u,
+                     "short frame must not replay a previous light command");
+    }
+    { unsigned before = uartCalls;
+      feedPacket(CMD_ISSUED_P0, 0x20u, NULL, 0u);
+      gizwitsHandle(&current);
+      feedPacket(CMD_ISSUED_P0, 0x21u, readShort, sizeof(readShort));
+      gizwitsHandle(&current);
+      CHECK_REMOTE(uartCalls == before, "missing action/query flags must not receive a successful reply"); }
+    /* A rejected packet must not prevent a later valid, escaped packet. */
+    feedPacket(CMD_ISSUED_P0, 0xFFu, control, sizeof(control));
+    gizwitsHandle(&current);
+    CHECK_REMOTE(hardwareLight == 1u && lastTx[5] == 0xFFu,
+                 "valid escaped control works after rejected short packets");
+}
+
+static void testAckSequence(void)
+{
+    dataPoint_t current = {0};
+    uint8_t sn;
+    unsigned before;
+    resetRemote();
+    gizwitsPauseReporting(0u);
+    current.valueLight = 1u;
+    gizDevReportPolicy(&current);
+    sn = gizwitsProtocol.waitAck.buf[5];
+    feedPacket(ACK_REPORT_P0, (uint8_t)(sn + 1u), NULL, 0u);
+    gizwitsHandle(&current);
+    CHECK_REMOTE(gizwitsProtocol.waitAck.flag, "wrong SN ACK must keep the pending packet");
+    before = uartCalls;
+    fakeTime += SEND_MAX_TIME + 1u;
+    gizwitsHandle(&current);
+    CHECK_REMOTE(uartCalls == before + 1u && gizwitsProtocol.waitAck.buf[5] == sn,
+                 "wrong SN ACK must not stop retransmission with the original SN");
+    feedPacket(ACK_REPORT_P0, sn, NULL, 0u);
+    gizwitsHandle(&current);
+    CHECK_REMOTE(!gizwitsProtocol.waitAck.flag, "matching ACK must clear the pending packet");
+    current.valueFan = 1u;
+    gizDevReportPolicy(&current);
+    feedPacket(ACK_REPORT_P0, sn, NULL, 0u);
+    gizwitsHandle(&current);
+    CHECK_REMOTE(gizwitsProtocol.waitAck.flag, "duplicate old ACK must not cancel the next report");
+    sn = gizwitsProtocol.waitAck.buf[5];
+    feedPacket(ACK_WIFI_CONFIG, sn, NULL, 0u);
+    gizwitsHandle(&current);
+    CHECK_REMOTE(gizwitsProtocol.waitAck.flag, "matching SN with wrong command must not clear a report");
+    feedPacket(ACK_REPORT_P0, sn, NULL, 0u);
+    gizwitsHandle(&current);
+    CHECK_REMOTE(!gizwitsProtocol.waitAck.flag, "next report accepts its own ACK");
+}
+
+static void testCurrentStatusQueries(void)
+{
+    const uint8_t lightQuery[] = {ACTION_READ_DEV_STATUS, 0u, 1u};
+    const uint8_t tempQuery[] = {ACTION_READ_DEV_STATUS, 0u, 0x80u};
+    const uint8_t fullQuery[] = {ACTION_READ_DEV_STATUS, 0x7Fu, 0xFFu};
+    dataPoint_t current = {0};
+    resetRemote();
+    /* Keep an older report pending while current controls and sensor values change. */
+    gizwitsPauseReporting(0u);
+    current.valueFan = 1u;
+    gizDevReportPolicy(&current);
+    current.valueLight = 1u;
+    current.valuetemp = 26u;
+    feedPacket(CMD_ISSUED_P0, 0x31u, lightQuery, sizeof(lightQuery));
+    gizwitsHandle(&current);
+    CHECK_REMOTE(lastTxLen == 13u && exchangeBytes(((protocolHead_t *)lastTx)->len) == 9u,
+                 "single-light query response uses its serialized length");
+    CHECK_REMOTE(lastTx[8] == ACTION_READ_DEV_STATUS_ACK && lastTx[11] == 1u,
+                 "query returns the current light, not the last report snapshot");
+    CHECK_REMOTE(lastTx[lastTxLen - 1u] == gizProtocolSum(lastTx, lastTxLen),
+                 "query reply checksum covers its exact response");
+    CHECK_REMOTE(gizwitsProtocol.gizLastDataPoint.valueLight == 0u && gizwitsProtocol.waitAck.flag,
+                 "queries preserve the pending report and its change-detection snapshot");
+    feedPacket(CMD_ISSUED_P0, 0x32u, tempQuery, sizeof(tempQuery));
+    gizwitsHandle(&current);
+    CHECK_REMOTE(lastTxLen == 13u && lastTx[11] == 26u,
+                 "sensor query returns the current reading before the reporting interval");
+    feedPacket(CMD_ISSUED_P0, 0x33u, fullQuery, sizeof(fullQuery));
+    gizwitsHandle(&current);
+    CHECK_REMOTE(lastTxLen == 24u && lastTx[8] == ACTION_READ_DEV_STATUS_ACK,
+                 "full query keeps the existing complete data-point format");
+}
+
 int main(void)
 {
     dataPointFlags_t flags = {0};
@@ -355,5 +517,9 @@ int main(void)
     testReportPolicy();
     testAckTimeoutRecovery();
     testProvisionPriority();
-    return 0;
+    testShortPackets();
+    testAckSequence();
+    testCurrentStatusQueries();
+    printf("remote protocol regression failures: %u\n", remoteFailures);
+    return remoteFailures != 0u;
 }

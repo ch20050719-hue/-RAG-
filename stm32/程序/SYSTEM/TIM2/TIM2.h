@@ -19,9 +19,12 @@ extern uint16_t Smoke_value;
 
 #define HOME_SCENE_CMD_SLEEP 0x0Bu
 #define HOME_SCENE_CMD_AWAY  0x0Cu
+#define HOME_SCENE_CMD_WAKEUP 0x0Du
 
 void AppTimer1_Init(u16 Prescaler, u16 Period);
 uint8_t Provision_TakeRequest(void);
+/* Synchronize mode cleanup before external device commands. */
+void HomeControl_SyncMode(void);
 void HomeControl_Process(uint8_t pause_auto);
 void HomeScene_Apply(uint8_t scene);
 uint8_t HomeScene_GetCurrent(void);

@@ -1,0 +1,27 @@
+[mcp_servers.chrome_devtools]
+command = 'C:\Program Files\nodejs\node.exe'
+args = [
+  'F:\agrnt\tools\cnki-browser\node_modules\chrome-devtools-mcp\build\src\bin\chrome-devtools-mcp.js',
+  '--executablePath=C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe',
+  '--userDataDir=F:\论文方向\大模型+RAG知识库\.local\cache\cnki-browser\profile',
+  '--no-usage-statistics',
+  '--no-performance-crux',
+  '--no-category-performance',
+  '--no-category-memory',
+  '--no-page-id-routing',
+  '--redact-network-headers',
+  '--workspace=F:\论文方向\大模型+RAG知识库\.local'
+]
+startup_timeout_sec = 45
+tool_timeout_sec = 60
+enabled_tools = ['list_pages', 'new_page', 'select_page', 'close_page', 'navigate_page', 'evaluate_script', 'take_snapshot', 'wait_for', 'click', 'fill', 'fill_form']
+
+[mcp_servers.chrome_devtools.env]
+TEMP = 'F:\论文方向\大模型+RAG知识库\.local\tmp\cnki-setup'
+TMP = 'F:\论文方向\大模型+RAG知识库\.local\tmp\cnki-setup'
+TMPDIR = 'F:\论文方向\大模型+RAG知识库\.local\tmp\cnki-setup'
+CHROME_DEVTOOLS_MCP_NO_USAGE_STATISTICS = '1'
+CHROME_DEVTOOLS_MCP_NO_UPDATE_CHECKS = '1'
+CHROME_DEVTOOLS_MCP_NO_CONFIG_DISCOVERY = '1'
+PUPPETEER_CACHE_DIR = 'F:\论文方向\大模型+RAG知识库\.local\cache\cnki-browser'
+XDG_CACHE_HOME = 'F:\论文方向\大模型+RAG知识库\.local\cache\cnki-browser'

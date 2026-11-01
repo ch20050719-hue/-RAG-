@@ -13,5 +13,6 @@ int USART_GetFlagStatus(void *port, uint16_t flag);
 void __set_FAULTMASK(int mask);
 void NVIC_SystemReset(void);
 void HomeScene_Apply(uint8_t scene);
+void HomeControl_SyncMode(void);
 uint8_t HomeScene_GetCurrent(void);
 #endif

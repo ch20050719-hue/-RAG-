@@ -5,7 +5,7 @@
     uint16_t cmd_id = cmd_info_get_command_id(cmd_handle);
     uint16_t uart_cmd_id = 0;
 
-    /* 将新版 cmd_003..cmd_014 转成设备固件使用的命令码。 */
+    /* 将 cmd_003..cmd_015 转成 STM32 使用的命令码。 */
     switch (cmd_id) {
         case 3:  uart_cmd_id = 0x01; break; /* 开灯 */
         case 4:  uart_cmd_id = 0x02; break; /* 关灯 */
@@ -19,6 +19,7 @@
         case 12: uart_cmd_id = 0x0B; break; /* 睡眠：当前STM32固件定义为0x0B */
         case 13: uart_cmd_id = 0x09; break; /* 开门 */
         case 14: uart_cmd_id = 0x0A; break; /* 关门 */
+        case 15: uart_cmd_id = 0x0D; break; /* 起床：开灯、关风扇、开门，保持窗户目标 */
         default: break; /* 唤醒词和未知命令不发送控制帧 */
     }
 

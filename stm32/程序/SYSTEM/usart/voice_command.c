@@ -57,7 +57,7 @@ void VoiceCommand_ReceiveByte(volatile VoiceCommandState *state,
             break;
         default:
             if (byte == 0xFBu && state->frame_command >= 0x01u &&
-                state->frame_command <= 0x0Cu) {
+                state->frame_command <= 0x0Du) {
                 VoiceCommand_Enqueue(state, state->frame_command, now_ms);
             }
             state->frame_state = byte == 0xF4u ? 1u : 0u;

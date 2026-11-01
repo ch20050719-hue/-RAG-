@@ -43,6 +43,7 @@ int USART_GetFlagStatus(void *port, uint16_t flag)
 void __set_FAULTMASK(int mask) { (void)mask; }
 void NVIC_SystemReset(void) { }
 int32_t gizPutData(uint8_t *buf, uint32_t len) { (void)buf; (void)len; return 0; }
+void HomeControl_SyncMode(void) { }
 void HomeScene_Apply(uint8_t scene) { currentScene = scene; }
 uint8_t HomeScene_GetCurrent(void) { return currentScene; }
 void MG90S_Open(void) { commandedDoor = MG90S_COMMAND_OPEN; doorOpenCount++; }

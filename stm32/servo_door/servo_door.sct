@@ -1,0 +1,10 @@
+LR_FLASH 0x08000000 0x00010000 {
+    ER_FLASH 0x08000000 0x00010000 {
+        startup.o (RESET, +First)
+        .ANY (+RO)
+    }
+    RW_RAM 0x20000000 0x00004800 {
+        .ANY (+RW +ZI)
+    }
+    ARM_LIB_STACK 0x20005000 EMPTY -0x800 { }
+}

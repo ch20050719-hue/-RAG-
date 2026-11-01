@@ -128,6 +128,20 @@ int main(void)
 			last_sensor_sample_ms = now_ms;
 			sensor_sampled = 1u;
 			Menu_UpdateSensors(now_ms);
+            {
+                EnvironmentSnapshot environment;
+                uint32_t sampled_ms = g_tim3_heartbeat;
+                environment.dht_valid = DHT11_DataValid;
+                environment.adc_valid = ADC_DataValid;
+                environment.temperature_c = Temp;
+                environment.humidity_percent = Humi;
+                environment.light_raw = Lux;
+                environment.smoke_raw = Smoke;
+                environment.dht_age_ms = sampled_ms - DHT11_LastSuccessMs;
+                environment.adc_age_ms = sampled_ms - ADC_LastSuccessMs;
+                /* If TX is busy, skip this sample; never delay controls. */
+                USART3_PublishEnvironment(&environment);
+            }
 		}
 		if (KeyNum == 44u && Menu == 1u)
 		{
