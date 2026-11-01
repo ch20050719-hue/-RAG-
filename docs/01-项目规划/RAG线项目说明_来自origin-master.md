@@ -1,3 +1,7 @@
+# RAG 线项目说明（原 README.md，来自 origin/master）
+
+> 归档说明：2026-11-01 合并 origin/master 时，仓库同时存在 README.md（RAG 线入口）与 readme.md（STM32 固件线入口）。Windows 文件系统不区分大小写，两者无法共存，故以 readme.md 作为仓库入口，RAG 线原内容归档到此文件。
+
 # RAG 智能家居控制平台
 
 本仓库当前只维护智能家居业务，是一个面向个人知识问答与智能家居控制的全栈应用。RAG 检索、Agent 调度和多轮会话是保留的通用基座；设备工具、安全规则、受控协议桥和 STM32F103C8T6 版本三硬件方案是当前业务扩展，旧 ESP32 仅作历史参考。项目以 FastAPI 提供后端 API，以 Vue 3 + Vite 提供管理与对话界面，并使用 LangChain/LangGraph 编排 RAG 检索、工具调用和多智能体流程。
