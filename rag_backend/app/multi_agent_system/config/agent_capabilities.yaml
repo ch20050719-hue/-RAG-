@@ -1,0 +1,7 @@
+# 兼容旧配置路径：业务能力已统一迁移到 agent_home_capabilities.yaml。
+# CapabilityLoader 默认始终加载智能家居配置，避免部署环境误启用旧领域。
+agents: {}
+routing:
+  default_confidence_threshold: 0.5
+  max_specialists_per_request: 2
+  enable_fallback: true

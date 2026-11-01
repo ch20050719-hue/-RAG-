@@ -1,0 +1,59 @@
+name: CI Backend
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'rag_backend/**'
+      - '.github/workflows/ci-backend.yml'
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'rag_backend/**'
+      - '.github/workflows/ci-backend.yml'
+
+jobs:
+  syntax:
+    name: Python syntax
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: rag_backend
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Compile backend source
+        run: python -m compileall -q app tests/unit
+
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./rag_backend
+          push: false
+          tags: rag-backend-ci:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64

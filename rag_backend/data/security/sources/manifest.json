@@ -1,0 +1,13 @@
+{
+  "generated_at": "2026-09-10",
+  "project": "financial_rag",
+  "purpose": "security rule retrieval and isolated red-team evaluation",
+  "sources": [
+    {"name":"OWASP Top 10 for LLM Applications 2025","path":"OWASP-Top-10-for-LLMs-v2025.pdf","status":"not_downloaded","url":"https://genai.owasp.org/resource/owasp-top-10-for-llm-applications-2025/","license":"CC BY-SA 4.0","note":"Official resource page is retained; the legacy PDF endpoint returned a page-not-found response."},
+    {"name":"NIST AI 600-1 Generative AI Profile","path":"NIST.AI.600-1.pdf","status":"downloaded","url":"https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf","license":"US government publication"},
+    {"name":"ETSI EN 303 645 V3.1.3","path":"ETSI-EN-303-645-v3.1.3.pdf","status":"downloaded","url":"https://www.etsi.org/deliver/etsi_en/303600_303699/303645/03.01.03_60/en_303645v030103p.pdf","license":"ETSI standard terms"},
+    {"name":"Microsoft BIPIA","path":"BIPIA","status":"cloned","url":"https://github.com/microsoft/BIPIA","license":"MIT"},
+    {"name":"S-Labs prompt injection dataset","path":"S-Labs-prompt-injection-dataset","status":"cloned","url":"https://huggingface.co/datasets/S-Labs/prompt-injection-dataset","license":"repository license; review before redistribution"},
+    {"name":"iNLP-Lab multilingual safety","path":"iNLP-Lab-multilingual-safety","status":"cloned","url":"https://huggingface.co/datasets/iNLP-Lab/multilingual-safety","license":"CC BY-NC-4.0"}
+  ]
+}

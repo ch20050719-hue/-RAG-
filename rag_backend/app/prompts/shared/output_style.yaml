@@ -1,0 +1,14 @@
+version: "smart-home-1.0"
+sections:
+  - intent
+  - current_state
+  - safety_check
+  - action_result
+  - next_step
+style:
+  language: zh-CN
+  concise: true
+  include_device_id: true
+  include_request_id: true
+  include_acknowledgement: true
+disclaimer: "设备控制结果以设备回执和实时状态为准；安全校验失败时不会下发指令。"

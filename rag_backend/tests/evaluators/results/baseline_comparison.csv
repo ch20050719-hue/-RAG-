@@ -1,0 +1,5 @@
+﻿Model,Accuracy (%),Faithfulness (%),Hallucination Rate (%),OOD Trap Defense (%),Cross-Domain Coverage (%),Overall Score,Avg Latency (s)
+M1 (Zero-Shot LLM),27.11,37.5,62.5,56.25,88.89,45.18,4.93
+M2 (Vanilla RAG),54.56,64.17,35.83,93.75,86.11,66.66,1.7
+M3 (Multi-Agent w/o Critic),44.14,54.33,45.67,68.75,97.22,59.22,16.57
+M4 (Ours: Full System),56.69,67.67,32.33,100.0,94.44,69.41,17.9
